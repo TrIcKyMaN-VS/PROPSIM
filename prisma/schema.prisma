@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("USER")
+  plan          String    @default("FREE")
+  lastLogin     DateTime?
+  
+  accounts      Account[]
+  sessions      Session[]
+  deviceSessions DeviceSession[]
+  challenges    ChallengeAccount[]
+  playbooks     Playbook[]
+  challengeTemplates ChallengeTemplate[]
+  dailyPerformances DailyPerformance[]
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model DeviceSession {
+  id           String   @id @default(cuid())
+  userId       String
+  userAgent    String?
+  ip           String?
+  expiresAt    DateTime
+  isValid      Boolean  @default(true)
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ChallengeAccount {
+  id         String   @id @default(cuid())
+  userId     String
+  firmId     String
+  sizeLabel  String
+  rules      String   // Stored as JSON string
+  status     String   @default("active") // active, passed, failed
+  failReason String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades     Trade[]
+}
+
+model ChallengeTemplate {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  description      String?
+  balance          Float
+  profitTarget     Float
+  dailyLoss        Float
+  maxDrawdown      Float
+  drawdownType     String   // static, trailing, eod
+  consistencyPct   Float    @default(0)
+  maxContracts     Int
+  minTradingDays   Int
+  maxTradingDays   Int?
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Playbook {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  category         String   // trend, reversal, breakout, etc.
+  marketCondition  String
+  session          String
+  instrument       String
+  entryRules       String   // JSON or text
+  exitRules        String
+  riskRules        String
+  checklist        String   // JSON array string
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades           Trade[]
+}
+
+model Trade {
+  id               String   @id @default(cuid())
+  accountId        String
+  playbookId       String?
+  instrument       String
+  direction        String   // long, short
+  entry            Float
+  exit             Float
+  contracts        Int
+  pnl              Float
+  day              Int      // trading day index
+  timestamp        BigInt   // Using BigInt for js Date.now() timestamp
+  session          String
+  notes            String?
+  tags             String?  // JSON array string
+  
+  confidenceScore  Float?   // From AI reconstruction
+  isReconstructed  Boolean  @default(false)
+
+  account          ChallengeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  playbook         Playbook?        @relation(fields: [playbookId], references: [id], onDelete: SetNull)
+
+  psychology       TradePsychology?
+  screenshots      TradeScreenshot[]
+  lesson           LessonLearned?
+}
+
+model TradePsychology {
+  id               String   @id @default(cuid())
+  tradeId          String   @unique
+  
+  // Pre Trade
+  preFeeling       String?
+  preNotes         String?
+  checklistScore   Int?
+  convictionScore  Int?
+  riskAmount       Float?
+  rewardAmount     Float?
+  expectedValue    Float?
+  
+  // During Trade
+  hesitated        Boolean  @default(false)
+  movedStop        Boolean  @default(false)
+  movedTarget      Boolean  @default(false)
+  addedSize        Boolean  @default(false)
+  emotionAffected  Boolean  @default(false)
+  brokeRules       Boolean  @default(false)
+  
+  // Exit & Review
+  exitReason       String?
+  executionGrade   String?  // A+, A, B, C, D, F
+  psychologyGrade  String?
+  riskGrade        String?
+  complianceGrade  String?
+  decisionScore    Int?     // 0-100 score separating process from outcome
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model TradeScreenshot {
+  id               String   @id @default(cuid())
+  tradeId          String
+  stage            String   // Before Entry, During Trade, After Exit
+  url              String
+  createdAt        DateTime @default(now())
+
+  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model LessonLearned {
+  id               String   @id @default(cuid())
+  tradeId          String   @unique
+  wentWell         String?
+  wentWrong        String?
+  biggestMistake   String?
+  improvement      String?
+  createdAt        DateTime @default(now())
+
+  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model DailyPerformance {
+  id               String   @id @default(cuid())
+  userId           String
+  date             String   // YYYY-MM-DD
+  
+  // Habits
+  sleepHours       Float?
+  exercise         Boolean  @default(false)
+  meditation       Boolean  @default(false)
+  waterIntake      Int?     // in glasses/liters
+  mood             String?  // 1-10 or text
+  
+  // Checklists (Stored as JSON array of completed items)
+  morningChecklist String?
+  eodChecklist     String?
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}

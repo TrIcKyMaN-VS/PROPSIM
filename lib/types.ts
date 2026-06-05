@@ -1,0 +1,75 @@
+// PROPSIM core types — challenge rule engine model
+
+export type DrawdownType = "trailing" | "static" | "eod" | "intraday" | "hybrid"
+
+export type Difficulty = "Easy" | "Moderate" | "Advanced" | "Expert"
+
+export interface ChallengeRules {
+  startingBalance: number
+  profitTarget: number
+  /** max loss allowed in a single trading day (absolute $) */
+  dailyLossLimit: number
+  /** total drawdown allowance (absolute $) */
+  maxDrawdown: number
+  drawdownType: DrawdownType
+  /** trailing drawdown stops trailing once locked at this profit (0 = never locks) */
+  trailingLockProfit?: number
+  maxContracts: number
+  minTradingDays: number
+  maxTradingDays?: number
+  /** highest winning day cannot exceed this % of total profit (0 = no rule) */
+  consistencyPct: number
+}
+
+export interface ChallengeSize {
+  label: string
+  rules: ChallengeRules
+  price: number
+}
+
+export interface PropFirm {
+  id: string
+  name: string
+  shortName: string
+  tagline: string
+  color: string
+  drawdownType: DrawdownType
+  difficulty: Difficulty
+  difficultyScore: number
+  successRate: number
+  payoutSpeed: string
+  pros: string[]
+  cons: string[]
+  challengeTypes: string[]
+  sizes: ChallengeSize[]
+}
+
+export type TradeDirection = "long" | "short"
+
+export interface Trade {
+  id: string
+  accountId: string
+  instrument: string
+  direction: TradeDirection
+  entry: number
+  exit: number
+  contracts: number
+  pnl: number
+  day: number // trading day index (1-based)
+  timestamp: number
+  session: "Asia" | "London" | "New York AM" | "New York PM"
+  notes?: string
+  tags?: string[]
+}
+
+export type AccountStatus = "active" | "passed" | "failed"
+
+export interface ChallengeAccount {
+  id: string
+  firmId: string
+  sizeLabel: string
+  rules: ChallengeRules
+  createdAt: number
+  status: AccountStatus
+  failReason?: string
+}
