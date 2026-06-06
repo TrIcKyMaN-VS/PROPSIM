@@ -2,12 +2,16 @@
 
 import { usePropStore } from "@/lib/store"
 import { useParams, useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Target, ShieldAlert, Brain, FileCheck } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ArrowLeft, Target, ShieldAlert, Brain, FileCheck, Eye, Trash2, Upload, Sparkles, BookOpen, ChevronRight } from "lucide-react"
 import { toast } from "sonner"
 
 export default function TradeDetailsPage() {
@@ -17,6 +21,8 @@ export default function TradeDetailsPage() {
   const tradePsychology = usePropStore(s => s.tradePsychology)
   const playbooks = usePropStore(s => s.playbooks)
   const updateTrade = usePropStore(s => s.updateTrade)
+  const addScreenshot = usePropStore(s => s.addScreenshot)
+  const deleteScreenshot = usePropStore(s => s.deleteScreenshot)
   
   const trade = trades.find(t => t.id === tradeId)
   const psyc = tradePsychology.find(p => p.tradeId === tradeId) || {}
@@ -26,6 +32,11 @@ export default function TradeDetailsPage() {
 
   const saveTradePsychology = usePropStore(s => s.saveTradePsychology)
 
+  // Expanded Image Lightbox State
+  const [expandedImage, setExpandedImage] = useState<string | null>(null)
+  const [expandedStage, setExpandedStage] = useState<string>("")
+
+  // Form State for Psychology
   const [form, setForm] = useState<any>({
     tradeId: tradeId,
     preFeeling: psyc.preFeeling || "",
@@ -44,37 +55,209 @@ export default function TradeDetailsPage() {
     exitReason: psyc.exitReason || "",
     executionGrade: psyc.executionGrade || "",
     psychologyGrade: psyc.psychologyGrade || "",
+    riskGrade: psyc.riskGrade || "",
+    complianceGrade: psyc.complianceGrade || "",
     decisionScore: psyc.decisionScore || 50
   })
+
+  // Core Trade Form State + Pre/Post analysis
+  const [tradeForm, setTradeForm] = useState({
+    instrument: "",
+    direction: "long",
+    entry: "",
+    exit: "",
+    contracts: "",
+    pnl: "",
+    session: "",
+    notes: "",
+    
+    // Pre-Trade
+    tradeIdea: "",
+    marketBias: "Neutral",
+    reasonForEntry: "",
+    expectedRR: "",
+
+    // Post-Trade
+    outcome: "",
+    mistakes: "",
+    lessonsLearned: "",
+    psychologyNotes: ""
+  })
+
+  useEffect(() => {
+    if (trade) {
+      setTradeForm({
+        instrument: trade.instrument || "",
+        direction: trade.direction || "long",
+        entry: trade.entry?.toString() || "",
+        exit: trade.exit?.toString() || "",
+        contracts: trade.contracts?.toString() || "1",
+        pnl: trade.pnl?.toString() || "",
+        session: trade.session || "New York AM",
+        notes: trade.notes || "",
+        
+        // Pre-Trade
+        tradeIdea: trade.tradeIdea || "",
+        marketBias: trade.marketBias || "Neutral",
+        reasonForEntry: trade.reasonForEntry || "",
+        expectedRR: trade.expectedRR || "",
+
+        // Post-Trade
+        outcome: trade.outcome || "",
+        mistakes: trade.mistakes || "",
+        lessonsLearned: trade.lessonsLearned || "",
+        psychologyNotes: trade.psychologyNotes || ""
+      })
+      setCheckedItems(trade.playbookChecklist || {})
+    }
+  }, [trade])
 
   const update = (key: string, val: any) => setForm((s: any) => ({ ...s, [key]: val }))
 
   const handleSave = async () => {
     saveTradePsychology(form)
     if (trade && trade.id) {
-      await updateTrade(trade.id, { playbookChecklist: checkedItems })
+      const entryVal = parseFloat(tradeForm.entry)
+      const exitVal = tradeForm.exit ? parseFloat(tradeForm.exit) : entryVal
+      const pnlVal = tradeForm.pnl ? parseFloat(tradeForm.pnl) : 0.0
+
+      await updateTrade(trade.id, {
+        instrument: tradeForm.instrument,
+        direction: tradeForm.direction as any,
+        entry: entryVal,
+        exit: exitVal,
+        contracts: parseFloat(tradeForm.contracts),
+        pnl: pnlVal,
+        session: tradeForm.session,
+        notes: tradeForm.notes,
+        playbookChecklist: checkedItems,
+        
+        tradeIdea: tradeForm.tradeIdea,
+        marketBias: tradeForm.marketBias,
+        reasonForEntry: tradeForm.reasonForEntry,
+        expectedRR: tradeForm.expectedRR,
+        
+        outcome: tradeForm.outcome,
+        mistakes: tradeForm.mistakes,
+        lessonsLearned: tradeForm.lessonsLearned,
+        psychologyNotes: tradeForm.psychologyNotes
+      })
     }
     toast.success("Trade review saved!")
   }
 
-  if (!trade) return <div className="p-12 text-center">Trade not found</div>
+  const handleUploadScreenshot = (stage: string) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file && trade) {
+      const reader = new FileReader()
+      reader.onloadend = async () => {
+        const base64String = reader.result as string
+        await addScreenshot(trade.id, stage, base64String)
+        toast.success(`${stage} screenshot uploaded successfully`)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const handleDeleteScreenshot = async (stage: string, screenshotId: string) => {
+    if (confirm(`Are you sure you want to delete the ${stage} screenshot?`)) {
+      if (trade) {
+        await deleteScreenshot(trade.id, screenshotId)
+        toast.success(`${stage} screenshot deleted`)
+      }
+    }
+  }
+
+  if (!trade) return <div className="p-12 text-center text-muted-foreground">Trade not found</div>
+
+  const getScreenshotForStage = (stage: string) => {
+    return (trade.screenshots || []).find((s: any) => s.stage === stage)
+  }
+
+  // Common screenshot slot renderer
+  const renderScreenshotSlot = (stage: string, title: string) => {
+    const sc = getScreenshotForStage(stage)
+    return (
+      <Card className="h-full flex flex-col">
+        <CardHeader className="py-3.5">
+          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex flex-col justify-center items-center min-h-[200px] relative">
+          {sc ? (
+            <div className="group relative w-full h-full min-h-[180px] rounded-lg overflow-hidden border">
+              <img src={sc.url} alt={`${stage} screenshot`} className="object-cover w-full h-full max-h-[220px]" />
+              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary" 
+                  onClick={() => {
+                    setExpandedImage(sc.url)
+                    setExpandedStage(stage)
+                  }}
+                >
+                  <Eye className="w-4 h-4 mr-1.5" /> View
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="bg-background text-foreground hover:bg-muted"
+                  onClick={() => document.getElementById(`gallery-upload-${stage}`)?.click()}
+                >
+                  Replace
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="destructive"
+                  onClick={() => handleDeleteScreenshot(stage, sc.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div 
+              className="w-full h-full min-h-[160px] border-2 border-dashed border-muted-foreground/20 rounded-xl flex flex-col items-center justify-center p-6 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => document.getElementById(`gallery-upload-${stage}`)?.click()}
+            >
+              <Upload className="w-8 h-8 text-muted-foreground/40 mb-2" />
+              <p className="text-xs font-semibold">Upload {title}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Image files only</p>
+            </div>
+          )}
+          <input 
+            id={`gallery-upload-${stage}`}
+            type="file"
+            className="hidden"
+            accept="image/*"
+            onChange={handleUploadScreenshot(stage)}
+          />
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-4 h-4" /></Button>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            {trade.instrument}
-            <Badge variant={trade.direction === "long" ? "default" : "destructive"}>{trade.direction.toUpperCase()}</Badge>
-            <span className={`text-xl ${trade.pnl >= 0 ? "text-success" : "text-destructive"}`}>
-              ${trade.pnl.toFixed(2)}
-            </span>
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Session: {trade.session} • Contracts: {trade.contracts}
-          </p>
+    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+      <div className="flex items-center gap-4 justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-4 h-4" /></Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              {trade.instrument}
+              <Badge variant={trade.direction === "long" ? "default" : "destructive"}>{trade.direction.toUpperCase()}</Badge>
+              <span className={`text-xl ${trade.pnl >= 0 ? "text-success" : "text-destructive"}`}>
+                ${trade.pnl.toFixed(2)}
+              </span>
+            </h1>
+            <p className="text-muted-foreground mt-1 text-sm">
+              Session: {trade.session} • Contracts: {trade.contracts} • Playbook: {trade.playbookName || "None"}
+            </p>
+          </div>
         </div>
+        
+        <Button onClick={handleSave} className="shadow-sm">
+          Save Journal Entry
+        </Button>
       </div>
 
       <Tabs defaultValue="pre" className="w-full">
@@ -87,6 +270,100 @@ export default function TradeDetailsPage() {
         
         {/* PRE TRADE */}
         <TabsContent value="pre" className="space-y-4 mt-4">
+          {/* Editable Trade Details */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-md flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-primary" /> Execution Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs">Instrument</Label>
+                <Input value={tradeForm.instrument} onChange={e => setTradeForm({...tradeForm, instrument: e.target.value})} className="h-9 mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Session</Label>
+                <select className="flex h-9 mt-1 w-full rounded-md border bg-background px-3 py-1 text-sm" value={tradeForm.session} onChange={e => setTradeForm({...tradeForm, session: e.target.value})}>
+                  <option>London</option>
+                  <option>New York AM</option>
+                  <option>New York PM</option>
+                  <option>Asia</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Direction</Label>
+                <select className="flex h-9 mt-1 w-full rounded-md border bg-background px-3 py-1 text-sm" value={tradeForm.direction} onChange={e => setTradeForm({...tradeForm, direction: e.target.value})}>
+                  <option value="long">Long</option>
+                  <option value="short">Short</option>
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">Contracts</Label>
+                <Input type="number" step="0.01" value={tradeForm.contracts} onChange={e => setTradeForm({...tradeForm, contracts: e.target.value})} className="h-9 mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Entry Price</Label>
+                <Input type="number" step="any" value={tradeForm.entry} onChange={e => setTradeForm({...tradeForm, entry: e.target.value})} className="h-9 mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Exit Price</Label>
+                <Input type="number" step="any" value={tradeForm.exit} onChange={e => setTradeForm({...tradeForm, exit: e.target.value})} className="h-9 mt-1" />
+              </div>
+              <div className="col-span-1">
+                <Label className="text-xs">Net PnL ($)</Label>
+                <Input type="number" step="0.01" value={tradeForm.pnl} onChange={e => setTradeForm({...tradeForm, pnl: e.target.value})} className="h-9 mt-1" />
+              </div>
+              <div className="col-span-2">
+                <Label className="text-xs">Tags (comma separated)</Label>
+                <Input placeholder="Tags..." value={tradeForm.notes} onChange={e => setTradeForm({...tradeForm, notes: e.target.value})} className="h-9 mt-1" />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pre-Trade Analysis */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-md flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Pre-Trade Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs">Trade Idea</Label>
+                      <Textarea value={tradeForm.tradeIdea} onChange={e => setTradeForm({...tradeForm, tradeIdea: e.target.value})} placeholder="Describe setup rules, key levels..." className="mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Reason For Entry</Label>
+                      <Textarea value={tradeForm.reasonForEntry} onChange={e => setTradeForm({...tradeForm, reasonForEntry: e.target.value})} placeholder="What triggered the entry?" className="mt-1" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-xs">Market Bias</Label>
+                      <select className="flex h-9 mt-1 w-full rounded-md border bg-background px-3 py-1 text-sm" value={tradeForm.marketBias} onChange={e => setTradeForm({...tradeForm, marketBias: e.target.value})}>
+                        <option value="Bullish">Bullish</option>
+                        <option value="Bearish">Bearish</option>
+                        <option value="Neutral">Neutral</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Expected RR</Label>
+                      <Input value={tradeForm.expectedRR} onChange={e => setTradeForm({...tradeForm, expectedRR: e.target.value})} placeholder="e.g. 2.5 or 1:3" className="h-9 mt-1" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="md:col-span-1">
+                  {renderScreenshotSlot("Pre-Trade", "Pre-Trade Screenshot")}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader><CardTitle>Pre-Trade Psychology</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -186,6 +463,12 @@ export default function TradeDetailsPage() {
               </label>
             </CardContent>
           </Card>
+          
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="col-span-1">
+              {renderScreenshotSlot("During-Trade", "During Trade Screenshot")}
+            </div>
+          </div>
         </TabsContent>
 
         {/* EXIT REVIEW */}
@@ -212,9 +495,36 @@ export default function TradeDetailsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Post-Trade Review Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-md flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-primary" /> Post-Trade Review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs">Trade Outcome</Label>
+                <Textarea value={tradeForm.outcome} onChange={e => setTradeForm({...tradeForm, outcome: e.target.value})} placeholder="e.g. Target reached but had some drawdowns..." className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Mistakes Made</Label>
+                <Textarea value={tradeForm.mistakes} onChange={e => setTradeForm({...tradeForm, mistakes: e.target.value})} placeholder="e.g. Sized up too quickly, revenge trading..." className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Lessons Learned</Label>
+                <Textarea value={tradeForm.lessonsLearned} onChange={e => setTradeForm({...tradeForm, lessonsLearned: e.target.value})} placeholder="What will you do next time?" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs">Psychology Notes</Label>
+                <Textarea value={tradeForm.psychologyNotes} onChange={e => setTradeForm({...tradeForm, psychologyNotes: e.target.value})} placeholder="Any cognitive bias or emotional response notes?" className="mt-1" />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
-        {/* GRADES */}
+        {/* GRADES & SCREENSHOTS */}
         <TabsContent value="grades" className="space-y-4 mt-4">
           <Card>
             <CardHeader><CardTitle>Trade Grade Engine</CardTitle></CardHeader>
@@ -262,43 +572,36 @@ export default function TradeDetailsPage() {
             </CardContent>
           </Card>
 
+          {/* Screenshot Gallery */}
           <Card>
             <CardHeader>
-              <CardTitle>Screenshots</CardTitle>
+              <CardTitle>Screenshot Gallery</CardTitle>
+              <CardDescription>Upload setup, execution, and exit screenshots.</CardDescription>
             </CardHeader>
             <CardContent>
-              <div 
-                className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
-                onClick={() => document.getElementById('screenshot-upload')?.click()}
-              >
-                <input 
-                  id="screenshot-upload"
-                  type="file" 
-                  className="hidden" 
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      // Mock upload
-                      alert("Screenshot attached: " + file.name);
-                    }
-                  }}
-                />
-                <div className="mx-auto w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-3">
-                  <span className="text-xl">+</span>
-                </div>
-                <p className="font-medium">Click to Upload</p>
-                <p className="text-xs text-muted-foreground mt-1">Drag & drop allowed</p>
+              <div className="grid md:grid-cols-3 gap-4">
+                {renderScreenshotSlot("Pre-Trade", "Pre-Trade Screenshot")}
+                {renderScreenshotSlot("During-Trade", "During Trade Screenshot")}
+                {renderScreenshotSlot("Post-Trade", "Post-Trade Screenshot")}
               </div>
             </CardContent>
           </Card>
-
-          <div className="flex justify-end pt-4">
-            <Button onClick={handleSave}>Save Review</Button>
-          </div>
         </TabsContent>
-
       </Tabs>
+
+      {/* Lightbox / Expanded Image Dialog */}
+      <Dialog open={!!expandedImage} onOpenChange={() => setExpandedImage(null)}>
+        <DialogContent className="max-w-[90vw] max-h-[90vh] p-4 flex flex-col justify-center items-center">
+          <DialogHeader className="mb-2 w-full text-left">
+            <DialogTitle className="text-base font-semibold">{expandedStage} Screenshot</DialogTitle>
+          </DialogHeader>
+          <div className="relative overflow-auto max-h-[75vh] w-full flex items-center justify-center bg-muted/30 rounded-lg p-2">
+            {expandedImage && (
+              <img src={expandedImage} alt="Expanded Setup" className="max-w-full max-h-[70vh] object-contain rounded" />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

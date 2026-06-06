@@ -63,7 +63,17 @@ export interface Trade {
   notes?: string
   tags?: string[]
   playbookId?: string
+  playbookName?: string
   playbookChecklist?: Record<string, boolean>
+  tradeIdea?: string
+  marketBias?: string
+  reasonForEntry?: string
+  expectedRR?: string
+  outcome?: string
+  mistakes?: string
+  lessonsLearned?: string
+  psychologyNotes?: string
+  screenshots?: any[]
 }
 
 export type AccountStatus = "active" | "passed" | "failed"

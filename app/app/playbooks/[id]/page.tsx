@@ -12,16 +12,37 @@ import { ChevronLeft, Edit3, Save, X, Plus, Trash2, CheckCircle2, TrendingUp, Ac
 import { useState, useEffect } from "react"
 import { toast } from "sonner"
 import { ChecklistLibrary } from "@/components/app/checklist-library"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 export default function PlaybookDetailPage() {
   const { id } = useParams()
   const router = useRouter()
   const playbooks = usePropStore(s => s.playbooks) || []
   const updatePlaybook = usePropStore(s => s.updatePlaybook)
+  const removePlaybook = usePropStore(s => s.removePlaybook)
+  const allTrades = usePropStore(s => s.trades) || []
   
   const playbook = playbooks.find(p => p.id === id)
   const [isEditing, setIsEditing] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+
+  const linkedTradesCount = playbook ? allTrades.filter((t: any) => t.playbookId === playbook.id).length : 0
+
+  const handleDelete = async () => {
+    if (!playbook) return
+    setLoading(true)
+    try {
+      await removePlaybook(playbook.id)
+      toast.success("Playbook deleted successfully")
+      router.push("/app/playbooks")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete playbook")
+    } finally {
+      setLoading(false)
+      setDeleteConfirmOpen(false)
+    }
+  }
   
   const [form, setForm] = useState({
     name: "", category: "", marketCondition: "", session: "", instrument: "",
@@ -48,7 +69,7 @@ export default function PlaybookDetailPage() {
     return <div className="p-8 text-center text-muted-foreground">Playbook not found.</div>
   }
 
-  const trades = playbook.trades || []
+  const trades = allTrades.filter((t: any) => t.playbookId === playbook.id)
   const winRate = trades.length ? (trades.filter((t: any) => t.pnl > 0).length / trades.length) * 100 : 0
   const netPnl = trades.reduce((sum: number, t: any) => sum + t.pnl, 0)
   const avgRR = trades.length ? 1.5 : 0 // Mock calculation for now
@@ -119,7 +140,10 @@ export default function PlaybookDetailPage() {
               <Button onClick={handleSave} disabled={loading}><Save className="w-4 h-4 mr-2"/> Save Changes</Button>
             </>
           ) : (
-            <Button variant="outline" onClick={() => setIsEditing(true)}><Edit3 className="w-4 h-4 mr-2"/> Edit Playbook</Button>
+            <>
+              <Button variant="outline" onClick={() => setIsEditing(true)}><Edit3 className="w-4 h-4 mr-2"/> Edit Playbook</Button>
+              <Button variant="destructive" onClick={() => setDeleteConfirmOpen(true)}><Trash2 className="w-4 h-4 mr-2"/> Delete Playbook</Button>
+            </>
           )}
         </div>
       </div>
@@ -327,6 +351,37 @@ export default function PlaybookDetailPage() {
           </Card>
         </div>
       </div>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Delete Playbook</DialogTitle>
+            <DialogDescription>
+              You are about to delete: <span className="font-semibold text-foreground">{playbook?.name}</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              This action cannot be undone. This playbook is currently linked to:
+            </p>
+            <div className="p-3 bg-muted rounded-lg text-center font-bold text-lg text-primary">
+              {linkedTradesCount} {linkedTradesCount === 1 ? "Trade" : "Trades"}
+            </div>
+            <p className="text-xs text-muted-foreground italic">
+              Historical trade records and statistics will be preserved. Only the active playbook template will be removed.
+            </p>
+            <p className="text-sm font-semibold">Proceed?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirmOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+              {loading ? "Deleting..." : "Delete Playbook"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -18,7 +18,10 @@ export async function getTrades(accountId?: string) {
 
   const dbTrades = await prisma.trade.findMany({
     where: whereClause,
-    orderBy: { timestamp: "asc" }
+    orderBy: { timestamp: "asc" },
+    include: {
+      screenshots: true
+    }
   })
 
   // Map to frontend Trade format
@@ -27,7 +30,8 @@ export async function getTrades(accountId?: string) {
     direction: t.direction as "long" | "short",
     timestamp: Number(t.timestamp),
     tags: t.tags ? JSON.parse(t.tags) : [],
-    playbookChecklist: t.playbookChecklist ? JSON.parse(t.playbookChecklist) : {}
+    playbookChecklist: t.playbookChecklist ? JSON.parse(t.playbookChecklist) : {},
+    screenshots: t.screenshots || []
   })) as Trade[]
 }
 
@@ -46,6 +50,7 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
     data: {
       accountId: trade.accountId,
       playbookId: trade.playbookId,
+      playbookName: trade.playbookName,
       instrument: trade.instrument,
       direction: trade.direction,
       entry: trade.entry,
@@ -59,7 +64,18 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       notes: trade.notes || "",
       tags: JSON.stringify(trade.tags || []),
       playbookChecklist: trade.playbookChecklist ? JSON.stringify(trade.playbookChecklist) : null,
-      timestamp: BigInt(ts)
+      timestamp: BigInt(ts),
+      tradeIdea: trade.tradeIdea || "",
+      marketBias: trade.marketBias || "",
+      reasonForEntry: trade.reasonForEntry || "",
+      expectedRR: trade.expectedRR || "",
+      outcome: trade.outcome || "",
+      mistakes: trade.mistakes || "",
+      lessonsLearned: trade.lessonsLearned || "",
+      psychologyNotes: trade.psychologyNotes || ""
+    },
+    include: {
+      screenshots: true
     }
   })
 
@@ -68,7 +84,8 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
     direction: created.direction as "long" | "short",
     timestamp: Number(created.timestamp),
     tags: created.tags ? JSON.parse(created.tags) : [],
-    playbookChecklist: created.playbookChecklist ? JSON.parse(created.playbookChecklist) : {}
+    playbookChecklist: created.playbookChecklist ? JSON.parse(created.playbookChecklist) : {},
+    screenshots: created.screenshots || []
   } as Trade
 }
 
@@ -80,6 +97,7 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
   delete data.id
   delete data.accountId
   delete data.timestamp
+  delete data.screenshots
 
   if (data.tags) data.tags = JSON.stringify(data.tags)
   if (data.playbookChecklist !== undefined) {
@@ -91,7 +109,10 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
       id,
       account: { userId: session.user.id }
     },
-    data
+    data,
+    include: {
+      screenshots: true
+    }
   })
 
   return {
@@ -99,7 +120,8 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
     direction: updated.direction as "long" | "short",
     timestamp: Number(updated.timestamp),
     tags: updated.tags ? JSON.parse(updated.tags) : [],
-    playbookChecklist: updated.playbookChecklist ? JSON.parse(updated.playbookChecklist) : {}
+    playbookChecklist: updated.playbookChecklist ? JSON.parse(updated.playbookChecklist) : {},
+    screenshots: updated.screenshots || []
   } as Trade
 }
 
@@ -112,6 +134,54 @@ export async function deleteTrade(id: string) {
       id,
       account: { userId: session.user.id }
     }
+  })
+}
+
+export async function addTradeScreenshot(tradeId: string, stage: string, url: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  // Ensure user owns this trade
+  const trade = await prisma.trade.findUnique({
+    where: { id: tradeId },
+    include: { account: true }
+  })
+  if (!trade || trade.account.userId !== session.user.id) {
+    throw new Error("Unauthorized")
+  }
+
+  // To support Replace: delete any existing screenshot for the same stage
+  await prisma.tradeScreenshot.deleteMany({
+    where: { tradeId, stage }
+  })
+
+  const created = await prisma.tradeScreenshot.create({
+    data: {
+      tradeId,
+      stage,
+      url
+    }
+  })
+
+  return created
+}
+
+export async function deleteTradeScreenshot(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  // Find the screenshot first to verify ownership
+  const screenshot = await prisma.tradeScreenshot.findUnique({
+    where: { id },
+    include: { trade: { include: { account: true } } }
+  })
+
+  if (!screenshot || screenshot.trade.account.userId !== session.user.id) {
+    throw new Error("Unauthorized")
+  }
+
+  await prisma.tradeScreenshot.delete({
+    where: { id }
   })
 }
 

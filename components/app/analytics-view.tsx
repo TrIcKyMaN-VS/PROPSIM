@@ -18,7 +18,9 @@ import {
   RadialBarChart,
   PolarAngleAxis,
 } from "recharts"
-import { Target, Percent, Scale, Activity, TrendingDown, Gauge } from "lucide-react"
+import { Target, Percent, Scale, Activity, TrendingDown, Gauge, BookOpen } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 export function AnalyticsView() {
   const accounts = usePropStore((s) => s.accounts)
@@ -171,6 +173,114 @@ export function AnalyticsView() {
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Playbook Performance Analytics */}
+      <div className="mt-4 rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <BookOpen className="w-5 h-5 text-primary" />
+          <h3 className="font-medium">Playbook Performance Analytics</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Playbook</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Trades</TableHead>
+                <TableHead className="text-right">Win Rate</TableHead>
+                <TableHead className="text-right">Net P&amp;L</TableHead>
+                <TableHead className="text-right">Profit Factor</TableHead>
+                <TableHead className="text-right">Avg Compliance</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(() => {
+                const playbooks = usePropStore((s) => s.playbooks) || []
+                
+                // Get playbooks that are either active or have historical trades
+                const playbooksWithStats = playbooks.map(pb => {
+                  const pbTrades = accountTrades.filter(t => t.playbookId === pb.id || (t.playbookName && t.playbookName === pb.name))
+                  
+                  const total = pbTrades.length
+                  const wins = pbTrades.filter(t => t.pnl > 0).length
+                  const winRate = total > 0 ? (wins / total) * 100 : 0
+                  const netPnl = pbTrades.reduce((sum, t) => sum + t.pnl, 0)
+                  
+                  const grossWin = pbTrades.filter(t => t.pnl > 0).reduce((sum, t) => sum + t.pnl, 0)
+                  const grossLoss = Math.abs(pbTrades.filter(t => t.pnl < 0).reduce((sum, t) => sum + t.pnl, 0))
+                  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? 99 : 0
+
+                  // Calculate average checklist compliance
+                  let avgCompliance = 100
+                  if (total > 0 && pb.checklist && pb.checklist.length > 0) {
+                    const checklistItems = pb.checklist
+                    const compliances = pbTrades.map(trade => {
+                      const checked = trade.playbookChecklist || {}
+                      const checkedCount = checklistItems.filter((item: any, idx: number) => {
+                        const itemId = item.id || idx.toString()
+                        return !!checked[itemId]
+                      }).length
+                      return (checkedCount / checklistItems.length) * 100
+                    })
+                    avgCompliance = compliances.reduce((sum, val) => sum + val, 0) / total
+                  } else if (!pb.checklist || pb.checklist.length === 0) {
+                    avgCompliance = 100
+                  } else {
+                    avgCompliance = 0
+                  }
+
+                  return {
+                    id: pb.id,
+                    name: pb.name,
+                    deletedAt: pb.deletedAt,
+                    total,
+                    winRate,
+                    netPnl,
+                    profitFactor,
+                    avgCompliance
+                  }
+                }).filter(pb => !pb.deletedAt || pb.total > 0) // Hide soft-deleted playbooks with 0 trades
+
+                if (playbooksWithStats.length === 0) {
+                  return (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-6">
+                        No playbooks logged for this account yet.
+                      </TableCell>
+                    </TableRow>
+                  )
+                }
+
+                return playbooksWithStats.map(pb => (
+                  <TableRow key={pb.id}>
+                    <TableCell className="font-medium">{pb.name}</TableCell>
+                    <TableCell>
+                      {pb.deletedAt ? (
+                        <Badge variant="secondary" className="opacity-60">Deleted</Badge>
+                      ) : (
+                        <Badge variant="default">Active</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-center">{pb.total}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {pb.total > 0 ? `${pb.winRate.toFixed(1)}%` : "N/A"}
+                    </TableCell>
+                    <TableCell className={`text-right font-semibold ${pb.netPnl > 0 ? "text-success" : pb.netPnl < 0 ? "text-destructive" : ""}`}>
+                      {pb.total > 0 ? `${pb.netPnl >= 0 ? "+" : ""}${fmtCurrency(pb.netPnl)}` : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {pb.total > 0 ? (pb.profitFactor >= 99 ? "99.00" : pb.profitFactor.toFixed(2)) : "N/A"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-xs text-primary">
+                      {pb.total > 0 ? `${pb.avgCompliance.toFixed(1)}%` : "N/A"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              })()}
+            </TableBody>
+          </Table>
         </div>
       </div>
     </div>

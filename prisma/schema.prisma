@@ -143,6 +143,7 @@ model Playbook {
   isPublic         Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
 
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades           Trade[]
@@ -164,6 +165,7 @@ model Trade {
   id               String   @id @default(cuid())
   accountId        String
   playbookId       String?
+  playbookName     String?
   instrument       String
   direction        String   // long, short
   entry            Float
@@ -178,6 +180,18 @@ model Trade {
   notes            String?
   tags             String?  // JSON array string
   playbookChecklist String? // JSON object { item: boolean }
+  
+  // Pre-Trade Analysis
+  tradeIdea        String?
+  marketBias       String?
+  reasonForEntry   String?
+  expectedRR       String?
+
+  // Post-Trade Review
+  outcome          String?
+  mistakes         String?
+  lessonsLearned   String?
+  psychologyNotes  String?
   
   confidenceScore  Float?   // From AI reconstruction
   isReconstructed  Boolean  @default(false)

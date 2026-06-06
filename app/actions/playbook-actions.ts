@@ -93,8 +93,9 @@ export async function deletePlaybook(id: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
 
-  await prisma.playbook.deleteMany({
-    where: { id, userId: session.user.id }
+  await prisma.playbook.updateMany({
+    where: { id, userId: session.user.id },
+    data: { deletedAt: new Date() }
   })
 }
 

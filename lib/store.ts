@@ -86,7 +86,7 @@ interface PropState {
   createAccount: (firmId: string, sizeLabel: string) => Promise<string>
   setActive: (id: string) => void
   removeAccount: (id: string) => Promise<void>
-  addTrade: (t: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) => Promise<void>
+  addTrade: (t: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) => Promise<Trade>
   updateTrade: (id: string, updates: Partial<Trade>) => Promise<void>
   removeTrade: (id: string) => Promise<void>
   importTrades: (rows: Omit<Trade, "id" | "accountId" | "timestamp">[], accountId: string) => Promise<void>
@@ -98,7 +98,8 @@ interface PropState {
   addDailyPerformance: (dp: any) => void
   updateDailyPerformance: (dp: any) => void
   saveTradePsychology: (tp: any) => void
-  addScreenshot: (ts: any) => void
+  addScreenshot: (tradeId: string, stage: string, url: string) => Promise<void>
+  deleteScreenshot: (tradeId: string, id: string) => Promise<void>
   saveLesson: (lesson: any) => void
   
   routineConfig: { morning: string[], eod: string[] }
@@ -188,6 +189,7 @@ export const usePropStore = create<PropState>()(
       addTrade: async (t) => {
         const added = await addDbTrade(t)
         set((state) => ({ trades: [...state.trades, added] }))
+        return added
       },
       updateTrade: async (id, updates) => {
         const { updateTrade: updateDbTrade } = await import("@/app/actions/trade-actions")
@@ -227,8 +229,10 @@ export const usePropStore = create<PropState>()(
       },
 
       removePlaybook: async (id) => {
-        set((s) => ({ playbooks: s.playbooks.filter((p) => p.id !== id) }))
         await deleteDbPlaybook(id)
+        set((s) => ({
+          playbooks: s.playbooks.map((p) => p.id === id ? { ...p, deletedAt: new Date().toISOString() } : p)
+        }))
       },
 
       addDailyPerformance: (dp) => set((s) => ({ dailyPerformances: [...s.dailyPerformances, dp] })),
@@ -238,7 +242,31 @@ export const usePropStore = create<PropState>()(
         if (exists) return { tradePsychology: s.tradePsychology.map(x => x.tradeId === tp.tradeId ? tp : x) }
         return { tradePsychology: [...s.tradePsychology, tp] }
       }),
-      addScreenshot: (ts) => set((s) => ({ tradeScreenshots: [...s.tradeScreenshots, ts] })),
+      addScreenshot: async (tradeId, stage, url) => {
+        const { addTradeScreenshot } = await import("@/app/actions/trade-actions")
+        const created = await addTradeScreenshot(tradeId, stage, url)
+        set((s) => ({
+          trades: s.trades.map((t) => {
+            if (t.id === tradeId) {
+              const filtered = (t.screenshots || []).filter((sc: any) => sc.stage !== stage)
+              return { ...t, screenshots: [...filtered, created] }
+            }
+            return t
+          })
+        }))
+      },
+      deleteScreenshot: async (tradeId, id) => {
+        const { deleteTradeScreenshot } = await import("@/app/actions/trade-actions")
+        await deleteTradeScreenshot(id)
+        set((s) => ({
+          trades: s.trades.map((t) => {
+            if (t.id === tradeId) {
+              return { ...t, screenshots: (t.screenshots || []).filter((sc: any) => sc.id !== id) }
+            }
+            return t
+          })
+        }))
+      },
       saveLesson: (lesson) => set((s) => ({ lessonsLearned: [...s.lessonsLearned, lesson] })),
 
       toggleCompare: (firmId) =>

@@ -17,7 +17,14 @@ export default function ProfilePage() {
   const user = session.user as any
 
   // Personal
-  const joinDate = "October 2023" // Mocked until we fetch from DB or add to JWT
+  let joinDate = "October 2023"
+  if (user.createdAt) {
+    try {
+      const date = new Date(user.createdAt)
+      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+      joinDate = `${months[date.getMonth()]} ${date.getFullYear()}`
+    } catch (e) {}
+  }
   
   // Trading Stats
   const totalTrades = trades.length

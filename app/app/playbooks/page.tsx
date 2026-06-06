@@ -9,7 +9,7 @@ import { BookOpen, TrendingUp, Target, Activity } from "lucide-react"
 import Link from "next/link"
 
 export default function PlaybooksPage() {
-  const playbooks = usePropStore((s) => s.playbooks) || []
+  const playbooks = (usePropStore((s) => s.playbooks) || []).filter(p => !p.deletedAt)
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">

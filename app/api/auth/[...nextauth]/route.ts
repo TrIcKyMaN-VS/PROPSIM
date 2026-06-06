@@ -128,7 +128,8 @@ export const authOptions: NextAuthOptions = {
           plan: user.plan,
           status: user.status,
           sessionId: deviceSession.id,
-          sessionExpiresAt: expiresAt.getTime()
+          sessionExpiresAt: expiresAt.getTime(),
+          createdAt: user.createdAt.toISOString()
         } as any
       }
     })
@@ -141,6 +142,9 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role
         token.plan = (user as any).plan
         token.status = (user as any).status
+        token.createdAt = (user as any).createdAt instanceof Date 
+          ? (user as any).createdAt.toISOString() 
+          : (user as any).createdAt
         
         // If SSO login, create a device session here
         if (account && account.provider !== 'credentials') {
@@ -204,6 +208,7 @@ export const authOptions: NextAuthOptions = {
         ;(session.user as any).plan = token.plan as string
         ;(session.user as any).status = token.status as string
         ;(session.user as any).sessionId = token.sessionId as string
+        ;(session.user as any).createdAt = token.createdAt as string
       }
       return session
     }
