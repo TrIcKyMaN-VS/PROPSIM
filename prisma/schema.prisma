@@ -17,6 +17,8 @@ model User {
   password      String?
   role          String    @default("USER")
   plan          String    @default("FREE")
+  status        String    @default("ACTIVE") // ACTIVE, SUSPENDED, DISABLED, BANNED
+  notes         String?   // Admin-only notes field
   lastLogin     DateTime?
   routineConfig String?   // JSON object storing custom morning/eod tasks
   
@@ -33,6 +35,9 @@ model User {
   brokerConnections BrokerConnection[]
   importLogs        ImportLog[]
   aiSettings        UserAiSettings?
+  auditLogs         AuditLog[]         @relation("UserAuditLogs")
+  adminActions      AuditLog[]         @relation("AdminAuditLogs")
+  passwordResetTokens PasswordResetToken[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -342,3 +347,29 @@ model UserAiSettings {
   
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  // Actor (null for system events)
+  targetId  String?  // Subject (user being acted upon)
+  action    String   // LOGIN, LOGOUT, REGISTER, PASSWORD_RESET, ROLE_CHANGE, USER_BAN, USER_DELETE, ADMIN_ACTION
+  details   String?  // JSON
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  target    User?    @relation("AdminAuditLogs", fields: [targetId], references: [id], onDelete: SetNull)
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+

@@ -1,192 +1,178 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Users, CreditCard, Activity, TrendingUp, DollarSign } from "lucide-react"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { Users, Activity, Monitor, RefreshCw, UserX, BrainCircuit, ShieldAlert } from "lucide-react"
+import { adminGetDashboardStats, adminGetAuditLog } from "@/app/actions/admin-user-actions"
+import { formatDistanceToNow } from "date-fns"
+import { Button } from "@/components/ui/button"
 
-const growthData = [
-  { name: 'Jan', users: 400 },
-  { name: 'Feb', users: 600 },
-  { name: 'Mar', users: 450 },
-  { name: 'Apr', users: 800 },
-  { name: 'May', users: 550 },
-  { name: 'Jun', users: 900 },
-  { name: 'Jul', users: 750 },
-  { name: 'Aug', users: 1100 },
-  { name: 'Sep', users: 850 },
-  { name: 'Oct', users: 1200 },
-  { name: 'Nov', users: 1050 },
-  { name: 'Dec', users: 1400 },
-]
+type Stats = Awaited<ReturnType<typeof adminGetDashboardStats>>
+type AuditLog = Awaited<ReturnType<typeof adminGetAuditLog>>
 
-const subData = [
-  { name: 'Free', value: 842 },
-  { name: 'Pro', value: 294 },
-  { name: 'Lifetime', value: 112 },
-]
-const COLORS = ['#888888', '#3b82f6', '#22c55e']
+const ACTION_BADGE: Record<string, { label: string; style: string }> = {
+  LOGIN: { label: "Login", style: "bg-primary/10 text-primary border-primary/20" },
+  REGISTER: { label: "Register", style: "bg-success/10 text-success border-success/20" },
+  PASSWORD_RESET: { label: "Reset PW", style: "bg-warning/10 text-warning border-warning/20" },
+  PASSWORD_RESET_REQUEST: { label: "Reset Request", style: "bg-muted text-muted-foreground" },
+  ADMIN_USER_EDIT: { label: "Edit User", style: "bg-primary/10 text-primary border-primary/20" },
+  ADMIN_USER_SOFT_DELETE: { label: "User Banned", style: "bg-destructive/10 text-destructive border-destructive/20" },
+  ADMIN_USER_DELETE_PERMANENT: { label: "User Deleted", style: "bg-destructive text-destructive-foreground" },
+  ADMIN_KILL_SESSION: { label: "Kill Session", style: "bg-muted text-muted-foreground" },
+  ADMIN_KILL_ALL_SESSIONS: { label: "Kill All Sessions", style: "bg-destructive/10 text-destructive border-destructive/20" },
+  ADMIN_RESET_PASSWORD: { label: "Admin Reset PW", style: "bg-warning/10 text-warning border-warning/20" },
+}
 
 export default function AdminDashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null)
+  const [log, setLog] = useState<AuditLog>([])
+  const [loading, setLoading] = useState(true)
+
+  const load = async () => {
+    setLoading(true)
+    try {
+      const [s, l] = await Promise.all([adminGetDashboardStats(), adminGetAuditLog(30)])
+      setStats(s)
+      setLog(l)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Admin Overview</h1>
-        <p className="text-muted-foreground">Platform health and high-level metrics.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Admin Overview</h1>
+          <p className="text-muted-foreground">Live platform health and real-time metrics.</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">1,248</div>
-            <p className="text-xs text-muted-foreground"><span className="text-success">+180</span> from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Challenges</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">3,492</div>
-            <p className="text-xs text-muted-foreground"><span className="text-success">+420</span> from last week</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">$12,450</div>
-            <p className="text-xs text-muted-foreground"><span className="text-success">+12%</span> from last month</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">AI Requests</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">48,291</div>
-            <p className="text-xs text-muted-foreground">~$142 API cost estimate</p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <Card className="col-span-4">
-          <CardHeader>
-            <CardTitle>Platform Growth</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={growthData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-                <XAxis dataKey="name" stroke="#888" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
-                <Tooltip cursor={{fill: '#222'}} contentStyle={{backgroundColor: '#111', borderColor: '#333'}} />
-                <Bar dataKey="users" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>Subscription Tiers</CardTitle>
-            <CardDescription>Breakdown of active users by plan</CardDescription>
-          </CardHeader>
-          <CardContent className="h-[350px] flex flex-col items-center justify-center">
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={subData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {subData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{backgroundColor: '#111', borderColor: '#333'}} />
-              </PieChart>
-            </ResponsiveContainer>
-            
-            <div className="w-full space-y-4 mt-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-[#888888]"></div>
-                  <span className="text-sm">Free Plan</span>
-                </div>
-                <span className="font-bold text-sm">842</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-primary"></div>
-                  <span className="text-sm">Pro Plan</span>
-                </div>
-                <span className="font-bold text-sm">294</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-success"></div>
-                  <span className="text-sm">Lifetime</span>
-                </div>
-                <span className="font-bold text-sm">112</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {[
+          { label: "Total Users", value: stats?.totalUsers ?? "—", icon: Users, sub: `${stats?.newUsersThisWeek ?? 0} new this week` },
+          { label: "Active Users", value: stats?.activeUsers ?? "—", icon: Activity, sub: "STATUS = ACTIVE" },
+          { label: "Suspended / Banned", value: stats?.suspendedUsers ?? "—", icon: UserX, sub: "Restricted accounts" },
+          { label: "Active Sessions", value: stats?.totalSessions ?? "—", icon: Monitor, sub: "Valid device tokens" },
+        ].map(s => (
+          <Card key={s.label}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">{s.label}</CardTitle>
+              <s.icon className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{typeof s.value === "number" ? s.value.toLocaleString() : s.value}</div>
+              <p className="text-xs text-muted-foreground">{s.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Database Status</CardTitle>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-primary" /> AI Platform Usage
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total Requests</span>
+              <span className="font-bold">{(stats?.totalAiRequests ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Total Tokens</span>
+              <span className="font-bold">{(stats?.totalAiTokens ?? 0).toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Est. API Cost</span>
+              <span className="font-bold text-warning">${(stats?.totalAiCost ?? 0).toFixed(2)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-primary" /> SSO Providers
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            {["Google", "GitHub", "Microsoft"].map(p => (
+              <div key={p} className="flex items-center justify-between">
+                <span>{p}</span>
+                <span className="text-xs text-muted-foreground">Configured in Vercel Env</span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Database</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
-              <span className="font-bold">Connected (PostgreSQL)</span>
+              <span className="font-bold text-sm">Connected (PostgreSQL)</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Latency: 42ms</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">AI Coach Service</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <div className="h-3 w-3 rounded-full bg-success animate-pulse" />
-              <span className="font-bold">Operational (Gemini 1.5)</span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Quota: 45% used today</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Storage Limits</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-bold text-sm">4.2 GB / 50 GB</span>
-              <span className="text-xs text-muted-foreground">8%</span>
-            </div>
-            <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
-              <div className="h-full bg-primary" style={{width: '8%'}} />
-            </div>
+            <p className="text-xs text-muted-foreground mt-1">Supabase · Prisma v5</p>
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Audit Log</CardTitle>
+          <CardDescription>Last 30 security and admin events on the platform.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="bg-muted text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 font-medium text-left">Time</th>
+                  <th className="px-4 py-3 font-medium text-left">Event</th>
+                  <th className="px-4 py-3 font-medium text-left">Actor</th>
+                  <th className="px-4 py-3 font-medium text-left">Target</th>
+                  <th className="px-4 py-3 font-medium text-left">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">
+                      No audit events yet. Try logging in, registering, or performing an admin action.
+                    </td>
+                  </tr>
+                ) : log.map(entry => {
+                  const badge = ACTION_BADGE[entry.action] || { label: entry.action, style: "bg-muted text-muted-foreground" }
+                  return (
+                    <tr key={entry.id} className="border-t">
+                      <td className="px-4 py-3 text-muted-foreground text-xs whitespace-nowrap">
+                        {formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true })}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badge.style}`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs">{entry.user?.name || entry.user?.email || "System"}</td>
+                      <td className="px-4 py-3 text-xs">{entry.target?.name || entry.target?.email || "—"}</td>
+                      <td className="px-4 py-3 text-xs text-muted-foreground">{entry.ip || "—"}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

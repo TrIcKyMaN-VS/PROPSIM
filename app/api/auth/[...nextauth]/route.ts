@@ -7,6 +7,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { headers } from "next/headers"
+import { rateLimit } from "@/lib/rate-limiter"
 
 const prisma = new PrismaClient()
 
@@ -69,27 +70,31 @@ export const authOptions: NextAuthOptions = {
         rememberMe: { label: "Remember Me", type: "text" }
       },
       async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
+        if (!credentials?.email || !credentials?.password) return null
         
-        // For local development, auto-create the user if they don't exist
-        let user = await prisma.user.findUnique({
+        const headersList = await headers()
+        const ip = headersList.get('x-forwarded-for') || 'Unknown IP'
+        
+        // Rate limit: 10 attempts per 5 minutes per IP
+        const { allowed } = rateLimit(`login:${ip}`, 10, 5 * 60_000)
+        if (!allowed) throw new Error("TOO_MANY_ATTEMPTS")
+        
+        // LOGIN ONLY — no auto-registration
+        const user = await prisma.user.findUnique({
           where: { email: credentials.email }
         })
 
-        if (!user) {
-          const hashedPassword = await bcrypt.hash(credentials.password, 10)
-          user = await prisma.user.create({
-            data: {
-              email: credentials.email,
-              name: credentials.email.split('@')[0],
-              password: hashedPassword
-            }
-          })
-        } else if (user.password) {
-          const isValid = await bcrypt.compare(credentials.password, user.password)
-          if (!isValid) return null
+        if (!user) return null
+        
+        // Must have a password (credentials account) and it must match
+        if (!user.password) return null
+        
+        const isValid = await bcrypt.compare(credentials.password, user.password)
+        if (!isValid) return null
+
+        // Block suspended/banned/disabled accounts
+        if (user.status && user.status !== 'ACTIVE') {
+          throw new Error(`ACCOUNT_${user.status}`)
         }
 
         // Update last login
@@ -99,21 +104,21 @@ export const authOptions: NextAuthOptions = {
         })
 
         // Track Device Session
-        const headersList = await headers()
         const userAgent = headersList.get('user-agent') || 'Unknown Browser'
-        const ip = headersList.get('x-forwarded-for') || 'Unknown IP'
         const rememberMe = credentials.rememberMe === 'true'
-        const sessionAge = rememberMe ? 90 * 24 * 60 * 60 : 30 * 24 * 60 * 60 // 90 days or 30 days
+        const sessionAge = rememberMe ? 90 * 24 * 60 * 60 : 30 * 24 * 60 * 60
         const expiresAt = new Date(Date.now() + sessionAge * 1000)
 
         const deviceSession = await prisma.deviceSession.create({
-          data: {
-            userId: user.id,
-            userAgent,
-            ip,
-            expiresAt
-          }
+          data: { userId: user.id, userAgent, ip, expiresAt }
         })
+
+        // Write audit log
+        try {
+          await prisma.auditLog.create({
+            data: { userId: user.id, action: 'LOGIN', details: JSON.stringify({ method: 'credentials' }), ip, userAgent }
+          })
+        } catch {}
 
         return {
           id: user.id,
@@ -121,6 +126,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           plan: user.plan,
+          status: user.status,
           sessionId: deviceSession.id,
           sessionExpiresAt: expiresAt.getTime()
         } as any
@@ -134,6 +140,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id
         token.role = (user as any).role
         token.plan = (user as any).plan
+        token.status = (user as any).status
         
         // If SSO login, create a device session here
         if (account && account.provider !== 'credentials') {
@@ -195,6 +202,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string
         ;(session.user as any).role = token.role as string
         ;(session.user as any).plan = token.plan as string
+        ;(session.user as any).status = token.status as string
         ;(session.user as any).sessionId = token.sessionId as string
       }
       return session

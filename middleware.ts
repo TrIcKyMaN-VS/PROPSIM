@@ -8,14 +8,18 @@ export default withAuth(
 
     // Explicitly handle token expiration (for Logout Other Devices feature)
     if (token?.expired) {
-      // If token is marked as expired by the JWT callback, force a hard redirect to login.
-      // NextAuth client-side will clear the cookie when it detects session.expires.
       return NextResponse.redirect(new URL("/login?expired=true", req.url))
+    }
+
+    // Block suspended/banned/disabled accounts from accessing the app
+    const status = token?.status as string | undefined
+    if (status && status !== "ACTIVE") {
+      return NextResponse.redirect(new URL(`/login?suspended=${status.toLowerCase()}`, req.url))
     }
 
     // Role-based access control for /admin routes
     if (path.startsWith("/admin") && token?.role !== "ADMIN") {
-      return NextResponse.rewrite(new URL("/app", req.url))
+      return NextResponse.redirect(new URL("/app", req.url))
     }
 
     return NextResponse.next()
@@ -34,10 +38,8 @@ export const config = {
      * - api (API routes)
      * - _next/static (static files)
      * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files
-     * - login
-     * - / (landing page)
+     * - favicon.ico
+     * - public routes: /, /login, /register, /forgot-password, /reset-password
      */
     "/app/:path*",
     "/admin/:path*",
