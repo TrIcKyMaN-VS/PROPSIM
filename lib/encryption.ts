@@ -25,3 +25,7 @@ export function decrypt(text: string): string {
   decrypted = Buffer.concat([decrypted, decipher.final()])
   return decrypted.toString()
 }
+
+// Backwards compatibility for existing codebase
+export const encryptString = encrypt;
+export const decryptString = decrypt;
