@@ -57,7 +57,7 @@ export function UserProfileNav() {
             <Award className="mr-2 h-4 w-4" />
             <span>Achievements</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => router.push('/app/settings')} className="cursor-pointer flex items-center w-full">
+          <DropdownMenuItem onClick={() => router.push('/app/profile/settings')} className="cursor-pointer flex items-center w-full">
             <Settings className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </DropdownMenuItem>

@@ -55,11 +55,15 @@ export interface Trade {
   exit: number
   contracts: number
   pnl: number
+  calculatedPnl?: number | null
+  pnlMode?: string
   day: number // trading day index (1-based)
   timestamp: number
   session: "Asia" | "London" | "New York AM" | "New York PM"
   notes?: string
   tags?: string[]
+  playbookId?: string
+  playbookChecklist?: Record<string, boolean>
 }
 
 export type AccountStatus = "active" | "passed" | "failed"

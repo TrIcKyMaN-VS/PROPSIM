@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, Trash2 } from "lucide-react"
 
 export function PlaybookDialog() {
   const [open, setOpen] = useState(false)
@@ -24,7 +24,7 @@ export function PlaybookDialog() {
     entryRules: "",
     exitRules: "",
     riskRules: "",
-    checklist: ""
+    checklist: [""]
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,7 +33,7 @@ export function PlaybookDialog() {
     try {
       await createPlaybook({
         ...form,
-        checklist: form.checklist.split(",").map(i => i.trim()).filter(Boolean)
+        checklist: form.checklist.filter((item: any) => typeof item === 'string' ? Boolean(item) : Boolean(item.text))
       })
       toast.success("Playbook created successfully")
       setOpen(false)
@@ -86,8 +86,40 @@ export function PlaybookDialog() {
           </div>
 
           <div className="space-y-2">
-            <Label>Checklist (comma separated)</Label>
-            <Input value={form.checklist} onChange={e => setForm({...form, checklist: e.target.value})} placeholder="Trend is up, VWAP bounce, No news" />
+            <Label>Checklist Items</Label>
+            {form.checklist.map((item: any, idx: number) => {
+              const isObj = typeof item === 'object';
+              const text = isObj ? item.text : item;
+              const required = isObj ? item.required : false;
+              return (
+              <div key={idx} className="flex items-center gap-2">
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 accent-primary cursor-pointer shrink-0" 
+                  checked={required}
+                  onChange={e => {
+                    const newChecklist = [...form.checklist]
+                    newChecklist[idx] = { text, required: e.target.checked }
+                    setForm({...form, checklist: newChecklist})
+                  }}
+                  title="Mark as required"
+                />
+                <Input value={text} onChange={e => {
+                  const newChecklist = [...form.checklist]
+                  newChecklist[idx] = { text: e.target.value, required }
+                  setForm({...form, checklist: newChecklist})
+                }} placeholder="e.g. Trend confirmed" required className="flex-1" />
+                <Button type="button" variant="ghost" size="icon" className="text-destructive shrink-0" onClick={() => {
+                  const newChecklist = form.checklist.filter((_, i) => i !== idx)
+                  setForm({...form, checklist: newChecklist})
+                }}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            )})}
+            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => setForm({...form, checklist: [...form.checklist, { text: "", required: false }]})}>
+              <Plus className="w-3 h-3 mr-1" /> Add Item
+            </Button>
           </div>
 
           <DialogFooter>

@@ -6,11 +6,16 @@ import { Button } from "@/components/ui/button"
 import { FileText, Download, Calendar } from "lucide-react"
 import { toast } from "sonner"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
+import { useRef, useState } from "react"
+import html2canvas from "html2canvas"
+import jsPDF from "jspdf"
 
 export default function MonthlyReviewPage() {
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const trades = usePropStore(s => s.trades).filter(t => t.accountId === activeAccountId)
   const psychology = usePropStore(s => s.tradePsychology)
+  const reportRef = useRef<HTMLDivElement>(null)
+  const [isExporting, setIsExporting] = useState(false)
 
   const monthName = new Date().toLocaleString("default", { month: "long" })
   
@@ -26,8 +31,30 @@ export default function MonthlyReviewPage() {
   const ruleBreaks = trades.map(t => psychology.find(p => p.tradeId === t.id)?.brokeRules).filter(Boolean).length
   const ruleComplianceScore = Math.max(0, 100 - (ruleBreaks * 5))
   
-  const bestSetup = "Liquidity Sweep" // Mocked for simplicity, would aggregate playbooks
-  const worstSetup = "Breakout"
+  const playbooks = usePropStore(s => s.playbooks)
+
+  // Aggregate by playbook
+  const playbookPnls: Record<string, number> = {}
+  trades.forEach(t => {
+    if (t.playbookId) {
+      playbookPnls[t.playbookId] = (playbookPnls[t.playbookId] || 0) + t.pnl
+    }
+  })
+
+  let bestSetup = "N/A"
+  let worstSetup = "N/A"
+  
+  if (Object.keys(playbookPnls).length > 0) {
+    const sorted = Object.entries(playbookPnls).sort((a, b) => b[1] - a[1])
+    const bestPlaybook = playbooks.find(p => p.id === sorted[0][0])
+    const worstPlaybook = playbooks.find(p => p.id === sorted[sorted.length - 1][0])
+    
+    if (bestPlaybook && sorted[0][1] > 0) bestSetup = `${bestPlaybook.name} (+$${sorted[0][1].toFixed(0)})`
+    else if (sorted[0][1] > 0) bestSetup = `Unnamed Playbook (+$${sorted[0][1].toFixed(0)})`
+    
+    if (worstPlaybook && sorted[sorted.length - 1][1] < 0) worstSetup = `${worstPlaybook.name} (-$${Math.abs(sorted[sorted.length - 1][1]).toFixed(0)})`
+    else if (sorted[sorted.length - 1][1] < 0) worstSetup = `Unnamed Playbook (-$${Math.abs(sorted[sorted.length - 1][1]).toFixed(0)})`
+  }
 
   // Aggregate by week
   const weeklyData = [
@@ -36,6 +63,26 @@ export default function MonthlyReviewPage() {
     { name: "Week 3", pnl: trades.slice(10, 15).reduce((s, t) => s + t.pnl, 0) },
     { name: "Week 4", pnl: trades.slice(15, 20).reduce((s, t) => s + t.pnl, 0) }
   ]
+
+  const exportPDF = async () => {
+    if (!reportRef.current) return
+    setIsExporting(true)
+    try {
+      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, logging: false })
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pdfWidth = pdf.internal.pageSize.getWidth()
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
+      pdf.save(`Monthly-Review-${monthName}.pdf`)
+      toast.success("PDF Downloaded successfully")
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to generate PDF")
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -46,9 +93,13 @@ export default function MonthlyReviewPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => toast.success("AI Summary generated")}><FileText className="w-4 h-4 mr-2" /> AI Summary</Button>
-          <Button onClick={() => toast.success("PDF Downloaded")}><Download className="w-4 h-4 mr-2" /> Export PDF</Button>
+          <Button onClick={exportPDF} disabled={isExporting}>
+            <Download className="w-4 h-4 mr-2" /> {isExporting ? "Generating..." : "Export PDF"}
+          </Button>
         </div>
       </div>
+
+      <div ref={reportRef} className="space-y-6 bg-background p-4 rounded-xl">
 
       <div className="grid grid-cols-6 gap-4">
         <Card className="col-span-2 bg-card border-primary/20">
@@ -110,6 +161,7 @@ export default function MonthlyReviewPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   )

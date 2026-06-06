@@ -66,6 +66,29 @@ export async function createPlaybook(data: PlaybookInput) {
   return { ...playbook, checklist: JSON.parse(playbook.checklist), trades: [] }
 }
 
+export async function updatePlaybook(id: string, data: PlaybookInput) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const playbook = await prisma.playbook.update({
+    where: { id, userId: session.user.id },
+    data: {
+      name: data.name,
+      category: data.category,
+      marketCondition: data.marketCondition,
+      session: data.session,
+      instrument: data.instrument,
+      entryRules: data.entryRules,
+      exitRules: data.exitRules,
+      riskRules: data.riskRules,
+      checklist: JSON.stringify(data.checklist),
+      isPublic: data.isPublic || false
+    }
+  })
+
+  return { ...playbook, checklist: JSON.parse(playbook.checklist) }
+}
+
 export async function deletePlaybook(id: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")

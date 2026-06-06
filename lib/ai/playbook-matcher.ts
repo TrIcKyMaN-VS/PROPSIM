@@ -1,5 +1,5 @@
 import { generateObject } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { getAiProvider, trackAiUsage } from "./provider"
 import { z } from "zod"
 
 export const PlaybookMatchSchema = z.object({
@@ -22,8 +22,10 @@ export async function matchTradeToPlaybook(trade: any, playbooks: any[]) {
     entryRules: pb.entryRules
   }))
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o-mini"),
+  const { model, userId } = await getAiProvider()
+
+  const { object, usage } = await generateObject({
+    model: model,
     schema: PlaybookMatchSchema,
     prompt: `You are an AI Playbook Matching Engine. 
     Analyze the following trade:
@@ -39,6 +41,10 @@ export async function matchTradeToPlaybook(trade: any, playbooks: any[]) {
     If it's a weak match (confidence < 0.5), return null for playbookId.
     `
   })
+
+  if (usage) {
+    await trackAiUsage(userId, usage.totalTokens)
+  }
 
   return object
 }

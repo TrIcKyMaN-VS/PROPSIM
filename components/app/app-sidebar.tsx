@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen, Brain, Plus, Home, BookOpen, Beaker, PlayCircle, Network, CalendarDays, CheckSquare, CalendarClock, PieChart } from "lucide-react"
+import { LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen, Brain, Plus, Home, BookOpen, Beaker, PlayCircle, Network, CalendarDays, CheckSquare, CalendarClock, PieChart, Download, Link as LinkIcon } from "lucide-react"
+import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 const nav = [
@@ -18,6 +19,8 @@ const nav = [
   { href: "/app/simulator", label: "What-If Simulator", icon: Beaker },
   { href: "/app/replay", label: "Challenge Replay", icon: PlayCircle },
   { href: "/app/rules-builder", label: "Rule Builder", icon: Network },
+  { href: "/app/import", label: "Import Center", icon: Download },
+  { href: "/app/settings/connections", label: "Connections", icon: LinkIcon },
   { href: "/app/firms", label: "Firms", icon: Building2 },
   { href: "/app/compare", label: "Compare", icon: GitCompareArrows },
 ]
@@ -42,12 +45,18 @@ export function AppSidebar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+                "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-300",
+                active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <div 
+                className={cn(
+                  "absolute inset-0 rounded-lg bg-secondary transition-opacity duration-300", 
+                  active ? "opacity-100" : "opacity-0 group-hover:opacity-50"
+                )} 
+              />
+              <item.icon className="relative z-10 h-4 w-4" />
+              <span className="relative z-10">{item.label}</span>
             </Link>
           )
         })}

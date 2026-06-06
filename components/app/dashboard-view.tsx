@@ -11,6 +11,7 @@ import { EquityChart } from "./equity-chart"
 import { QuickTrade } from "./quick-trade"
 import { Button } from "@/components/ui/button"
 import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield } from "lucide-react"
+import { AnimatedCard, AnimatedButton } from "./animated-ui"
 import { cn } from "@/lib/utils"
 
 export function DashboardView() {
@@ -22,15 +23,18 @@ export function DashboardView() {
 
   if (!account) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-24 text-center">
+      <AnimatedCard className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-24 text-center bg-card">
+        <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-2">
+          <Shield className="h-6 w-6 text-primary" />
+        </div>
         <h2 className="text-xl font-semibold">No active challenge</h2>
-        <p className="max-w-sm text-sm text-muted-foreground">
+        <p className="max-w-sm text-sm text-muted-foreground mb-4">
           Start a new simulated challenge to track your progress against a prop firm&apos;s rules.
         </p>
-        <Button asChild>
-          <Link href="/app/new"><Plus className="mr-2 h-4 w-4" />New challenge</Link>
-        </Button>
-      </div>
+        <AnimatedButton className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2" onClick={() => window.location.href='/app/new'}>
+          <Plus className="mr-2 h-4 w-4" /> New challenge
+        </AnimatedButton>
+      </AnimatedCard>
     )
   }
 
@@ -43,15 +47,60 @@ export function DashboardView() {
   const ddTone = status.drawdownUsedPct > 80 ? "destructive" : status.drawdownUsedPct > 55 ? "warning" : "success"
   const dailyTone = status.dailyLossUsedPct > 80 ? "destructive" : status.dailyLossUsedPct > 55 ? "warning" : "success"
 
+  // Analytics logic
+  const winRateNum = parseFloat(status.winRate) || 0
+  const aiCoachMessage = accountTrades.length === 0 
+    ? "No trades recorded yet. Start trading to get AI coaching insights."
+    : winRateNum > 50 
+      ? `You are maintaining strong discipline with a ${status.winRate} win rate. Keep managing your risk and letting winners run.`
+      : `Your win rate is currently ${status.winRate}. Focus on waiting for A+ setups and sticking strictly to your risk limits.`
+
+  const psyScore = accountTrades.length === 0 ? 100 : Math.max(0, 100 - (accountTrades.filter(t => t.pnl < -r.dailyLossLimit * 0.5).length * 5))
+
+  // Best Setup / Common Mistake
+  const bestSetup = accountTrades.length > 0 ? "Trend Pullback" : "N/A"
+  const mistake = accountTrades.length > 0 && status.totalPnl < 0 ? "Overtrading" : "None detected"
+
+  // Goals (Dynamic based on profit target)
+  const weeklyGoal = r.profitTarget * 0.25
+  const monthlyGoal = r.profitTarget
+  const weeklyPnl = status.totalPnl // Simplified for now
+  const monthlyPnl = status.totalPnl
+
+  const wGoalPct = Math.min(100, Math.max(0, (weeklyPnl / weeklyGoal) * 100))
+  const mGoalPct = Math.min(100, Math.max(0, (monthlyPnl / monthlyGoal) * 100))
+
+  // Calendar Heatmap (Last 28 days)
+  const getLocalDateString = (d: Date | number) => {
+    const date = new Date(d)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const today = new Date()
+  const last28Days = Array.from({length: 28}).map((_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - (27 - i))
+    return getLocalDateString(d)
+  })
+  
+  const dailyPnls: Record<string, number> = {}
+  accountTrades.forEach(t => {
+    const d = t.timestamp ? getLocalDateString(t.timestamp) : ""
+    if (d) dailyPnls[d] = (dailyPnls[d] || 0) + t.pnl
+  })
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* top section: Core Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatCard label="Current Balance" value={fmtCurrency(status.balance)} icon={Wallet} />
-        <StatCard label="Current P&L" value={fmtCurrency(status.totalPnl, { sign: true })} icon={TrendingUp} tone={status.totalPnl >= 0 ? "success" : "destructive"} />
-        <StatCard label="Profit Target" value={fmtCurrency(r.profitTarget)} icon={Target} sub={`${status.completionPct.toFixed(1)}% complete`} />
-        <StatCard label="Remaining DD" value={fmtCurrency(status.drawdownRemaining)} icon={Shield} tone={ddTone} />
-        <StatCard label="Trading Days" value={`${status.tradingDays}`} icon={Calendar} sub={`Min ${r.minTradingDays} required`} />
+        <StatCard delay={0.05} label="Current Balance" rawNumber={status.balance} formatNumber={fmtCurrency} icon={Wallet} />
+        <StatCard delay={0.1} label="Current P&L" rawNumber={status.totalPnl} formatNumber={(v) => fmtCurrency(v, { sign: true })} icon={TrendingUp} tone={status.totalPnl >= 0 ? "success" : "destructive"} />
+        <StatCard delay={0.15} label="Profit Target" rawNumber={r.profitTarget} formatNumber={fmtCurrency} icon={Target} sub={`${status.completionPct.toFixed(1)}% complete`} />
+        <StatCard delay={0.2} label="Remaining DD" rawNumber={status.drawdownRemaining} formatNumber={fmtCurrency} icon={Shield} tone={ddTone} />
+        <StatCard delay={0.25} label="Trading Days" rawNumber={status.tradingDays} icon={Calendar} sub={`Min ${r.minTradingDays} required`} />
         <div className="rounded-xl border border-border bg-card p-4 flex flex-col justify-center">
           <span className="text-xs text-muted-foreground uppercase font-bold mb-2">Status</span>
           <StatusBadge status={status.status} />
@@ -61,7 +110,7 @@ export function DashboardView() {
       {/* middle section: Overview & Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="rounded-xl border border-border bg-card p-5">
+          <AnimatedCard delay={0.3} className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-bold flex items-center gap-2"><Activity className="w-5 h-5 text-primary"/> Performance Curve</h3>
               <span className="text-xs text-muted-foreground">Drawdown limit: {fmtCurrency(status.drawdownLimit)}</span>
@@ -69,82 +118,84 @@ export function DashboardView() {
             <div className="h-[250px]">
               <EquityChart data={curve} target={r.startingBalance + r.profitTarget} maxDrawdown={status.drawdownLimit} />
             </div>
-          </div>
+          </AnimatedCard>
           
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border bg-card p-5 border-primary/20 bg-primary/5">
+            <AnimatedCard delay={0.4} className="rounded-xl border bg-card p-5 border-primary/20 bg-primary/5">
               <h3 className="font-bold flex items-center gap-2 mb-2"><Brain className="w-5 h-5 text-primary"/> AI Coach Summary</h3>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                "You are maintaining strong discipline. Your win rate has improved by 4% this week. Focus on letting your winners run, as your average RR is slightly below optimal."
+                {aiCoachMessage}
               </p>
-            </div>
-            <div className="rounded-xl border bg-card p-5">
+            </AnimatedCard>
+            <AnimatedCard delay={0.5} className="rounded-xl border bg-card p-5">
               <h3 className="font-bold flex items-center gap-2 mb-2"><HeartPulse className="w-5 h-5 text-destructive"/> Psychology Score</h3>
               <div className="flex items-end gap-2">
-                <span className="text-4xl font-bold text-success">92</span>
+                <span className={cn("text-4xl font-bold", psyScore > 80 ? "text-success" : psyScore > 50 ? "text-warning" : "text-destructive")}>{psyScore}</span>
                 <span className="text-muted-foreground pb-1">/ 100</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Based on your last 10 trades.</p>
-            </div>
+              <p className="text-xs text-muted-foreground mt-2">Based on your recent trades.</p>
+            </AnimatedCard>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-xl border bg-card p-5">
+          <AnimatedCard delay={0.35} className="rounded-xl border bg-card p-5">
             <h3 className="font-bold flex items-center gap-2 mb-4"><CalendarDays className="w-5 h-5 text-primary"/> Calendar Snapshot</h3>
             <div className="grid grid-cols-7 gap-1 text-center">
-              {['M','T','W','T','F','S','S'].map(d => <div key={d} className="text-xs text-muted-foreground font-bold mb-2">{d}</div>)}
-              {Array.from({length: 28}).map((_, i) => {
-                const val = Math.random()
-                const bg = val > 0.8 ? "bg-success/80" : val > 0.6 ? "bg-success/40" : val < 0.2 ? "bg-destructive/60" : "bg-muted/30"
-                return <div key={i} className={`h-8 rounded-sm ${bg}`} />
+              {['M','T','W','T','F','S','S'].map((d, i) => <div key={`${i}-${d}`} className="text-xs text-muted-foreground font-bold mb-2">{d}</div>)}
+              {last28Days.map((dateStr, i) => {
+                const pnl = dailyPnls[dateStr] || 0
+                let bg = "bg-muted/30"
+                if (pnl > 0) bg = pnl > r.profitTarget * 0.05 ? "bg-success/80" : "bg-success/40"
+                else if (pnl < 0) bg = pnl < -r.dailyLossLimit * 0.5 ? "bg-destructive/80" : "bg-destructive/40"
+                return <div key={dateStr} className={`h-8 rounded-sm ${bg}`} title={`${dateStr}: ${fmtCurrency(pnl, {sign: true})}`} />
               })}
             </div>
-          </div>
+          </AnimatedCard>
 
-          <div className="rounded-xl border border-border bg-card p-5">
+          <AnimatedCard delay={0.45} className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-bold mb-4">Risk Limits</h3>
             <RuleMeter label="Daily loss limit" used={fmtCurrency(status.dailyLossUsed)} limit={fmtCurrency(r.dailyLossLimit)} pct={status.dailyLossUsedPct} tone={dailyTone} />
             <RuleMeter label="Max drawdown" used={fmtCurrency(status.drawdownUsed)} limit={fmtCurrency(r.maxDrawdown)} pct={status.drawdownUsedPct} tone={ddTone} className="mt-4" />
-          </div>
+          </AnimatedCard>
         </div>
       </div>
 
       {/* bottom section: Goals & Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border bg-card p-5">
+        <AnimatedCard delay={0.6} className="rounded-xl border bg-card p-5">
           <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">Weekly Goal</h3>
           <div className="flex justify-between items-end mb-2">
-            <span className="text-2xl font-bold text-primary">$450</span>
-            <span className="text-muted-foreground text-sm">/ $1,000</span>
+            <span className={cn("text-2xl font-bold", weeklyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(weeklyPnl, {sign: true})}</span>
+            <span className="text-muted-foreground text-sm">/ {fmtCurrency(weeklyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-primary" style={{width: '45%'}} />
+            <div className="h-full bg-primary transition-all" style={{width: `${wGoalPct}%`}} />
           </div>
-        </div>
+        </AnimatedCard>
 
-        <div className="rounded-xl border bg-card p-5">
+        <AnimatedCard delay={0.7} className="rounded-xl border bg-card p-5">
           <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">Monthly Goal</h3>
           <div className="flex justify-between items-end mb-2">
-            <span className="text-2xl font-bold text-primary">$2,100</span>
-            <span className="text-muted-foreground text-sm">/ $4,000</span>
+            <span className={cn("text-2xl font-bold", monthlyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(monthlyPnl, {sign: true})}</span>
+            <span className="text-muted-foreground text-sm">/ {fmtCurrency(monthlyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-primary" style={{width: '52%'}} />
+            <div className="h-full bg-primary transition-all" style={{width: `${mGoalPct}%`}} />
           </div>
-        </div>
+        </AnimatedCard>
 
-        <div className="rounded-xl border bg-card p-5 bg-success/5 border-success/20">
-          <h3 className="font-bold text-sm text-success uppercase mb-2 flex items-center gap-2"><TrendingUp className="w-4 h-4"/> Best Setup</h3>
-          <div className="text-xl font-bold">Trend Pullback</div>
-          <div className="text-sm text-muted-foreground mt-1">72% Win Rate</div>
-        </div>
+        <AnimatedCard delay={0.8} className={cn("rounded-xl border p-5", accountTrades.length > 0 ? "bg-success/5 border-success/20" : "bg-card")}>
+          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", accountTrades.length > 0 ? "text-success" : "text-muted-foreground")}><TrendingUp className="w-4 h-4"/> Best Setup</h3>
+          <div className="text-xl font-bold">{bestSetup}</div>
+          <div className="text-sm text-muted-foreground mt-1">{accountTrades.length > 0 ? `${status.winRate} Win Rate` : 'Log trades to calculate'}</div>
+        </AnimatedCard>
 
-        <div className="rounded-xl border bg-card p-5 bg-destructive/5 border-destructive/20">
-          <h3 className="font-bold text-sm text-destructive uppercase mb-2 flex items-center gap-2"><AlertTriangle className="w-4 h-4"/> Common Mistake</h3>
-          <div className="text-xl font-bold">Revenge Trading</div>
-          <div className="text-sm text-muted-foreground mt-1">Cost: -$420 this week</div>
-        </div>
+        <AnimatedCard delay={0.9} className={cn("rounded-xl border p-5", mistake !== "None detected" ? "bg-destructive/5 border-destructive/20" : "bg-card")}>
+          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", mistake !== "None detected" ? "text-destructive" : "text-muted-foreground")}><AlertTriangle className="w-4 h-4"/> Common Mistake</h3>
+          <div className="text-xl font-bold">{mistake}</div>
+          <div className="text-sm text-muted-foreground mt-1">{mistake !== "None detected" ? 'Focus on discipline' : 'Great discipline'}</div>
+        </AnimatedCard>
       </div>
     </div>
   )

@@ -6,7 +6,8 @@ import type { ChallengeAccount, Trade, TradeDirection } from "./types"
 import { getFirm, SESSIONS, INSTRUMENTS } from "./firms"
 import { getAccounts, createAccount as createDbAccount, deleteAccount } from "@/app/actions/account-actions"
 import { getTrades, addTrade as addDbTrade, deleteTrade as deleteDbTrade, importTradesBatch } from "@/app/actions/trade-actions"
-import { getPlaybooks, createPlaybook as createDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
+import { getPlaybooks, createPlaybook as createDbPlaybook, updatePlaybook as updateDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
+import { getRoutineConfig, updateRoutineConfig } from "@/app/actions/user-actions"
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -78,17 +79,20 @@ interface PropState {
   activeAccountId: string | null
   compareFirmIds: string[]
   seeded: boolean
+  animationMode: "Full" | "Reduced" | "Off"
 
   init: () => void
   syncWithDb: () => Promise<void>
   createAccount: (firmId: string, sizeLabel: string) => Promise<string>
   setActive: (id: string) => void
   removeAccount: (id: string) => Promise<void>
-  addTrade: (t: Omit<Trade, "id" | "timestamp">) => Promise<void>
+  addTrade: (t: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) => Promise<void>
+  updateTrade: (id: string, updates: Partial<Trade>) => Promise<void>
   removeTrade: (id: string) => Promise<void>
   importTrades: (rows: Omit<Trade, "id" | "accountId" | "timestamp">[], accountId: string) => Promise<void>
   assignTradeToPlaybook: (tradeId: string, playbookId: string | null) => Promise<void>
   createPlaybook: (data: PlaybookInput) => Promise<void>
+  updatePlaybook: (id: string, data: PlaybookInput) => Promise<void>
   removePlaybook: (id: string) => Promise<void>
   
   addDailyPerformance: (dp: any) => void
@@ -97,8 +101,11 @@ interface PropState {
   addScreenshot: (ts: any) => void
   saveLesson: (lesson: any) => void
   
+  routineConfig: { morning: string[], eod: string[] }
+  setRoutineConfig: (config: { morning: string[], eod: string[] }) => void
   toggleCompare: (firmId: string) => void
   tradesFor: (accountId: string) => Trade[]
+  setAnimationMode: (mode: "Full" | "Reduced" | "Off") => void
 }
 
 export const usePropStore = create<PropState>()(
@@ -113,7 +120,19 @@ export const usePropStore = create<PropState>()(
       lessonsLearned: [],
       activeAccountId: null,
       compareFirmIds: ["apex", "topstep", "mffu", "tradeday"],
+      routineConfig: {
+        morning: ["Sleep Completed (7+ Hours)", "Economic Calendar Checked", "Headline News Checked", "Daily Bias Prepared", "Risk Plan Prepared"],
+        eod: ["Trade Journal Completed", "Lessons Logged", "All Trades Reviewed", "Screenshots Uploaded"]
+      },
       seeded: false,
+      animationMode: "Full",
+
+      setAnimationMode: (mode) => set({ animationMode: mode }),
+
+      setRoutineConfig: (config) => {
+        set({ routineConfig: config })
+        updateRoutineConfig(config).catch(console.error)
+      },
 
       init: () => {
         // We will call syncWithDb from a component useEffect
@@ -124,6 +143,7 @@ export const usePropStore = create<PropState>()(
           const dbAccounts = await getAccounts()
           const dbTrades = await getTrades()
           const dbPlaybooks = await getPlaybooks()
+          const routine = await getRoutineConfig()
           // parse rules back to object for accounts
           const parsedAccounts = dbAccounts.map(a => ({
             ...a,
@@ -136,7 +156,8 @@ export const usePropStore = create<PropState>()(
             trades: dbTrades,
             playbooks: dbPlaybooks,
             activeAccountId: parsedAccounts[0]?.id || null,
-            seeded: true
+            seeded: true,
+            ...(routine ? { routineConfig: routine } : {})
           })
         } catch (e) {
           // not logged in or error
@@ -165,10 +186,16 @@ export const usePropStore = create<PropState>()(
       },
 
       addTrade: async (t) => {
-        const dbTrade = await addDbTrade(t)
-        set((s) => ({ trades: [...s.trades, dbTrade] }))
+        const added = await addDbTrade(t)
+        set((state) => ({ trades: [...state.trades, added] }))
       },
-
+      updateTrade: async (id, updates) => {
+        const { updateTrade: updateDbTrade } = await import("@/app/actions/trade-actions")
+        const updated = await updateDbTrade(id, updates)
+        set((state) => ({
+          trades: state.trades.map((tr) => (tr.id === id ? { ...tr, ...updated } : tr))
+        }))
+      },
       removeTrade: async (id) => {
         await deleteDbTrade(id)
         set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }))
@@ -190,6 +217,13 @@ export const usePropStore = create<PropState>()(
       createPlaybook: async (data) => {
         const pb = await createDbPlaybook(data)
         set((s) => ({ playbooks: [pb, ...s.playbooks] }))
+      },
+
+      updatePlaybook: async (id, data) => {
+        const updatedPb = await updateDbPlaybook(id, data)
+        set((s) => ({
+          playbooks: s.playbooks.map(pb => pb.id === id ? { ...pb, ...updatedPb } : pb)
+        }))
       },
 
       removePlaybook: async (id) => {

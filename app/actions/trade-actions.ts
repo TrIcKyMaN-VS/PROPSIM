@@ -26,11 +26,12 @@ export async function getTrades(accountId?: string) {
     ...t,
     direction: t.direction as "long" | "short",
     timestamp: Number(t.timestamp),
-    tags: t.tags ? JSON.parse(t.tags) : []
+    tags: t.tags ? JSON.parse(t.tags) : [],
+    playbookChecklist: t.playbookChecklist ? JSON.parse(t.playbookChecklist) : {}
   })) as Trade[]
 }
 
-export async function addTrade(trade: Omit<Trade, "id" | "timestamp">) {
+export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
 
@@ -40,20 +41,24 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp">) {
   })
   if (!account || account.userId !== session.user.id) throw new Error("Unauthorized")
 
-  const ts = Date.now()
+  const ts = trade.timestamp ?? Date.now()
   const created = await prisma.trade.create({
     data: {
       accountId: trade.accountId,
+      playbookId: trade.playbookId,
       instrument: trade.instrument,
       direction: trade.direction,
       entry: trade.entry,
       exit: trade.exit,
       contracts: trade.contracts,
       pnl: trade.pnl,
+      calculatedPnl: trade.calculatedPnl,
+      pnlMode: trade.pnlMode || "AUTO",
       day: trade.day,
       session: trade.session,
       notes: trade.notes || "",
       tags: JSON.stringify(trade.tags || []),
+      playbookChecklist: trade.playbookChecklist ? JSON.stringify(trade.playbookChecklist) : null,
       timestamp: BigInt(ts)
     }
   })
@@ -62,7 +67,39 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp">) {
     ...created,
     direction: created.direction as "long" | "short",
     timestamp: Number(created.timestamp),
-    tags: created.tags ? JSON.parse(created.tags) : []
+    tags: created.tags ? JSON.parse(created.tags) : [],
+    playbookChecklist: created.playbookChecklist ? JSON.parse(created.playbookChecklist) : {}
+  } as Trade
+}
+
+export async function updateTrade(id: string, updates: Partial<Trade>) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const data: any = { ...updates }
+  delete data.id
+  delete data.accountId
+  delete data.timestamp
+
+  if (data.tags) data.tags = JSON.stringify(data.tags)
+  if (data.playbookChecklist !== undefined) {
+    data.playbookChecklist = data.playbookChecklist ? JSON.stringify(data.playbookChecklist) : null
+  }
+
+  const updated = await prisma.trade.update({
+    where: { 
+      id,
+      account: { userId: session.user.id }
+    },
+    data
+  })
+
+  return {
+    ...updated,
+    direction: updated.direction as "long" | "short",
+    timestamp: Number(updated.timestamp),
+    tags: updated.tags ? JSON.parse(updated.tags) : [],
+    playbookChecklist: updated.playbookChecklist ? JSON.parse(updated.playbookChecklist) : {}
   } as Trade
 }
 

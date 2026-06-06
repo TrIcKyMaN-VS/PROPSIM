@@ -1,5 +1,5 @@
 import { generateObject } from "ai"
-import { openai } from "@ai-sdk/openai"
+import { getAiProvider, trackAiUsage } from "./provider"
 import { z } from "zod"
 
 export const TradeMappingSchema = z.object({
@@ -19,8 +19,10 @@ export async function detectCsvMapping(csvSample: object[]): Promise<TradeMappin
   const sampleData = JSON.stringify(csvSample.slice(0, 3))
   const columns = Object.keys(csvSample[0] || {}).join(", ")
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o"),
+  const { model, userId } = await getAiProvider()
+
+  const { object, usage } = await generateObject({
+    model: model,
     schema: TradeMappingSchema,
     prompt: `You are a Universal Trade Import AI. A user uploaded a broker statement.
     Columns available: ${columns}
@@ -39,6 +41,10 @@ export async function detectCsvMapping(csvSample: object[]): Promise<TradeMappin
     If exit price is not present, omit exitCol and the Trade Reconstruction Engine will handle it.
     `
   })
+
+  if (usage) {
+    await trackAiUsage(userId, usage.totalTokens)
+  }
 
   return object
 }

@@ -8,15 +8,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, Target, ShieldAlert, Brain, FileCheck } from "lucide-react"
+import { toast } from "sonner"
 
 export default function TradeDetailsPage() {
   const { tradeId } = useParams()
   const router = useRouter()
   const trades = usePropStore(s => s.trades)
   const tradePsychology = usePropStore(s => s.tradePsychology)
+  const playbooks = usePropStore(s => s.playbooks)
+  const updateTrade = usePropStore(s => s.updateTrade)
   
   const trade = trades.find(t => t.id === tradeId)
   const psyc = tradePsychology.find(p => p.tradeId === tradeId) || {}
+
+  const playbook = trade?.playbookId ? playbooks.find(p => p.id === trade.playbookId) : null
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(trade?.playbookChecklist || {})
 
   const saveTradePsychology = usePropStore(s => s.saveTradePsychology)
 
@@ -43,9 +49,12 @@ export default function TradeDetailsPage() {
 
   const update = (key: string, val: any) => setForm((s: any) => ({ ...s, [key]: val }))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveTradePsychology(form)
-    // Show toast
+    if (trade && trade.id) {
+      await updateTrade(trade.id, { playbookChecklist: checkedItems })
+    }
+    toast.success("Trade review saved!")
   }
 
   if (!trade) return <div className="p-12 text-center">Trade not found</div>
@@ -117,6 +126,37 @@ export default function TradeDetailsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {playbook && playbook.checklist && playbook.checklist.length > 0 && (
+            <Card className="border-primary/20">
+              <CardHeader className="bg-primary/5 pb-4 border-b">
+                <div className="flex justify-between items-center">
+                  <CardTitle className="text-lg">Execution Checklist: {playbook.name}</CardTitle>
+                  <Badge variant="outline" className="font-mono">{Math.round((Object.values(checkedItems).filter(Boolean).length / playbook.checklist.length) * 100)}% Compliance</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-4 space-y-3">
+                {playbook.checklist.map((item: any, idx: number) => {
+                  const text = typeof item === 'string' ? item : item.text
+                  const id = item.id || idx.toString()
+                  return (
+                    <label key={idx} className="flex items-start gap-3 cursor-pointer group">
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 accent-primary mt-0.5 rounded border-muted-foreground/30 focus:ring-primary focus:ring-offset-background" 
+                        checked={!!checkedItems[id]} 
+                        onChange={e => {
+                          const newChecked = { ...checkedItems, [id]: e.target.checked }
+                          setCheckedItems(newChecked)
+                        }} 
+                      />
+                      <span className={`text-sm ${checkedItems[id] ? "text-muted-foreground line-through" : "font-medium"}`}>{text}</span>
+                    </label>
+                  )
+                })}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* DURING TRADE */}
@@ -205,8 +245,56 @@ export default function TradeDetailsPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="border-b pb-4 bg-muted/20">
+              <div className="flex justify-between items-center">
+                <CardTitle>Trade Review Notes</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <textarea 
+                value={form.preNotes}
+                onChange={e => update("preNotes", e.target.value)}
+                placeholder="What went well? What could be improved? Did you follow your rules?" 
+                className="flex min-h-[250px] w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" 
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Screenshots</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div 
+                className="border-2 border-dashed border-muted-foreground/20 rounded-xl p-8 text-center hover:bg-muted/50 transition-colors cursor-pointer"
+                onClick={() => document.getElementById('screenshot-upload')?.click()}
+              >
+                <input 
+                  id="screenshot-upload"
+                  type="file" 
+                  className="hidden" 
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      // Mock upload
+                      alert("Screenshot attached: " + file.name);
+                    }
+                  }}
+                />
+                <div className="mx-auto w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-3">
+                  <span className="text-xl">+</span>
+                </div>
+                <p className="font-medium">Click to Upload</p>
+                <p className="text-xs text-muted-foreground mt-1">Drag & drop allowed</p>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end pt-4">
-            <Button onClick={handleSave}>Save Trade Psychology</Button>
+            <Button onClick={handleSave}>Save Review</Button>
           </div>
         </TabsContent>
 

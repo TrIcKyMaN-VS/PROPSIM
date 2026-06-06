@@ -16,6 +16,7 @@ export default function AdminFirmsPage() {
     { id: 1, firm: "Lucid Funding", name: "100K Evaluation", type: "1-Step", price: 499, target: "10%", drawdown: "4% Daily / 8% Max" },
     { id: 2, firm: "Apex Trader Funding", name: "50K Full", type: "1-Step", price: 167, target: "6%", drawdown: "$2500 Trailing" },
     { id: 3, firm: "Topstep", name: "150K Combine", type: "2-Step", price: 149, target: "6% / 6%", drawdown: "$4500 EOD" },
+    { id: 4, firm: "MyFundedFX", name: "25K Standard", type: "2-Step", price: 139, target: "8% / 5%", drawdown: "5% Daily / 8% Max" },
   ]
 
   return (

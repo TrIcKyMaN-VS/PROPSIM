@@ -1,6 +1,6 @@
 import { generateObject } from "ai"
-import { openai } from "@ai-sdk/openai"
 import { z } from "zod"
+import { getAiProvider, trackAiUsage } from "./provider"
 
 export const MistakeDetectorSchema = z.object({
   mistakes: z.array(z.object({
@@ -23,6 +23,8 @@ export async function detectMistakesAndDna(trades: any[]) {
     throw new Error("Not enough trades to analyze DNA. Minimum 5 trades required.")
   }
 
+  const { model, userId } = await getAiProvider()
+
   // Sample up to 50 recent trades to save context limit
   const recentTrades = trades.slice(0, 50).map(t => ({
     id: t.id,
@@ -33,8 +35,8 @@ export async function detectMistakesAndDna(trades: any[]) {
     durationMs: t.exitTime ? t.exitTime - t.timestamp : 0 // hypothetical field
   }))
 
-  const { object } = await generateObject({
-    model: openai("gpt-4o"),
+  const { object, usage } = await generateObject({
+    model: model,
     schema: MistakeDetectorSchema,
     prompt: `You are an AI Trading Coach and Mistake Detector.
     Analyze the following recent trades to determine the trader's DNA and identify any systematic mistakes.
@@ -51,6 +53,10 @@ export async function detectMistakesAndDna(trades: any[]) {
     ${JSON.stringify(recentTrades, null, 2)}
     `
   })
+
+  if (usage) {
+    await trackAiUsage(userId, usage.totalTokens)
+  }
 
   return object
 }

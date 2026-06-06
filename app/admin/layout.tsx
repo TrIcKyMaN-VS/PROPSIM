@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { redirect } from "next/navigation"
-import { ShieldAlert, Users, Building2, BarChart3, Activity, Settings, ArrowLeft, LayoutDashboard, HeartPulse } from "lucide-react"
+import { ShieldAlert, Users, Building2, BarChart3, Activity, Settings, ArrowLeft, LayoutDashboard, HeartPulse, BrainCircuit } from "lucide-react"
 import Link from "next/link"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -48,6 +48,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </Link>
             <Link href="/admin/firms" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:bg-secondary">
               <Building2 className="h-4 w-4" /> Firms & Templates
+            </Link>
+            <Link href="/admin/ai" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:bg-secondary">
+              <BrainCircuit className="h-4 w-4" /> AI Usage
             </Link>
             <Link href="/admin/health" className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary hover:bg-secondary">
               <HeartPulse className="h-4 w-4" /> System Health

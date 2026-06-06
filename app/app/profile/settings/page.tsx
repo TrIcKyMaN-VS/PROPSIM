@@ -159,7 +159,134 @@ export default function ProfileSettingsPage() {
             </div>
           </CardFooter>
         </Card>
+
+        {/* AI Provider Settings */}
+        <AiSettingsCard />
+
       </div>
     </div>
+  )
+}
+
+import { BrainCircuit, Save } from "lucide-react"
+import { getUserAiSettings, saveUserAiSettings } from "@/app/actions/ai-settings-actions"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+function AiSettingsCard() {
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  
+  const [settings, setSettings] = useState({
+    provider: "PROPSIM",
+    hasOpenaiKey: false,
+    hasAnthropicKey: false,
+    hasGeminiKey: false
+  })
+
+  // Inputs for new keys
+  const [keys, setKeys] = useState({
+    openaiKey: "",
+    anthropicKey: "",
+    geminiKey: ""
+  })
+
+  useEffect(() => {
+    getUserAiSettings().then(data => {
+      setSettings(data)
+      setLoading(false)
+    }).catch(err => {
+      console.error(err)
+      setLoading(false)
+    })
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload: any = { provider: settings.provider }
+      if (keys.openaiKey) payload.openaiKey = keys.openaiKey
+      if (keys.anthropicKey) payload.anthropicKey = keys.anthropicKey
+      if (keys.geminiKey) payload.geminiKey = keys.geminiKey
+
+      await saveUserAiSettings(payload)
+      
+      // Update local state to reflect that keys exist now
+      setSettings(prev => ({
+        ...prev,
+        hasOpenaiKey: prev.hasOpenaiKey || !!keys.openaiKey,
+        hasAnthropicKey: prev.hasAnthropicKey || !!keys.anthropicKey,
+        hasGeminiKey: prev.hasGeminiKey || !!keys.geminiKey,
+      }))
+      setKeys({ openaiKey: "", anthropicKey: "", geminiKey: "" })
+      
+      toast.success("AI Settings saved securely.")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save AI settings.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" /> AI Provider Settings</CardTitle>
+        <CardDescription>Choose between PROPSIM Managed AI (default) or provide your own API keys for unlimited personal usage.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">Loading AI settings...</div>
+        ) : (
+          <>
+            <div className="space-y-2 max-w-sm">
+              <Label>Active Provider</Label>
+              <Select value={settings.provider} onValueChange={(v) => setSettings({...settings, provider: v})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PROPSIM">PROPSIM Managed (Default)</SelectItem>
+                  <SelectItem value="OPENAI">OpenAI (Personal Key)</SelectItem>
+                  <SelectItem value="ANTHROPIC" disabled>Anthropic (Coming Soon)</SelectItem>
+                  <SelectItem value="GEMINI" disabled>Google Gemini (Coming Soon)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
+              <div>
+                <h4 className="font-medium">Personal API Keys</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Keys are encrypted securely using AES-256-GCM. We never expose your keys to the frontend or return them in responses.
+                </p>
+              </div>
+              
+              <div className="grid gap-4">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>OpenAI API Key</Label>
+                    {settings.hasOpenaiKey && <Badge variant="outline" className="text-success text-[10px] h-4">Configured</Badge>}
+                  </div>
+                  <Input 
+                    type="password" 
+                    placeholder={settings.hasOpenaiKey ? "••••••••••••••••••••••••" : "sk-..."}
+                    value={keys.openaiKey}
+                    onChange={e => setKeys({...keys, openaiKey: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+      <CardFooter className="bg-muted/50 pt-6 rounded-b-xl border-t justify-end">
+        <Button onClick={handleSave} disabled={loading || saving}>
+          {saving ? "Saving..." : "Save AI Settings"}
+          <Save className="w-4 h-4 ml-2" />
+        </Button>
+      </CardFooter>
+    </Card>
   )
 }

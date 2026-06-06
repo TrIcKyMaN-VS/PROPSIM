@@ -18,14 +18,21 @@ model User {
   role          String    @default("USER")
   plan          String    @default("FREE")
   lastLogin     DateTime?
+  routineConfig String?   // JSON object storing custom morning/eod tasks
   
   accounts      Account[]
   sessions      Session[]
   deviceSessions DeviceSession[]
   challenges    ChallengeAccount[]
   playbooks     Playbook[]
+  checklistTemplates ChecklistTemplate[]
   challengeTemplates ChallengeTemplate[]
+  ruleTemplates RuleTemplate[]
+  ruleViolations RuleViolation[]
   dailyPerformances DailyPerformance[]
+  brokerConnections BrokerConnection[]
+  importLogs        ImportLog[]
+  aiSettings        UserAiSettings?
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -92,6 +99,7 @@ model ChallengeAccount {
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades     Trade[]
+  ruleViolations RuleViolation[]
 }
 
 model ChallengeTemplate {
@@ -135,6 +143,18 @@ model Playbook {
   trades           Trade[]
 }
 
+model ChecklistTemplate {
+  id               String   @id @default(cuid())
+  userId           String
+  name             String
+  items            String   // JSON array of {id, text, required}
+  isPublic         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Trade {
   id               String   @id @default(cuid())
   accountId        String
@@ -145,11 +165,14 @@ model Trade {
   exit             Float
   contracts        Int
   pnl              Float
+  calculatedPnl    Float?
+  pnlMode          String   @default("AUTO")
   day              Int      // trading day index
   timestamp        BigInt   // Using BigInt for js Date.now() timestamp
   session          String
   notes            String?
   tags             String?  // JSON array string
+  playbookChecklist String? // JSON object { item: boolean }
   
   confidenceScore  Float?   // From AI reconstruction
   isReconstructed  Boolean  @default(false)
@@ -241,4 +264,81 @@ model DailyPerformance {
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+model RuleTemplate {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  nodes       String   // JSON array of {id, type, config}
+  edges       String   // JSON array of edges
+  isPublic    Boolean  @default(false)
+  isOfficial  Boolean  @default(false) // e.g. True for Apex, Topstep default templates
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model RuleViolation {
+  id            String   @id @default(cuid())
+  userId        String
+  accountId     String
+  tradeId       String?
+  ruleName      String
+  violationText String
+  severity      String   // warning, hard_stop, fail
+  timestamp     DateTime @default(now())
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account       ChallengeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
+model BrokerConnection {
+  id           String   @id @default(cuid())
+  userId       String
+  provider     String   // Tradovate, TradeLocker, NinjaTrader, Rithmic
+  accountName  String?  
+  status       String   // Connected, Not Connected, Syncing, Error
+  lastSync     DateTime?
+  config       String?  // JSON for OAuth tokens, API keys, env settings
+  errorMessage String?  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ImportLog {
+  id                String   @id @default(cuid())
+  userId            String
+  source            String   // CSV, Excel, Tradovate API, NinjaTrader, etc.
+  newTradesCount    Int      @default(0)
+  duplicatesSkipped Int      @default(0)
+  errorsCount       Int      @default(0)
+  status            String   // Success, Partial, Failed
+  message           String?  
+  createdAt         DateTime @default(now())
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserAiSettings {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  provider      String    @default("PROPSIM") // PROPSIM, OPENAI, ANTHROPIC, GEMINI
+  
+  // Encrypted personal keys
+  openaiKey     String?
+  anthropicKey  String?
+  geminiKey     String?
+  
+  // Usage tracking
+  totalRequests Int       @default(0)
+  totalTokens   Int       @default(0)
+  estimatedCost Float     @default(0)
+  lastUsage     DateTime?
+  
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
