@@ -170,7 +170,7 @@ export default function IntegrationsPage() {
                           <li>Open your NinjaTrader 8 Control Center.</li>
                           <li>Go to <strong>Tools</strong> &rarr; <strong>Import</strong> &rarr; <strong>NinjaScript Add-On...</strong></li>
                           <li>Select the downloaded <code>.zip</code> file.</li>
-                          <li>Completely <strong>Restart NinjaTrader 8</strong>.</li>
+                          <li><em>(Do not restart NinjaTrader yet)</em></li>
                         </ul>
                       </div>
                     </div>
@@ -196,7 +196,7 @@ export default function IntegrationsPage() {
                           <li>Open your computer's Documents folder and navigate to: <br/><code>Documents\NinjaTrader 8\</code></li>
                           <li>Create a new Text Document and name it exactly: <code>propsim_token.txt</code></li>
                           <li>Open the file, paste your API token inside, and click Save.</li>
-                          <li><strong>Restart NinjaTrader</strong> again.</li>
+                          <li>Now, completely <strong>Restart NinjaTrader 8</strong>.</li>
                         </ul>
                         <p className="text-xs italic text-primary/80 mt-2">You will now see a green "Connected" badge on this page!</p>
                       </div>
@@ -208,7 +208,7 @@ export default function IntegrationsPage() {
                         Map Your Accounts
                       </h3>
                       <div className="pl-8 text-muted-foreground">
-                        Scroll down to the <strong>Account Mapping</strong> section on this page to link your NinjaTrader <code>Sim101</code> account to your PROPSIM Challenge.
+                        Scroll down to the <strong>Account Mapping</strong> section on this page to link your local NinjaTrader broker accounts to your active PROPSIM Challenges.
                       </div>
                     </div>
                   </div>
