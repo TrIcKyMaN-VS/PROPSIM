@@ -18,7 +18,7 @@ import {
   RadialBarChart,
   PolarAngleAxis,
 } from "recharts"
-import { Target, Percent, Scale, Activity, TrendingDown, Gauge, BookOpen } from "lucide-react"
+import { Target, Percent, Scale, Activity, TrendingDown, Gauge, BookOpen, Clock, CalendarDays, Tag } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
@@ -175,6 +175,150 @@ export function AnalyticsView() {
           </ResponsiveContainer>
         </div>
       </div>
+
+      {/* P&L by Day of Week + Hour of Day */}
+      {(() => {
+        const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+        const byDay = DAYS.map((label, i) => {
+          // 0=Sun in JS, we want Mon=0
+          const jsDay = i === 6 ? 0 : i + 1
+          const dayTrades = accountTrades.filter(t => new Date(t.timestamp).getDay() === jsDay)
+          return {
+            day: label.slice(0, 3),
+            pnl: Math.round(dayTrades.reduce((s, t) => s + t.pnl, 0)),
+            trades: dayTrades.length
+          }
+        })
+
+        const HOURS = Array.from({ length: 24 }, (_, i) => i)
+        const byHour = HOURS
+          .map(h => {
+            const hourTrades = accountTrades.filter(t => new Date(t.timestamp).getHours() === h)
+            return {
+              hour: `${String(h).padStart(2, "0")}:00`,
+              pnl: Math.round(hourTrades.reduce((s, t) => s + t.pnl, 0)),
+              trades: hourTrades.length
+            }
+          })
+          .filter(h => h.trades > 0)
+
+        return (
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <CalendarDays className="w-4 h-4 text-primary" />
+                <h3 className="font-medium">P&amp;L by Day of Week</h3>
+              </div>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={byDay} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <XAxis dataKey="day" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
+                      contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
+                      formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                    />
+                    <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
+                      {byDay.map((d, i) => (
+                        <Cell key={i} fill={d.pnl >= 0 ? "var(--color-success)" : "var(--color-destructive)"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Clock className="w-4 h-4 text-primary" />
+                <h3 className="font-medium">P&amp;L by Hour of Day</h3>
+              </div>
+              {byHour.length === 0 ? (
+                <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">
+                  Not enough data — trades without timestamps or no trades yet.
+                </div>
+              ) : (
+                <div className="h-52">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={byHour} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                      <XAxis dataKey="hour" tick={{ fill: "var(--color-muted-foreground)", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.ceil(byHour.length / 8)} />
+                      <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => `$${v}`} />
+                      <Tooltip
+                        cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
+                        contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
+                        formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                      />
+                      <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
+                        {byHour.map((h, i) => (
+                          <Cell key={i} fill={h.pnl >= 0 ? "var(--color-success)" : "var(--color-destructive)"} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* P&L by Tag */}
+      {(() => {
+        // Build tag stats: group trades by each tag they carry
+        const tagMap = new Map<string, { pnl: number; trades: number }>()
+        accountTrades.forEach(t => {
+          let tags: string[] = []
+          if (t.tags) {
+            if (Array.isArray(t.tags)) tags = t.tags
+            else if (typeof t.tags === "string") {
+              try { const p = JSON.parse(t.tags); tags = Array.isArray(p) ? p : [t.tags] } catch { tags = [t.tags] }
+            }
+          }
+          tags.forEach(tag => {
+            const existing = tagMap.get(tag) ?? { pnl: 0, trades: 0 }
+            tagMap.set(tag, { pnl: existing.pnl + t.pnl, trades: existing.trades + 1 })
+          })
+        })
+
+        const byTag = [...tagMap.entries()]
+          .map(([tag, stats]) => ({ tag, pnl: Math.round(stats.pnl), trades: stats.trades }))
+          .sort((a, b) => b.trades - a.trades)
+          .slice(0, 10)
+
+        return (
+          <div className="mt-4 rounded-xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2 mb-4">
+              <Tag className="w-4 h-4 text-primary" />
+              <h3 className="font-medium">P&amp;L by Tag</h3>
+            </div>
+            {byTag.length === 0 ? (
+              <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">
+                No tags found — add tags to your trades to see performance by tag.
+              </div>
+            ) : (
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={byTag} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <XAxis dataKey="tag" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
+                    <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
+                      contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
+                      formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                    />
+                    <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
+                      {byTag.map((d, i) => (
+                        <Cell key={i} fill={d.pnl >= 0 ? "var(--color-success)" : "var(--color-destructive)"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Playbook Performance Analytics */}
       <div className="mt-4 rounded-xl border border-border bg-card p-5">

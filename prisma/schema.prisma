@@ -38,6 +38,7 @@ model User {
   auditLogs         AuditLog[]         @relation("UserAuditLogs")
   adminActions      AuditLog[]         @relation("AdminAuditLogs")
   passwordResetTokens PasswordResetToken[]
+  apiTokens         ApiToken[]
   
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -91,20 +92,42 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
+model ApiToken {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  provider  String    // e.g., "ninjatrader"
+  lastUsed  DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model ChallengeAccount {
-  id         String   @id @default(cuid())
-  userId     String
-  firmId     String
-  sizeLabel  String
-  rules      String   // Stored as JSON string
-  status     String   @default("active") // active, passed, failed
-  failReason String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String
+  name              String?
+  brokerAccountName String?
+  firmId            String
+  sizeLabel         String
+  rules             String   // Stored as JSON string
+  status            String   @default("active") // active, passed, failed
+  failReason        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   trades     Trade[]
   ruleViolations RuleViolation[]
+}
+
+model DiscoveredAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  provider    String   
+  accountName String
+  lastSeen    DateTime @default(now())
+
+  @@unique([userId, provider, accountName])
 }
 
 model ChallengeTemplate {
@@ -170,7 +193,8 @@ model Trade {
   direction        String   // long, short
   entry            Float
   exit             Float
-  contracts        Int
+  stopLoss         Float?
+  contracts        Float
   pnl              Float
   calculatedPnl    Float?
   pnlMode          String   @default("AUTO")

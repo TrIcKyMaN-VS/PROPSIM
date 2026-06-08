@@ -47,3 +47,25 @@ export async function deleteAccount(id: string) {
     where: { id, userId: session.user.id }
   })
 }
+
+export async function updateAccountMapping(accountId: string, brokerAccountName: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  await prisma.challengeAccount.updateMany({
+    where: { id: accountId, userId: session.user.id },
+    data: { brokerAccountName }
+  })
+  
+  return { success: true }
+}
+
+export async function getDiscoveredAccounts() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  return await prisma.discoveredAccount.findMany({
+    where: { userId: session.user.id, provider: "NinjaTrader" },
+    orderBy: { lastSeen: "desc" }
+  })
+}

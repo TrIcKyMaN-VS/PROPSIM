@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen, Brain, Plus, Home, BookOpen, Beaker, PlayCircle, Network, CalendarDays, CheckSquare, CalendarClock, PieChart, Download, Link as LinkIcon } from "lucide-react"
+import { LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen, Brain, Plus, Home, BookOpen, Beaker, PlayCircle, Network, CalendarDays, CheckSquare, CalendarClock, PieChart, Download, Link as LinkIcon, FileText, ShieldCheck, Plug } from "lucide-react"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
@@ -12,15 +12,18 @@ const nav = [
   { href: "/app/daily", label: "Daily Routine", icon: CheckSquare },
   { href: "/app/playbooks", label: "Playbooks", icon: BookOpen },
   { href: "/app/journal", label: "Journal", icon: NotebookPen },
+  { href: "/app/notebook", label: "Notebook", icon: BookOpen },
   { href: "/app/weekly-review", label: "Weekly Review", icon: CalendarClock },
   { href: "/app/monthly-review", label: "Monthly Review", icon: PieChart },
   { href: "/app/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/app/compliance", label: "Compliance", icon: ShieldCheck },
   { href: "/app/coach", label: "AI Coach", icon: Brain },
   { href: "/app/simulator", label: "What-If Simulator", icon: Beaker },
   { href: "/app/replay", label: "Challenge Replay", icon: PlayCircle },
   { href: "/app/rules-builder", label: "Rule Builder", icon: Network },
   { href: "/app/import", label: "Import Center", icon: Download },
   { href: "/app/settings/connections", label: "Connections", icon: LinkIcon },
+  { href: "/app/settings/integrations", label: "Integrations", icon: Plug },
   { href: "/app/firms", label: "Firms", icon: Building2 },
   { href: "/app/compare", label: "Compare", icon: GitCompareArrows },
 ]

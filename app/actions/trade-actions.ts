@@ -55,6 +55,7 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       direction: trade.direction,
       entry: trade.entry,
       exit: trade.exit,
+      stopLoss: trade.stopLoss || null,
       contracts: trade.contracts,
       pnl: trade.pnl,
       calculatedPnl: trade.calculatedPnl,

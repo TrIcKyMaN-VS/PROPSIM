@@ -16,13 +16,12 @@ export default function ProfilePage() {
   if (!session?.user) return null
   const user = session.user as any
 
-  // Personal
-  let joinDate = "October 2023"
+  // Personal — use toLocaleDateString to respect browser timezone
+  let joinDate = "—"
   if (user.createdAt) {
     try {
       const date = new Date(user.createdAt)
-      const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-      joinDate = `${months[date.getMonth()]} ${date.getFullYear()}`
+      joinDate = date.toLocaleDateString(undefined, { month: "long", year: "numeric" })
     } catch (e) {}
   }
   
@@ -127,7 +126,21 @@ export default function ProfilePage() {
             </div>
             <div className="flex justify-between items-center pb-2">
               <span className="text-muted-foreground">Best Setup</span>
-              <span className="font-bold text-primary">A+ Breakout</span>
+              <span className="font-bold text-primary">
+                {(() => {
+                  const map: Record<string, { wins: number; total: number }> = {}
+                  for (const t of trades) {
+                    if (!t.playbookName) continue
+                    if (!map[t.playbookName]) map[t.playbookName] = { wins: 0, total: 0 }
+                    map[t.playbookName].total++
+                    if (t.pnl > 0) map[t.playbookName].wins++
+                  }
+                  const candidates = Object.entries(map).filter(([, v]) => v.total >= 2)
+                  if (candidates.length === 0) return totalTrades > 0 ? "No playbook data" : "N/A"
+                  const best = candidates.sort((a, b) => (b[1].wins / b[1].total) - (a[1].wins / a[1].total))[0]
+                  return `${best[0]} (${Math.round((best[1].wins / best[1].total) * 100)}% WR)`
+                })()}
+              </span>
             </div>
           </CardContent>
         </Card>

@@ -10,14 +10,16 @@ import { RuleMeter } from "./rule-meter"
 import { EquityChart } from "./equity-chart"
 import { QuickTrade } from "./quick-trade"
 import { Button } from "@/components/ui/button"
-import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield } from "lucide-react"
+import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield, Flame, TrendingDown, Zap } from "lucide-react"
 import { AnimatedCard, AnimatedButton } from "./animated-ui"
 import { cn } from "@/lib/utils"
+import { useMemo } from "react"
 
 export function DashboardView() {
   const accounts = usePropStore((s) => s.accounts)
   const activeId = usePropStore((s) => s.activeAccountId)
   const trades = usePropStore((s) => s.trades)
+  const tradePsychology = usePropStore((s) => s.tradePsychology)
 
   const account = accounts.find((a) => a.id === activeId)
 
@@ -47,30 +49,149 @@ export function DashboardView() {
   const ddTone = status.drawdownUsedPct > 80 ? "destructive" : status.drawdownUsedPct > 55 ? "warning" : "success"
   const dailyTone = status.dailyLossUsedPct > 80 ? "destructive" : status.dailyLossUsedPct > 55 ? "warning" : "success"
 
-  // Analytics logic
-  const winRateNum = parseFloat(status.winRate) || 0
-  const aiCoachMessage = accountTrades.length === 0 
+  // Compute wins/losses/winRate from trades
+  const wins = accountTrades.filter(t => t.pnl > 0).length
+  const losses = accountTrades.filter(t => t.pnl < 0).length
+  const winRateNum = accountTrades.length > 0 ? (wins / accountTrades.length) * 100 : 0
+  const winRateStr = `${winRateNum.toFixed(0)}%`
+
+  // ── Date window helpers ──────────────────────────────────────────────────
+  const now = new Date()
+
+  // Current week: Mon 00:00 → Sun 23:59
+  const dayOfWeek = now.getDay() // 0=Sun
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+  const weekStart = new Date(now)
+  weekStart.setDate(now.getDate() + mondayOffset)
+  weekStart.setHours(0, 0, 0, 0)
+
+  // Current month: 1st 00:00 → end of month
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0)
+
+  const weeklyPnl = accountTrades
+    .filter(t => t.timestamp >= weekStart.getTime())
+    .reduce((sum, t) => sum + t.pnl, 0)
+
+  const monthlyPnl = accountTrades
+    .filter(t => t.timestamp >= monthStart.getTime())
+    .reduce((sum, t) => sum + t.pnl, 0)
+
+  // ── Best Setup: highest win rate playbook with ≥2 trades ─────────────────
+  const bestSetup = useMemo(() => {
+    if (accountTrades.length === 0) return "N/A"
+    const map: Record<string, { wins: number; total: number }> = {}
+    for (const t of accountTrades) {
+      if (!t.playbookName) continue
+      if (!map[t.playbookName]) map[t.playbookName] = { wins: 0, total: 0 }
+      map[t.playbookName].total++
+      if (t.pnl > 0) map[t.playbookName].wins++
+    }
+    const candidates = Object.entries(map).filter(([, v]) => v.total >= 2)
+    if (candidates.length === 0) {
+      // Fallback: most profitable setup by tag
+      const tagMap: Record<string, number> = {}
+      for (const t of accountTrades) {
+        const tags = Array.isArray(t.tags) ? t.tags : []
+        for (const tag of tags) {
+          tagMap[tag] = (tagMap[tag] || 0) + t.pnl
+        }
+      }
+      const best = Object.entries(tagMap).sort((a, b) => b[1] - a[1])[0]
+      return best ? best[0] : "No Playbook Data"
+    }
+    const best = candidates.sort((a, b) => (b[1].wins / b[1].total) - (a[1].wins / a[1].total))[0]
+    return `${best[0]} (${Math.round((best[1].wins / best[1].total) * 100)}% WR)`
+  }, [accountTrades])
+
+  const bestSetupExists = bestSetup !== "N/A" && bestSetup !== "No Playbook Data"
+
+  // ── Common Mistake: from psychology records ──────────────────────────────
+  const commonMistake = useMemo(() => {
+    const accountPsy = tradePsychology.filter(p => {
+      const t = accountTrades.find(tr => tr.id === p.tradeId)
+      return !!t
+    })
+    if (accountPsy.length === 0) return "None detected"
+
+    const flags: Record<string, number> = {
+      "Broke rules": accountPsy.filter(p => p.brokeRules).length,
+      "Moved stop": accountPsy.filter(p => p.movedStop).length,
+      "Moved target": accountPsy.filter(p => p.movedTarget).length,
+      "Emotion affected": accountPsy.filter(p => p.emotionAffected).length,
+      "Averaged losers": accountPsy.filter(p => p.addedSize).length,
+      "Hesitated": accountPsy.filter(p => p.hesitated).length,
+    }
+    const top = Object.entries(flags).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0]
+    if (!top) return "None detected"
+    return `${top[0]} (${top[1]}×)`
+  }, [tradePsychology, accountTrades])
+
+  const hasMistake = commonMistake !== "None detected"
+
+  // ── Psychology Score: from real psych records ────────────────────────────
+  const psyScore = useMemo(() => {
+    const accountPsy = tradePsychology.filter(p => {
+      const t = accountTrades.find(tr => tr.id === p.tradeId)
+      return !!t
+    })
+    if (accountPsy.length === 0) return 100
+
+    let totalDeductions = 0
+    for (const p of accountPsy) {
+      if (p.brokeRules) totalDeductions += 15
+      if (p.emotionAffected) totalDeductions += 10
+      if (p.movedStop) totalDeductions += 8
+      if (p.addedSize) totalDeductions += 8
+      if (p.movedTarget) totalDeductions += 5
+      if (p.hesitated) totalDeductions += 3
+    }
+    const maxPossible = accountPsy.length * 49 // max deductions per trade
+    const rawScore = Math.max(0, 100 - (totalDeductions / Math.max(maxPossible, 1)) * 100)
+
+    // Also factor in execution grades
+    const graded = accountPsy.filter(p => p.executionGrade)
+    if (graded.length > 0) {
+      const gradeMap: Record<string, number> = { "A+": 100, "A": 90, "B": 75, "C": 60, "D": 40, "F": 10 }
+      const avgGrade = graded.reduce((sum, p) => sum + (gradeMap[p.executionGrade] || 50), 0) / graded.length
+      return Math.round((rawScore * 0.6) + (avgGrade * 0.4))
+    }
+
+    return Math.round(rawScore)
+  }, [tradePsychology, accountTrades])
+
+  // ── Streak Analytics ─────────────────────────────────────────────────────
+  const streaks = useMemo(() => {
+    const sorted = [...accountTrades].sort((a, b) => a.timestamp - b.timestamp)
+    let currentWin = 0, currentLoss = 0, maxWin = 0, maxLoss = 0
+    for (const t of sorted) {
+      if (t.pnl > 0) {
+        currentWin++
+        currentLoss = 0
+        maxWin = Math.max(maxWin, currentWin)
+      } else if (t.pnl < 0) {
+        currentLoss++
+        currentWin = 0
+        maxLoss = Math.max(maxLoss, currentLoss)
+      }
+    }
+    return { currentWin, currentLoss, maxWin, maxLoss }
+  }, [accountTrades])
+
+  // ── AI Coach message ─────────────────────────────────────────────────────
+  const aiCoachMessage = accountTrades.length === 0
     ? "No trades recorded yet. Start trading to get AI coaching insights."
-    : winRateNum > 50 
-      ? `You are maintaining strong discipline with a ${status.winRate} win rate. Keep managing your risk and letting winners run.`
-      : `Your win rate is currently ${status.winRate}. Focus on waiting for A+ setups and sticking strictly to your risk limits.`
+    : winRateNum > 50
+      ? `You are maintaining strong discipline with a ${winRateStr} win rate. Keep managing your risk and letting winners run.`
+      : `Your win rate is currently ${winRateStr}. Focus on waiting for A+ setups and sticking strictly to your risk limits.`
 
-  const psyScore = accountTrades.length === 0 ? 100 : Math.max(0, 100 - (accountTrades.filter(t => t.pnl < -r.dailyLossLimit * 0.5).length * 5))
-
-  // Best Setup / Common Mistake
-  const bestSetup = accountTrades.length > 0 ? "Trend Pullback" : "N/A"
-  const mistake = accountTrades.length > 0 && status.totalPnl < 0 ? "Overtrading" : "None detected"
-
-  // Goals (Dynamic based on profit target)
+  // ── Goals ────────────────────────────────────────────────────────────────
   const weeklyGoal = r.profitTarget * 0.25
   const monthlyGoal = r.profitTarget
-  const weeklyPnl = status.totalPnl // Simplified for now
-  const monthlyPnl = status.totalPnl
 
   const wGoalPct = Math.min(100, Math.max(0, (weeklyPnl / weeklyGoal) * 100))
   const mGoalPct = Math.min(100, Math.max(0, (monthlyPnl / monthlyGoal) * 100))
 
-  // Calendar Heatmap (Last 28 days)
+  // ── Calendar Heatmap (Last 28 days) ──────────────────────────────────────
   const getLocalDateString = (d: Date | number) => {
     const date = new Date(d)
     const year = date.getFullYear()
@@ -85,7 +206,7 @@ export function DashboardView() {
     d.setDate(today.getDate() - (27 - i))
     return getLocalDateString(d)
   })
-  
+
   const dailyPnls: Record<string, number> = {}
   accountTrades.forEach(t => {
     const d = t.timestamp ? getLocalDateString(t.timestamp) : ""
@@ -112,14 +233,14 @@ export function DashboardView() {
         <div className="lg:col-span-2 space-y-6">
           <AnimatedCard delay={0.3} className="rounded-xl border border-border bg-card p-5">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-bold flex items-center gap-2"><Activity className="w-5 h-5 text-primary"/> Performance Curve</h3>
+              <h3 className="font-bold flex items-center gap-2"><Activity className="w-5 h-5 text-primary"/>Performance Curve</h3>
               <span className="text-xs text-muted-foreground">Drawdown limit: {fmtCurrency(status.drawdownLimit)}</span>
             </div>
             <div className="h-[250px]">
               <EquityChart data={curve} target={r.startingBalance + r.profitTarget} maxDrawdown={status.drawdownLimit} />
             </div>
           </AnimatedCard>
-          
+
           <div className="grid grid-cols-2 gap-4">
             <AnimatedCard delay={0.4} className="rounded-xl border bg-card p-5 border-primary/20 bg-primary/5">
               <h3 className="font-bold flex items-center gap-2 mb-2"><Brain className="w-5 h-5 text-primary"/> AI Coach Summary</h3>
@@ -133,7 +254,9 @@ export function DashboardView() {
                 <span className={cn("text-4xl font-bold", psyScore > 80 ? "text-success" : psyScore > 50 ? "text-warning" : "text-destructive")}>{psyScore}</span>
                 <span className="text-muted-foreground pb-1">/ 100</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Based on your recent trades.</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {tradePsychology.length > 0 ? "Based on your psychology logs." : "Log psychology data on trade reviews."}
+              </p>
             </AnimatedCard>
           </div>
         </div>
@@ -163,40 +286,90 @@ export function DashboardView() {
 
       {/* bottom section: Goals & Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Weekly Goal */}
         <AnimatedCard delay={0.6} className="rounded-xl border bg-card p-5">
-          <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">Weekly Goal</h3>
+          <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">This Week</h3>
           <div className="flex justify-between items-end mb-2">
             <span className={cn("text-2xl font-bold", weeklyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(weeklyPnl, {sign: true})}</span>
             <span className="text-muted-foreground text-sm">/ {fmtCurrency(weeklyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{width: `${wGoalPct}%`}} />
+            <div className={cn("h-full transition-all rounded-full", weeklyPnl >= 0 ? "bg-primary" : "bg-destructive")} style={{width: `${wGoalPct}%`}} />
           </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Weekly target = 25% of profit goal</p>
         </AnimatedCard>
 
+        {/* Monthly Goal */}
         <AnimatedCard delay={0.7} className="rounded-xl border bg-card p-5">
-          <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">Monthly Goal</h3>
+          <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">This Month</h3>
           <div className="flex justify-between items-end mb-2">
             <span className={cn("text-2xl font-bold", monthlyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(monthlyPnl, {sign: true})}</span>
             <span className="text-muted-foreground text-sm">/ {fmtCurrency(monthlyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all" style={{width: `${mGoalPct}%`}} />
+            <div className={cn("h-full transition-all rounded-full", monthlyPnl >= 0 ? "bg-primary" : "bg-destructive")} style={{width: `${mGoalPct}%`}} />
           </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Monthly target = profit goal</p>
         </AnimatedCard>
 
-        <AnimatedCard delay={0.8} className={cn("rounded-xl border p-5", accountTrades.length > 0 ? "bg-success/5 border-success/20" : "bg-card")}>
-          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", accountTrades.length > 0 ? "text-success" : "text-muted-foreground")}><TrendingUp className="w-4 h-4"/> Best Setup</h3>
-          <div className="text-xl font-bold">{bestSetup}</div>
-          <div className="text-sm text-muted-foreground mt-1">{accountTrades.length > 0 ? `${status.winRate} Win Rate` : 'Log trades to calculate'}</div>
+        {/* Best Setup — real data */}
+        <AnimatedCard delay={0.8} className={cn("rounded-xl border p-5", bestSetupExists ? "bg-success/5 border-success/20" : "bg-card")}>
+          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", bestSetupExists ? "text-success" : "text-muted-foreground")}><TrendingUp className="w-4 h-4"/> Best Setup</h3>
+          <div className="text-lg font-bold leading-tight break-words">{bestSetup}</div>
+          <div className="text-sm text-muted-foreground mt-1">{accountTrades.length > 0 ? `${status.winRate} Overall Win Rate` : 'Log trades to calculate'}</div>
         </AnimatedCard>
 
-        <AnimatedCard delay={0.9} className={cn("rounded-xl border p-5", mistake !== "None detected" ? "bg-destructive/5 border-destructive/20" : "bg-card")}>
-          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", mistake !== "None detected" ? "text-destructive" : "text-muted-foreground")}><AlertTriangle className="w-4 h-4"/> Common Mistake</h3>
-          <div className="text-xl font-bold">{mistake}</div>
-          <div className="text-sm text-muted-foreground mt-1">{mistake !== "None detected" ? 'Focus on discipline' : 'Great discipline'}</div>
+        {/* Common Mistake — real data */}
+        <AnimatedCard delay={0.9} className={cn("rounded-xl border p-5", hasMistake ? "bg-destructive/5 border-destructive/20" : "bg-card")}>
+          <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", hasMistake ? "text-destructive" : "text-muted-foreground")}><AlertTriangle className="w-4 h-4"/> Common Mistake</h3>
+          <div className="text-lg font-bold leading-tight">{commonMistake}</div>
+          <div className="text-sm text-muted-foreground mt-1">{hasMistake ? 'Focus on discipline' : 'Great discipline!'}</div>
         </AnimatedCard>
       </div>
+
+      {/* Streak Analytics Row */}
+      {accountTrades.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <AnimatedCard delay={1.0} className={cn("rounded-xl border p-4", streaks.currentWin > 0 ? "border-success/30 bg-success/5" : "bg-card")}>
+            <div className="flex items-center gap-2 mb-1">
+              <Flame className={cn("w-4 h-4", streaks.currentWin > 0 ? "text-success" : "text-muted-foreground")} />
+              <span className="text-xs font-bold uppercase text-muted-foreground">Current Streak</span>
+            </div>
+            {streaks.currentWin > 0 ? (
+              <div className="text-2xl font-bold text-success">{streaks.currentWin}W</div>
+            ) : streaks.currentLoss > 0 ? (
+              <div className="text-2xl font-bold text-destructive">{streaks.currentLoss}L</div>
+            ) : (
+              <div className="text-2xl font-bold text-muted-foreground">—</div>
+            )}
+          </AnimatedCard>
+
+          <AnimatedCard delay={1.05} className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Zap className="w-4 h-4 text-success" />
+              <span className="text-xs font-bold uppercase text-muted-foreground">Best Win Streak</span>
+            </div>
+            <div className="text-2xl font-bold text-success">{streaks.maxWin}W</div>
+          </AnimatedCard>
+
+          <AnimatedCard delay={1.1} className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown className="w-4 h-4 text-destructive" />
+              <span className="text-xs font-bold uppercase text-muted-foreground">Worst Loss Streak</span>
+            </div>
+            <div className="text-2xl font-bold text-destructive">{streaks.maxLoss}L</div>
+          </AnimatedCard>
+
+          <AnimatedCard delay={1.15} className="rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Activity className="w-4 h-4 text-primary" />
+              <span className="text-xs font-bold uppercase text-muted-foreground">Total Trades</span>
+            </div>
+            <div className="text-2xl font-bold">{accountTrades.length}</div>
+            <div className="text-xs text-muted-foreground">{wins}W / {losses}L</div>
+          </AnimatedCard>
+        </div>
+      )}
     </div>
   )
 }

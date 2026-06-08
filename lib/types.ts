@@ -53,6 +53,7 @@ export interface Trade {
   direction: TradeDirection
   entry: number
   exit: number
+  stopLoss?: number
   contracts: number
   pnl: number
   calculatedPnl?: number | null
