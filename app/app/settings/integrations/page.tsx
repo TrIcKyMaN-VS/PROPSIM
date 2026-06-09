@@ -111,8 +111,11 @@ export default function IntegrationsPage() {
                 NinjaTrader Add-On
               </CardTitle>
               {tokens.some(t => t.provider === "NinjaTrader") && (() => {
-                const ntToken = tokens.find(t => t.provider === "NinjaTrader")
-                const isConnected = ntToken?.lastUsed && (Date.now() - new Date(ntToken.lastUsed).getTime() < 65000)
+                const ntTokens = tokens.filter(t => t.provider === "NinjaTrader")
+                const isConnected = ntTokens.some(t => t.lastUsed && (Date.now() - new Date(t.lastUsed).getTime() < 65000))
+                const mostRecentToken = ntTokens
+                  .filter(t => t.lastUsed)
+                  .sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime())[0]
                 
                 return (
                   <div className="flex flex-col items-end gap-1">
@@ -130,9 +133,9 @@ export default function IntegrationsPage() {
                         </Badge>
                       )}
                     </div>
-                    {ntToken?.lastUsed && (
+                    {mostRecentToken?.lastUsed && (
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        Last ping: {new Date(ntToken.lastUsed).toLocaleTimeString()}
+                        Last ping: {new Date(mostRecentToken.lastUsed).toLocaleTimeString()}
                       </span>
                     )}
                   </div>

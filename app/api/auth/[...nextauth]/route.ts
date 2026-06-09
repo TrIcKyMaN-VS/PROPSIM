@@ -125,6 +125,7 @@ authProviders.push(
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any, // type workaround for next-auth v4 with prisma adapter
+  debug: true,
   session: {
     strategy: "jwt",
     maxAge: 90 * 24 * 60 * 60, // 90 days max (controlled dynamically by JWT)
@@ -237,11 +238,35 @@ export const authOptions: NextAuthOptions = {
 const handler = NextAuth(authOptions)
 
 export async function GET(req: Request, props: { params: Promise<any> }) {
-  const params = await props.params;
-  return handler(req, { params });
+  try {
+    const params = (await props.params) || {};
+    const url = new URL(req.url);
+    const parts = url.pathname.replace(/^\/api\/auth\/?/, "").split("/").filter(Boolean);
+    params.nextauth = parts;
+
+    console.log("[NextAuth GET] url:", req.url, "resolved nextauth:", params.nextauth);
+    const res = await handler(req, { params });
+    console.log("[NextAuth GET] response status:", res.status);
+    return res;
+  } catch (error) {
+    console.error("[NextAuth GET] error thrown:", error);
+    throw error;
+  }
 }
 
 export async function POST(req: Request, props: { params: Promise<any> }) {
-  const params = await props.params;
-  return handler(req, { params });
+  try {
+    const params = (await props.params) || {};
+    const url = new URL(req.url);
+    const parts = url.pathname.replace(/^\/api\/auth\/?/, "").split("/").filter(Boolean);
+    params.nextauth = parts;
+
+    console.log("[NextAuth POST] url:", req.url, "resolved nextauth:", params.nextauth);
+    const res = await handler(req, { params });
+    console.log("[NextAuth POST] response status:", res.status);
+    return res;
+  } catch (error) {
+    console.error("[NextAuth POST] error thrown:", error);
+    throw error;
+  }
 }
