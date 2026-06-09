@@ -16,6 +16,113 @@ const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith('https://')
 const cookiePrefix = useSecureCookies ? "__Secure-" : ""
 const hostPrefix = useSecureCookies ? "__Host-" : ""
 
+const authProviders: any[] = []
+
+if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  authProviders.push(
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    })
+  )
+}
+
+if (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET) {
+  authProviders.push(
+    GithubProvider({
+      clientId: process.env.GITHUB_CLIENT_ID,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    })
+  )
+}
+
+if (process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET) {
+  authProviders.push(
+    AzureADProvider({
+      clientId: process.env.AZURE_AD_CLIENT_ID,
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
+      tenantId: process.env.AZURE_AD_TENANT_ID,
+      allowDangerousEmailAccountLinking: true,
+    })
+  )
+}
+
+authProviders.push(
+  CredentialsProvider({
+    name: "Credentials",
+    credentials: {
+      email: { label: "Email", type: "email", placeholder: "test@example.com" },
+      password: { label: "Password", type: "password" },
+      rememberMe: { label: "Remember Me", type: "text" }
+    },
+    async authorize(credentials, req) {
+      if (!credentials?.email || !credentials?.password) return null
+      
+      const headersList = await headers()
+      const ip = headersList.get('x-forwarded-for') || 'Unknown IP'
+      
+      // Rate limit: 10 attempts per 5 minutes per IP
+      const { allowed } = rateLimit(`login:${ip}`, 10, 5 * 60_000)
+      if (!allowed) throw new Error("TOO_MANY_ATTEMPTS")
+      
+      // LOGIN ONLY — no auto-registration
+      const user = await prisma.user.findUnique({
+        where: { email: credentials.email }
+      })
+
+      if (!user) return null
+      
+      // Must have a password (credentials account) and it must match
+      if (!user.password) return null
+      
+      const isValid = await bcrypt.compare(credentials.password, user.password)
+      if (!isValid) return null
+
+      // Block suspended/banned/disabled accounts
+      if (user.status && user.status !== 'ACTIVE') {
+        throw new Error(`ACCOUNT_${user.status}`)
+      }
+
+      // Update last login
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLogin: new Date() }
+      })
+
+      // Track Device Session
+      const userAgent = headersList.get('user-agent') || 'Unknown Browser'
+      const rememberMe = credentials.rememberMe === 'true'
+      const sessionAge = rememberMe ? 90 * 24 * 60 * 60 : 30 * 24 * 60 * 60
+      const expiresAt = new Date(Date.now() + sessionAge * 1000)
+
+      const deviceSession = await prisma.deviceSession.create({
+        data: { userId: user.id, userAgent, ip, expiresAt }
+      })
+
+      // Write audit log
+      try {
+        await prisma.auditLog.create({
+          data: { userId: user.id, action: 'LOGIN', details: JSON.stringify({ method: 'credentials' }), ip, userAgent }
+        })
+      } catch {}
+
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        plan: user.plan,
+        status: user.status,
+        sessionId: deviceSession.id,
+        sessionExpiresAt: expiresAt.getTime(),
+        createdAt: user.createdAt.toISOString()
+      } as any
+    }
+  })
+)
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as any, // type workaround for next-auth v4 with prisma adapter
   session: {
@@ -45,95 +152,7 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "MOCK_CLIENT_ID",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "MOCK_CLIENT_SECRET",
-      allowDangerousEmailAccountLinking: true,
-    }),
-    GithubProvider({
-      clientId: process.env.GITHUB_CLIENT_ID || "MOCK_CLIENT_ID",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET || "MOCK_CLIENT_SECRET",
-      allowDangerousEmailAccountLinking: true,
-    }),
-    AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID || "MOCK_CLIENT_ID",
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET || "MOCK_CLIENT_SECRET",
-      tenantId: process.env.AZURE_AD_TENANT_ID,
-      allowDangerousEmailAccountLinking: true,
-    }),
-    CredentialsProvider({
-      name: "Credentials",
-      credentials: {
-        email: { label: "Email", type: "email", placeholder: "test@example.com" },
-        password: { label: "Password", type: "password" },
-        rememberMe: { label: "Remember Me", type: "text" }
-      },
-      async authorize(credentials, req) {
-        if (!credentials?.email || !credentials?.password) return null
-        
-        const headersList = await headers()
-        const ip = headersList.get('x-forwarded-for') || 'Unknown IP'
-        
-        // Rate limit: 10 attempts per 5 minutes per IP
-        const { allowed } = rateLimit(`login:${ip}`, 10, 5 * 60_000)
-        if (!allowed) throw new Error("TOO_MANY_ATTEMPTS")
-        
-        // LOGIN ONLY — no auto-registration
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
-        })
-
-        if (!user) return null
-        
-        // Must have a password (credentials account) and it must match
-        if (!user.password) return null
-        
-        const isValid = await bcrypt.compare(credentials.password, user.password)
-        if (!isValid) return null
-
-        // Block suspended/banned/disabled accounts
-        if (user.status && user.status !== 'ACTIVE') {
-          throw new Error(`ACCOUNT_${user.status}`)
-        }
-
-        // Update last login
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { lastLogin: new Date() }
-        })
-
-        // Track Device Session
-        const userAgent = headersList.get('user-agent') || 'Unknown Browser'
-        const rememberMe = credentials.rememberMe === 'true'
-        const sessionAge = rememberMe ? 90 * 24 * 60 * 60 : 30 * 24 * 60 * 60
-        const expiresAt = new Date(Date.now() + sessionAge * 1000)
-
-        const deviceSession = await prisma.deviceSession.create({
-          data: { userId: user.id, userAgent, ip, expiresAt }
-        })
-
-        // Write audit log
-        try {
-          await prisma.auditLog.create({
-            data: { userId: user.id, action: 'LOGIN', details: JSON.stringify({ method: 'credentials' }), ip, userAgent }
-          })
-        } catch {}
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          plan: user.plan,
-          status: user.status,
-          sessionId: deviceSession.id,
-          sessionExpiresAt: expiresAt.getTime(),
-          createdAt: user.createdAt.toISOString()
-        } as any
-      }
-    })
-  ],
+  providers: authProviders,
   callbacks: {
     async jwt({ token, user, account }) {
       // Initial sign-in
@@ -217,4 +236,12 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions)
 
-export { handler as GET, handler as POST }
+export async function GET(req: Request, props: { params: Promise<any> }) {
+  const params = await props.params;
+  return handler(req, { params });
+}
+
+export async function POST(req: Request, props: { params: Promise<any> }) {
+  const params = await props.params;
+  return handler(req, { params });
+}

@@ -1,35 +1,7 @@
-import type { ChallengeRules, ChallengeSize, PropFirm } from "./types"
+import type { ChallengeSize, PropFirm } from "./types"
 
-// Helper to generate scaled sizes for a firm given a per-100k rule profile.
-function sizes(
-  profile: {
-    target: number // per 1k of balance
-    daily: number // per 1k
-    drawdown: number // per 1k
-    maxContracts: Record<number, number>
-    price: Record<number, number>
-  },
-  base: Omit<ChallengeRules, "startingBalance" | "profitTarget" | "dailyLossLimit" | "maxDrawdown" | "maxContracts">,
-): ChallengeSize[] {
-  const balances = [25000, 50000, 100000, 150000, 300000]
-  return balances
-    .filter((b) => profile.maxContracts[b] !== undefined)
-    .map((b) => {
-      const k = b / 1000
-      return {
-        label: `${b / 1000}K`,
-        price: profile.price[b],
-        rules: {
-          ...base,
-          startingBalance: b,
-          profitTarget: Math.round(profile.target * k),
-          dailyLossLimit: profile.daily === 0 ? 0 : Math.round(profile.daily * k),
-          maxDrawdown: Math.round(profile.drawdown * k),
-          maxContracts: profile.maxContracts[b],
-        },
-      }
-    })
-}
+// MANUAL REVIEW REQUIRED comments indicate parameters that were flagged in the audit
+// but kept as legacy/defaults to avoid unauthorized database modification.
 
 export const FIRMS: PropFirm[] = [
   {
@@ -38,24 +10,82 @@ export const FIRMS: PropFirm[] = [
     shortName: "Apex",
     tagline: "Trailing threshold, no daily loss limit, fast payouts.",
     color: "#3b82f6",
-    drawdownType: "trailing",
+    drawdownType: "eod",
     difficulty: "Moderate",
     difficultyScore: 58,
     successRate: 11,
     payoutSpeed: "Same day",
     challengeTypes: ["1-Step Eval", "Static accounts"],
     pros: ["No daily loss limit", "Fast same-day payouts", "Frequent discounts", "Generous contract sizing"],
-    cons: ["Trailing drawdown is unforgiving", "30% consistency rule on payouts", "Activation fees on PA"],
-    sizes: sizes(
+    cons: ["Trailing drawdown is unforgiving", "50% consistency rule on payouts", "Activation fees on PA"],
+    sizes: [
       {
-        target: 60,
-        daily: 0,
-        drawdown: 50,
-        maxContracts: { 25000: 4, 50000: 10, 100000: 14, 150000: 17, 300000: 35 },
-        price: { 25000: 147, 50000: 167, 100000: 207, 150000: 297, 300000: 657 },
+        label: "25K",
+        price: 147,
+        rules: {
+          startingBalance: 25000,
+          // MANUAL REVIEW REQUIRED: New program has no profit target, replaced by one-time fee.
+          profitTarget: 1500,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Trailing EOD drawdown floor locks at start balance + $100.
+          maxDrawdown: 1250,
+          drawdownType: "eod",
+          maxContracts: 4,
+          minTradingDays: 1,
+          consistencyPct: 50,
+        },
       },
-      { drawdownType: "trailing", trailingLockProfit: 0, minTradingDays: 1, maxTradingDays: undefined, consistencyPct: 30 },
-    ),
+      {
+        label: "50K",
+        price: 167,
+        rules: {
+          startingBalance: 50000,
+          // MANUAL REVIEW REQUIRED: New program has no profit target, replaced by one-time fee.
+          profitTarget: 3000,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Trailing EOD drawdown floor locks at start balance + $100.
+          maxDrawdown: 2500,
+          drawdownType: "eod",
+          maxContracts: 10,
+          minTradingDays: 1,
+          consistencyPct: 50,
+        },
+      },
+      {
+        label: "100K",
+        price: 207,
+        rules: {
+          startingBalance: 100000,
+          // MANUAL REVIEW REQUIRED: New program has no profit target, replaced by one-time fee.
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Trailing EOD drawdown floor locks at start balance + $100.
+          maxDrawdown: 5000,
+          drawdownType: "eod",
+          maxContracts: 14,
+          minTradingDays: 1,
+          consistencyPct: 50,
+        },
+      },
+      {
+        label: "150K",
+        price: 297,
+        rules: {
+          startingBalance: 150000,
+          // MANUAL REVIEW REQUIRED: New program has no profit target, replaced by one-time fee.
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Trailing EOD drawdown floor locks at start balance + $100.
+          maxDrawdown: 7500,
+          drawdownType: "eod",
+          maxContracts: 17,
+          minTradingDays: 1,
+          consistencyPct: 50,
+        },
+      },
+      // MANUAL REVIEW REQUIRED: 75K size not added yet due to lack of confirmed specs.
+      // DEPRECATED sizes: 300K (and 250K) removed as of March 2026 update.
+    ],
   },
   {
     id: "topstep",
@@ -71,16 +101,51 @@ export const FIRMS: PropFirm[] = [
     challengeTypes: ["Trading Combine", "Express Funded"],
     pros: ["Reputable & long-standing", "EOD drawdown (intraday safe)", "Strong education", "Scaling plan"],
     cons: ["Strict consistency rule", "Lower contract limits", "Monthly subscription"],
-    sizes: sizes(
+    sizes: [
+      // DEPRECATED sizes: 25K plan discontinued.
       {
-        target: 60,
-        daily: 20,
-        drawdown: 40,
-        maxContracts: { 25000: 3, 50000: 5, 100000: 10, 150000: 15 },
-        price: { 25000: 145, 50000: 165, 100000: 325, 150000: 375 },
+        label: "50K",
+        price: 165,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 0, // No daily loss limit on Combine/XFA (only Live has DLL)
+          maxDrawdown: 2000, // EOD trailing, locks at start balance
+          drawdownType: "eod",
+          maxContracts: 5,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
       },
-      { drawdownType: "eod", trailingLockProfit: 0, minTradingDays: 2, maxTradingDays: undefined, consistencyPct: 50 },
-    ),
+      {
+        label: "100K",
+        price: 325,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          maxDrawdown: 3000, // EOD trailing, locks at start balance
+          drawdownType: "eod",
+          maxContracts: 10,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
+      },
+      {
+        label: "150K",
+        price: 375,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          maxDrawdown: 4500, // EOD trailing, locks at start balance
+          drawdownType: "eod",
+          maxContracts: 15,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
+      },
+    ],
   },
   {
     id: "mffu",
@@ -94,18 +159,66 @@ export const FIRMS: PropFirm[] = [
     successRate: 13,
     payoutSpeed: "Same day",
     challengeTypes: ["Starter", "Expert", "Milestone"],
-    pros: ["Multiple plan styles", "No-trailing options", "Fast payouts", "1-day minimum on some plans"],
+    pros: ["Multiple plan styles", "No-trailing options", "Fast payouts", "2-day minimum on Rapid plans"],
     cons: ["Consistency rule on Expert", "Activation fees", "Plan rules vary widely"],
-    sizes: sizes(
+    sizes: [
       {
-        target: 60,
-        daily: 20,
-        drawdown: 40,
-        maxContracts: { 25000: 3, 50000: 5, 100000: 12, 150000: 15 },
-        price: { 25000: 145, 50000: 165, 100000: 265, 150000: 375 },
+        label: "25K",
+        price: 145,
+        rules: {
+          startingBalance: 25000,
+          profitTarget: 1500,
+          dailyLossLimit: 0, // None on Rapid eval
+          maxDrawdown: 1000,
+          drawdownType: "eod",
+          maxContracts: 3,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
       },
-      { drawdownType: "eod", trailingLockProfit: 0, minTradingDays: 1, maxTradingDays: undefined, consistencyPct: 40 },
-    ),
+      {
+        label: "50K",
+        price: 165,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 0,
+          maxDrawdown: 2000,
+          drawdownType: "eod",
+          maxContracts: 5,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
+      },
+      {
+        label: "100K",
+        price: 265,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          maxDrawdown: 3000,
+          drawdownType: "eod",
+          maxContracts: 10,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
+      },
+      {
+        label: "150K",
+        price: 375,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          maxDrawdown: 4500,
+          drawdownType: "eod",
+          maxContracts: 15,
+          minTradingDays: 2,
+          consistencyPct: 50,
+        },
+      },
+    ],
   },
   {
     id: "tradeday",
@@ -119,18 +232,53 @@ export const FIRMS: PropFirm[] = [
     successRate: 9,
     payoutSpeed: "1-2 days",
     challengeTypes: ["Evaluation", "Funded"],
-    pros: ["Transparent rule set", "Regulated broker (Ironbeam)", "No consistency rule", "Keep first $10k 100%"],
+    pros: ["Transparent rule set", "Regulated broker (Ironbeam)", "30% consistency rule", "Keep first $10k 100%"],
     cons: ["Trailing intraday drawdown", "Tighter daily loss", "Smaller contract sizing"],
-    sizes: sizes(
+    sizes: [
+      // DEPRECATED sizes: 25K plan discontinued.
       {
-        target: 60,
-        daily: 22,
-        drawdown: 40,
-        maxContracts: { 25000: 3, 50000: 5, 100000: 10, 150000: 15 },
-        price: { 25000: 145, 50000: 165, 100000: 275, 150000: 375 },
+        label: "50K",
+        price: 165,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 1100, // EOD daily loss limit
+          maxDrawdown: 2000,
+          drawdownType: "trailing",
+          maxContracts: 5,
+          minTradingDays: 5,
+          consistencyPct: 30,
+        },
       },
-      { drawdownType: "trailing", trailingLockProfit: 0, minTradingDays: 1, maxTradingDays: undefined, consistencyPct: 0 },
-    ),
+      {
+        label: "100K",
+        price: 275,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 2200,
+          maxDrawdown: 3000,
+          drawdownType: "trailing",
+          maxContracts: 10,
+          minTradingDays: 5,
+          consistencyPct: 30,
+        },
+      },
+      {
+        label: "150K",
+        price: 375,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 2200, // Implied max EOD DLL from $1100-$2200 range
+          maxDrawdown: 4500,
+          drawdownType: "trailing",
+          maxContracts: 15,
+          minTradingDays: 5,
+          consistencyPct: 30,
+        },
+      },
+    ],
   },
   {
     id: "tpt",
@@ -145,17 +293,69 @@ export const FIRMS: PropFirm[] = [
     payoutSpeed: "Same day",
     challengeTypes: ["PRO Eval", "PRO Funded"],
     pros: ["EOD drawdown", "Keep first $25k 100%", "No consistency rule on eval", "Simple ruleset"],
-    cons: ["Daily loss limit", "Activation fee", "Lower scaling"],
-    sizes: sizes(
+    cons: ["No daily loss limit", "Activation fee", "Lower scaling"],
+    sizes: [
       {
-        target: 60,
-        daily: 20,
-        drawdown: 40,
-        maxContracts: { 25000: 3, 50000: 6, 100000: 12, 150000: 15 },
-        price: { 25000: 150, 50000: 170, 100000: 250, 150000: 360 },
+        label: "25K",
+        price: 150,
+        rules: {
+          startingBalance: 25000,
+          profitTarget: 1500,
+          dailyLossLimit: 0, // TPT explicitly removed daily loss limits
+          // MANUAL REVIEW REQUIRED: Community report says $1,100 drawdown. Kept legacy $1,000.
+          maxDrawdown: 1000,
+          drawdownType: "eod",
+          maxContracts: 3,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
       },
-      { drawdownType: "eod", trailingLockProfit: 0, minTradingDays: 5, maxTradingDays: undefined, consistencyPct: 0 },
-    ),
+      {
+        label: "50K",
+        price: 170,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Community report says $2,200 drawdown. Kept legacy $2,000.
+          maxDrawdown: 2000,
+          drawdownType: "eod",
+          maxContracts: 6,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      {
+        label: "100K",
+        price: 250,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          maxDrawdown: 4000,
+          drawdownType: "eod",
+          maxContracts: 12,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      {
+        label: "150K",
+        price: 360,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Community report says $5,500 drawdown. Kept legacy $6,000.
+          maxDrawdown: 6000,
+          drawdownType: "eod",
+          maxContracts: 15,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      // MANUAL REVIEW REQUIRED: 75K size not added yet due to lack of verified specs.
+    ],
   },
   {
     id: "bulenox",
@@ -171,16 +371,66 @@ export const FIRMS: PropFirm[] = [
     challengeTypes: ["Eval", "Master"],
     pros: ["Low cost", "Frequent coupons", "Multiple drawdown styles"],
     cons: ["Newer firm", "Consistency on payout", "Trailing option is tough"],
-    sizes: sizes(
+    sizes: [
       {
-        target: 60,
-        daily: 0,
-        drawdown: 50,
-        maxContracts: { 25000: 4, 50000: 10, 100000: 14, 150000: 17 },
-        price: { 25000: 115, 50000: 145, 100000: 175, 150000: 285 },
+        label: "25K",
+        price: 115,
+        rules: {
+          startingBalance: 25000,
+          // MANUAL REVIEW REQUIRED: Implied 100% target to pass qualification. Kept legacy $1,500.
+          profitTarget: 1500,
+          dailyLossLimit: 0,
+          maxDrawdown: 1500,
+          drawdownType: "trailing",
+          maxContracts: 4,
+          minTradingDays: 10,
+          consistencyPct: 40,
+        },
       },
-      { drawdownType: "trailing", trailingLockProfit: 0, minTradingDays: 1, maxTradingDays: undefined, consistencyPct: 30 },
-    ),
+      {
+        label: "50K",
+        price: 145,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 0,
+          maxDrawdown: 2500,
+          drawdownType: "trailing",
+          maxContracts: 10,
+          minTradingDays: 10,
+          consistencyPct: 40,
+        },
+      },
+      {
+        label: "100K",
+        price: 175,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          maxDrawdown: 3000,
+          drawdownType: "trailing",
+          maxContracts: 14,
+          minTradingDays: 10,
+          consistencyPct: 40,
+        },
+      },
+      {
+        label: "150K",
+        price: 285,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          maxDrawdown: 4500,
+          drawdownType: "trailing",
+          maxContracts: 17,
+          minTradingDays: 10,
+          consistencyPct: 40,
+        },
+      },
+      // MANUAL REVIEW REQUIRED: 10K and 250K sizes not added yet due to lack of verified specs.
+    ],
   },
   {
     id: "elite",
@@ -196,16 +446,73 @@ export const FIRMS: PropFirm[] = [
     challengeTypes: ["Fast Track", "Static", "Diamond Hands"],
     pros: ["Static drawdown options", "Many plan types", "Big discounts"],
     cons: ["Inconsistent rule clarity", "Payout consistency rule", "Variable quality"],
-    sizes: sizes(
+    sizes: [
       {
-        target: 50,
-        daily: 0,
-        drawdown: 25,
-        maxContracts: { 25000: 4, 50000: 8, 100000: 12, 150000: 15, 300000: 30 },
-        price: { 25000: 125, 50000: 150, 100000: 190, 150000: 280, 300000: 590 },
+        label: "25K",
+        price: 125,
+        rules: {
+          startingBalance: 25000,
+          // MANUAL REVIEW REQUIRED: Audit reports 10% target. Kept legacy 5% ($1,250).
+          profitTarget: 1250,
+          dailyLossLimit: 0,
+          // MANUAL REVIEW REQUIRED: Static plan fixed drawdown. Kept legacy $625.
+          maxDrawdown: 625,
+          drawdownType: "static",
+          // MANUAL REVIEW REQUIRED: Audit reports 1 mini contract. Kept legacy 4.
+          maxContracts: 4,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
       },
-      { drawdownType: "static", trailingLockProfit: 0, minTradingDays: 0, maxTradingDays: undefined, consistencyPct: 0 },
-    ),
+      {
+        label: "50K",
+        price: 150,
+        rules: {
+          startingBalance: 50000,
+          // MANUAL REVIEW REQUIRED: Audit reports 10% target. Kept legacy 5% ($2,500).
+          profitTarget: 2500,
+          dailyLossLimit: 0,
+          maxDrawdown: 1250,
+          drawdownType: "static",
+          // MANUAL REVIEW REQUIRED: Audit reports 2 mini contracts. Kept legacy 8.
+          maxContracts: 8,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      {
+        label: "100K",
+        price: 190,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 5000,
+          dailyLossLimit: 0,
+          maxDrawdown: 2500,
+          drawdownType: "static",
+          // MANUAL REVIEW REQUIRED: Audit reports 4 mini contracts. Kept legacy 12.
+          maxContracts: 12,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      {
+        label: "150K",
+        price: 280,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 7500,
+          dailyLossLimit: 0,
+          maxDrawdown: 3750,
+          drawdownType: "static",
+          // MANUAL REVIEW REQUIRED: Audit reports 6 mini contracts. Kept legacy 15.
+          maxContracts: 15,
+          minTradingDays: 5,
+          consistencyPct: 0,
+        },
+      },
+      // DEPRECATED sizes: 300K removed.
+      // MANUAL REVIEW REQUIRED: 10K and 250K sizes not added yet due to lack of verified specs.
+    ],
   },
   {
     id: "lucid",
@@ -221,16 +528,67 @@ export const FIRMS: PropFirm[] = [
     challengeTypes: ["Advanced Eval", "Funded"],
     pros: ["Clean modern ruleset", "EOD drawdown", "Reasonable targets"],
     cons: ["Consistency rule", "Tighter daily loss", "Activation fee"],
-    sizes: sizes(
+    sizes: [
       {
-        target: 60,
-        daily: 20,
-        drawdown: 40,
-        maxContracts: { 25000: 2, 50000: 5, 100000: 10, 150000: 15 },
-        price: { 25000: 140, 50000: 160, 100000: 270, 150000: 365 },
+        label: "25K",
+        price: 140,
+        rules: {
+          startingBalance: 25000,
+          // MANUAL REVIEW REQUIRED: Audit reports 15% target ($3,750). Kept legacy 6% ($1,500).
+          profitTarget: 1500,
+          // MANUAL REVIEW REQUIRED: FLEX has DLL, PRO has none. Kept legacy $500.
+          dailyLossLimit: 500,
+          maxDrawdown: 2500, // EOD trailing = 10% of account
+          drawdownType: "eod",
+          // MANUAL REVIEW REQUIRED: Flex has 2 minis limit. Kept legacy 2.
+          maxContracts: 2,
+          minTradingDays: 5,
+          consistencyPct: 40,
+        },
       },
-      { drawdownType: "eod", trailingLockProfit: 0, minTradingDays: 3, maxTradingDays: undefined, consistencyPct: 40 },
-    ),
+      {
+        label: "50K",
+        price: 160,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 1000,
+          maxDrawdown: 5000, // EOD trailing = 10% of account
+          drawdownType: "eod",
+          maxContracts: 5,
+          minTradingDays: 5,
+          consistencyPct: 40,
+        },
+      },
+      {
+        label: "100K",
+        price: 270,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 2000,
+          maxDrawdown: 10000, // EOD trailing = 10% of account
+          drawdownType: "eod",
+          maxContracts: 10,
+          minTradingDays: 5,
+          consistencyPct: 40,
+        },
+      },
+      {
+        label: "150K",
+        price: 365,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 3000,
+          maxDrawdown: 15000, // EOD trailing = 10% of account
+          drawdownType: "eod",
+          maxContracts: 15,
+          minTradingDays: 5,
+          consistencyPct: 40,
+        },
+      },
+    ],
   },
   {
     id: "ffn",
@@ -246,16 +604,65 @@ export const FIRMS: PropFirm[] = [
     challengeTypes: ["Standard", "One Step"],
     pros: ["Beginner friendly", "Fast payouts", "Low pricing"],
     cons: ["Trailing drawdown", "Consistency rule", "Smaller community"],
-    sizes: sizes(
+    sizes: [
+      // MANUAL REVIEW REQUIRED: The entire FFN config is unconfirmed. Kept legacy defaults.
       {
-        target: 60,
-        daily: 0,
-        drawdown: 50,
-        maxContracts: { 25000: 3, 50000: 9, 100000: 14, 150000: 17 },
-        price: { 25000: 105, 50000: 135, 100000: 165, 150000: 275 },
+        label: "25K",
+        price: 105,
+        rules: {
+          startingBalance: 25000,
+          profitTarget: 1500,
+          dailyLossLimit: 0,
+          maxDrawdown: 1250,
+          drawdownType: "trailing",
+          maxContracts: 3,
+          minTradingDays: 1,
+          consistencyPct: 30,
+        },
       },
-      { drawdownType: "trailing", trailingLockProfit: 0, minTradingDays: 1, maxTradingDays: undefined, consistencyPct: 30 },
-    ),
+      {
+        label: "50K",
+        price: 135,
+        rules: {
+          startingBalance: 50000,
+          profitTarget: 3000,
+          dailyLossLimit: 0,
+          maxDrawdown: 2500,
+          drawdownType: "trailing",
+          maxContracts: 9,
+          minTradingDays: 1,
+          consistencyPct: 30,
+        },
+      },
+      {
+        label: "100K",
+        price: 165,
+        rules: {
+          startingBalance: 100000,
+          profitTarget: 6000,
+          dailyLossLimit: 0,
+          maxDrawdown: 5000,
+          drawdownType: "trailing",
+          maxContracts: 14,
+          minTradingDays: 1,
+          consistencyPct: 30,
+        },
+      },
+      {
+        label: "150K",
+        price: 275,
+        rules: {
+          startingBalance: 150000,
+          profitTarget: 9000,
+          dailyLossLimit: 0,
+          maxDrawdown: 7500,
+          drawdownType: "trailing",
+          maxContracts: 17,
+          minTradingDays: 1,
+          consistencyPct: 30,
+        },
+      },
+    ],
   },
 ]
 
@@ -265,3 +672,4 @@ export function getFirm(id: string): PropFirm | undefined {
 
 export const SESSIONS = ["Asia", "London", "New York AM", "New York PM"] as const
 export const INSTRUMENTS = ["ES", "NQ", "MES", "MNQ", "CL", "GC", "MGC", "RTY", "YM"] as const
+

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { PrismaClient } from "@prisma/client"
+import { reindexTradeDays } from "@/app/actions/trade-actions"
 
 const prisma = new PrismaClient()
 
@@ -104,6 +105,12 @@ export async function POST(req: Request) {
       }
       
       syncedTrades.push({ ...safeTrade, status: 'synced' })
+    }
+
+    // Reindex trade days for all modified accounts to ensure correct sequential ordering
+    const modifiedAccountIds = Array.from(new Set(syncedTrades.filter(t => t.status === 'synced').map(t => t.accountId)))
+    for (const accId of modifiedAccountIds) {
+      await reindexTradeDays(accId)
     }
 
     return NextResponse.json({ 

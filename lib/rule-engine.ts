@@ -81,13 +81,26 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   const byDay = groupByDay(ordered)
   const days = [...byDay.keys()].sort((a, b) => a - b)
 
+  // Track concurrent contracts: check if active positions overlap in a 30-min window
   let maxContractsUsed = 0
-  for (const t of ordered) maxContractsUsed = Math.max(maxContractsUsed, t.contracts)
-  if (rules.maxContracts > 0 && maxContractsUsed > rules.maxContracts) {
+  let maxConcurrentContracts = 0
+  for (const t of ordered) {
+    maxContractsUsed = Math.max(maxContractsUsed, t.contracts)
+    const tTime = Number(t.timestamp)
+    const windowTrades = ordered.filter(ot => {
+      const otTime = Number(ot.timestamp)
+      return Math.abs(tTime - otTime) <= 30 * 60 * 1000
+    })
+    const activeContracts = windowTrades.reduce((sum, wt) => sum + wt.contracts, 0)
+    maxConcurrentContracts = Math.max(maxConcurrentContracts, activeContracts)
+  }
+
+  // Enforce contract size limits
+  if (rules.maxContracts > 0 && maxConcurrentContracts > rules.maxContracts) {
     violations.push({
       type: "max_contracts",
-      label: "Max contracts exceeded",
-      detail: `Used ${maxContractsUsed} contracts, limit is ${rules.maxContracts}.`,
+      label: "Contracts limit exceeded",
+      detail: `Active position size reached ${maxConcurrentContracts} contracts (max concurrent limit: ${rules.maxContracts}).`,
     })
     failed = true
   }
@@ -98,11 +111,14 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
     const dayTrades = byDay.get(day)!
     let dayPnl = 0
     for (const t of dayTrades) {
-      dayPnl += t.pnl
-      balance += t.pnl
-      const equityNow = balance
-      if (equityNow > highestEquity) {
-        highestEquity = equityNow
+      // 1. Intraday open equity trailing drawdown simulation
+      // MAE/MFE excursions fallback to trade close pnl if not logged
+      const mfe = (t as any).favorableExcursion ?? (t.pnl > 0 ? t.pnl : 0)
+      const mae = (t as any).adverseExcursion ?? (t.pnl < 0 ? t.pnl : 0)
+
+      const peakOpenEquity = balance + mfe
+      if (peakOpenEquity > highestEquity) {
+        highestEquity = peakOpenEquity
         if (isTrailing || isHybrid) {
           if (isHybrid) {
             trailingFloor = Math.min(start, highestEquity - rules.maxDrawdown)
@@ -110,27 +126,142 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
             const lockReached =
               rules.trailingLockProfit && rules.trailingLockProfit > 0 && highestEquity - start >= rules.trailingLockProfit
             trailingFloor = lockReached
-              ? start // locked at breakeven once threshold met
+              ? start
               : highestEquity - rules.maxDrawdown
           }
         }
       }
-      // intraday/trailing failure check after each trade
-      if ((isTrailing || isHybrid) && balance <= trailingFloor && !failed) {
+
+      const worstOpenEquity = balance + mae
+      if ((isTrailing || isHybrid) && worstOpenEquity <= trailingFloor && !failed) {
         violations.push({
           type: "trailing_drawdown",
-          label: "Trailing drawdown breached",
-          detail: `Equity fell to $${balance.toLocaleString()} on day ${day}, below trailing floor $${trailingFloor.toLocaleString()}.`,
+          label: "Intraday Trailing Drawdown breached",
+          detail: `Open equity fell to $${worstOpenEquity.toLocaleString()} (MAE: $${mae.toLocaleString()}) on day ${day}, below trailing floor $${trailingFloor.toLocaleString()}.`,
         })
         failed = true
       }
-      if (!isTrailing && !isHybrid && balance <= staticFloor && !failed) {
+      if (!isTrailing && !isHybrid && worstOpenEquity <= staticFloor && !failed) {
         violations.push({
           type: "max_drawdown",
-          label: "Max drawdown breached",
-          detail: `Equity fell to $${balance.toLocaleString()} on day ${day}, below floor $${staticFloor.toLocaleString()}.`,
+          label: "Max drawdown breached (Intraday)",
+          detail: `Open equity fell to $${worstOpenEquity.toLocaleString()} (MAE: $${mae.toLocaleString()}) on day ${day}, below floor $${staticFloor.toLocaleString()}.`,
         })
         failed = true
+      }
+
+      // 2. Realize closing PnL
+      dayPnl += t.pnl
+      balance += t.pnl
+
+      // 3. Post-close peak updates
+      if (balance > highestEquity) {
+        highestEquity = balance
+        if (isTrailing || isHybrid) {
+          if (isHybrid) {
+            trailingFloor = Math.min(start, highestEquity - rules.maxDrawdown)
+          } else {
+            const lockReached =
+              rules.trailingLockProfit && rules.trailingLockProfit > 0 && highestEquity - start >= rules.trailingLockProfit
+            trailingFloor = lockReached
+              ? start
+              : highestEquity - rules.maxDrawdown
+          }
+        }
+      }
+
+      // 4. Executable Node Rules flow graph interpreter
+      const customRuleSet = (rules as any).customRuleSet
+      if (customRuleSet && customRuleSet.nodes) {
+        const nodes = customRuleSet.nodes
+        const edges = customRuleSet.edges
+        const conditionNodes = nodes.filter((n: any) => n.data?.config?.type)
+        const actionNodes = nodes.filter((n: any) => n.data?.config?.action)
+
+        const evalOp = (a: number, op: string, b: number) => {
+          if (op === ">") return a > b
+          if (op === "<") return a < b
+          if (op === "=" || op === "==") return a === b
+          if (op === ">=") return a >= b
+          if (op === "<=") return a <= b
+          return false
+        }
+
+        for (const condNode of conditionNodes) {
+          const config = condNode.data.config
+          const paramType = config.type
+          const op = config.operator || ">"
+          const val = Number(config.value) || 0
+
+          let triggered = false
+
+          if (paramType === "Daily Loss") {
+            triggered = evalOp(Math.abs(Math.min(0, dayPnl)), op, val)
+          } else if (paramType === "Total Drawdown") {
+            const dd = highestEquity - balance
+            triggered = evalOp(dd, op, val)
+          } else if (paramType === "Profit Target") {
+            const profit = balance - start
+            triggered = evalOp(profit, op, val)
+          } else if (paramType === "Max Contracts") {
+            triggered = evalOp(t.contracts, op, val)
+          } else if (paramType === "Max Trades") {
+            triggered = evalOp(dayTrades.length, op, val)
+          } else if (paramType === "Trading Hours") {
+            const date = new Date(Number(t.timestamp))
+            const estTimeStr = date.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour12: false })
+            if (config.value && config.value.includes("-")) {
+              const [startStr, endStr] = config.value.split("-")
+              const isInside = estTimeStr >= startStr.trim() && estTimeStr <= endStr.trim()
+              triggered = op === "<" || op === "!=" ? isInside : !isInside
+            }
+          } else if (paramType === "News Event") {
+            const newsEvents = (rules as any).newsEvents || []
+            const tradeTime = Number(t.timestamp)
+            const closeEvent = newsEvents.find((ne: any) => {
+              const neTime = new Date(ne.timestamp).getTime()
+              return Math.abs(tradeTime - neTime) <= 2 * 60 * 1000
+            })
+            triggered = !!closeEvent
+          }
+
+          if (triggered) {
+            const connectedEdges = edges.filter((e: any) => e.source === condNode.id)
+            for (const edge of connectedEdges) {
+              const actNode = actionNodes.find((n: any) => n.id === edge.target)
+              if (actNode) {
+                const action = actNode.data.config.action
+                if (action === "Fail Challenge") {
+                  violations.push({
+                    type: "trailing_drawdown",
+                    label: "Custom Node Breach: Fail Challenge",
+                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`
+                  })
+                  failed = true
+                } else if (action === "Warning") {
+                  violations.push({
+                    type: "consistency",
+                    label: "Custom Node Warning",
+                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`
+                  })
+                } else if (action === "Block Trade" || action === "Lock Account") {
+                  violations.push({
+                    type: "max_contracts",
+                    label: `Custom Node Violation: ${action}`,
+                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`
+                  })
+                  failed = true
+                } else if (action === "Reduce Position Size") {
+                  violations.push({
+                    type: "max_contracts",
+                    label: "Custom Node: Size Reduction Warning",
+                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`
+                  })
+                }
+              }
+            }
+          }
+        }
       }
     }
 

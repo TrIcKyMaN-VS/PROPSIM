@@ -1,9 +1,11 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { usePropStore } from "@/lib/store"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { useRouter } from "next/navigation"
 
 import { Target, TrendingUp, AlertTriangle, CheckCircle2, XCircle, FileText, BrainCircuit } from "lucide-react"
 
@@ -17,6 +19,10 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const trades = usePropStore(s => s.trades).filter(t => t.accountId === activeAccountId)
   const psychology = usePropStore(s => s.tradePsychology)
+  const router = useRouter()
+
+  const [dailyReview, setDailyReview] = useState<any>(null)
+  const [loadingReview, setLoadingReview] = useState(false)
 
   if (!dateStr) return null
 
@@ -38,6 +44,44 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
   const ruleBreaks = dayPsychology.filter(p => p?.brokeRules).length
   const revengeTrades = dayPsychology.filter(p => p?.emotionAffected).length // Proxy for revenge/fomo right now
   const avgConfidence = dayPsychology.length ? dayPsychology.reduce((s, p) => s + (p?.convictionScore || 0), 0) / dayPsychology.length : 0
+
+  useEffect(() => {
+    if (!open || !dateStr) return
+
+    async function loadOrGenerate() {
+      setLoadingReview(true)
+      try {
+        const { getAiReviewAction, generateDailyReviewAction } = await import("@/app/actions/ai-actions")
+        
+        // Try cached first
+        const cached = await getAiReviewAction("DAILY", dateStr)
+        if (cached) {
+          setDailyReview(JSON.parse(cached.summary))
+        } else {
+          // If no cached, but we have trades, generate it
+          if (dayTrades.length > 0) {
+            const payloadTrades = dayTrades.map(t => ({
+              instrument: t.instrument,
+              pnl: t.pnl,
+              direction: t.direction,
+              session: t.session,
+              notes: t.notes || ""
+            }))
+            const res = await generateDailyReviewAction(payloadTrades, dateStr)
+            setDailyReview(res)
+          } else {
+            setDailyReview(null)
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load daily review:", err)
+      } finally {
+        setLoadingReview(false)
+      }
+    }
+
+    loadOrGenerate()
+  }, [open, dateStr, dayTrades.length])
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,7 +157,14 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
                 {dayTrades.slice().reverse().map((t, i) => {
                   const ps = dayPsychology.find(p => p?.tradeId === t.id)
                   return (
-                    <div key={t.id} className="p-4 rounded-xl border bg-card flex items-center justify-between group">
+                    <div 
+                      key={t.id} 
+                      className="p-4 rounded-xl border bg-card flex items-center justify-between group cursor-pointer hover:border-primary/50 hover:bg-muted/10 transition-colors"
+                      onClick={() => {
+                        onOpenChange(false)
+                        router.push(`/app/journal/${t.id}`)
+                      }}
+                    >
                       <div className="flex items-center gap-4">
                         <div className="w-8 h-8 rounded-full flex items-center justify-center bg-muted font-bold text-xs">#{dayTrades.length - i}</div>
                         <div>
@@ -138,15 +189,29 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
 
             <section>
               <h3 className="text-sm font-bold uppercase text-muted-foreground flex items-center gap-2 mb-4"><BrainCircuit className="w-4 h-4 text-primary"/> AI Daily Review</h3>
-              <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
-                <p className="text-sm leading-relaxed text-muted-foreground">
-                  "You maintained strong discipline during the AM session, capturing your best trade on the Liquidity Sweep. However, your confidence dropped in the PM session, leading to 2 emotion-driven entries. <strong>Cost of afternoon overtrading: -$120.</strong> Next session, mandate a hard stop after 11:30 AM."
-                </p>
-                <div className="flex items-center gap-4 pt-2">
-                  <Badge variant="secondary" className="bg-success/20 text-success border-0">Best Decision: Walking away at noon</Badge>
-                  <Badge variant="secondary" className="bg-destructive/20 text-destructive border-0">Worst Decision: PM Re-entry</Badge>
+              {loadingReview ? (
+                <div className="p-4 rounded-xl border border-muted text-center text-sm text-muted-foreground">
+                  AI is analyzing today's performance...
                 </div>
-              </div>
+              ) : dailyReview ? (
+                <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3">
+                  <p className="text-sm leading-relaxed text-muted-foreground italic">
+                    "{dailyReview.summary}"
+                  </p>
+                  <div className="flex flex-wrap items-center gap-4 pt-2 border-t">
+                    <Badge variant="secondary" className="bg-success/20 text-success border-0 max-w-full truncate">
+                      Best: {dailyReview.bestDecision}
+                    </Badge>
+                    <Badge variant="secondary" className="bg-destructive/20 text-destructive border-0 max-w-full truncate">
+                      Worst: {dailyReview.worstDecision}
+                    </Badge>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-muted text-center text-sm text-muted-foreground">
+                  No AI review available. Log trades today to get an automated reflection.
+                </div>
+              )}
             </section>
 
           </div>

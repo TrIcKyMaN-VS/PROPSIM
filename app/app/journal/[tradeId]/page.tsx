@@ -27,12 +27,10 @@ export default function TradeDetailsPage() {
   const trade = trades.find(t => t.id === tradeId)
   const psyc = tradePsychology.find(p => p.tradeId === tradeId) || {}
 
-  const playbook = trade?.playbookId ? playbooks.find(p => p.id === trade.playbookId) : null
-  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(trade?.playbookChecklist || {})
-
   const saveTradePsychology = usePropStore(s => s.saveTradePsychology)
 
-  // Expanded Image Lightbox State
+  // State Hooks
+  const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>(trade?.playbookChecklist || {})
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
   const [expandedStage, setExpandedStage] = useState<string>("")
 
@@ -70,6 +68,9 @@ export default function TradeDetailsPage() {
     pnl: "",
     session: "",
     notes: "",
+    tags: "",
+    playbookId: "",
+    playbookName: "",
     
     // Pre-Trade
     tradeIdea: "",
@@ -84,6 +85,8 @@ export default function TradeDetailsPage() {
     psychologyNotes: ""
   })
 
+  const playbook = tradeForm.playbookId ? playbooks.find(p => p.id === tradeForm.playbookId) : null
+
   useEffect(() => {
     if (trade) {
       setTradeForm({
@@ -95,6 +98,9 @@ export default function TradeDetailsPage() {
         pnl: trade.pnl?.toString() || "",
         session: trade.session || "New York AM",
         notes: trade.notes || "",
+        tags: (trade.tags || []).join(", "),
+        playbookId: trade.playbookId || "",
+        playbookName: trade.playbookName || "",
         
         // Pre-Trade
         tradeIdea: trade.tradeIdea || "",
@@ -130,6 +136,9 @@ export default function TradeDetailsPage() {
         pnl: pnlVal,
         session: tradeForm.session,
         notes: tradeForm.notes,
+        tags: tradeForm.tags.split(",").map(t => t.trim()).filter(Boolean),
+        playbookId: tradeForm.playbookId || null,
+        playbookName: tradeForm.playbookName || null,
         playbookChecklist: checkedItems,
         
         tradeIdea: tradeForm.tradeIdea,
@@ -315,8 +324,29 @@ export default function TradeDetailsPage() {
                 <Input type="number" step="0.01" value={tradeForm.pnl} onChange={e => setTradeForm({...tradeForm, pnl: e.target.value})} className="h-9 mt-1" />
               </div>
               <div className="col-span-2">
+                <Label className="text-xs">Linked Playbook</Label>
+                <select 
+                  className="flex h-9 mt-1 w-full rounded-md border bg-background px-3 py-1 text-sm" 
+                  value={tradeForm.playbookId} 
+                  onChange={e => {
+                    const selectedId = e.target.value
+                    const pb = playbooks.find(p => p.id === selectedId)
+                    setTradeForm({
+                      ...tradeForm,
+                      playbookId: selectedId,
+                      playbookName: pb ? pb.name : ""
+                    })
+                  }}
+                >
+                  <option value="">None</option>
+                  {playbooks.map((p: any) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="col-span-3">
                 <Label className="text-xs">Tags (comma separated)</Label>
-                <Input placeholder="Tags..." value={tradeForm.notes} onChange={e => setTradeForm({...tradeForm, notes: e.target.value})} className="h-9 mt-1" />
+                <Input placeholder="Tags..." value={tradeForm.tags} onChange={e => setTradeForm({...tradeForm, tags: e.target.value})} className="h-9 mt-1" />
               </div>
             </CardContent>
           </Card>
@@ -564,8 +594,8 @@ export default function TradeDetailsPage() {
             </CardHeader>
             <CardContent className="p-4">
               <textarea 
-                value={form.preNotes}
-                onChange={e => update("preNotes", e.target.value)}
+                value={tradeForm.notes}
+                onChange={e => setTradeForm({...tradeForm, notes: e.target.value})}
                 placeholder="What went well? What could be improved? Did you follow your rules?" 
                 className="flex min-h-[250px] w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" 
               />

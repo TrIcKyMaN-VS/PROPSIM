@@ -18,7 +18,7 @@ import { formatDistanceToNow } from "date-fns"
 import {
   adminGetUser, adminUpdateUser, adminDeleteUser,
   adminKillSession, adminKillAllUserSessions,
-  adminResetUserPassword, adminGetUserImpact
+  adminResetUserPassword, adminGetUserImpact, adminRevokeUserToken
 } from "@/app/actions/admin-user-actions"
 
 type UserDetail = Awaited<ReturnType<typeof adminGetUser>>
@@ -90,6 +90,14 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
       const { tempPassword } = await adminResetUserPassword(params.id)
       toast.success(`Temp password generated. Check server console.`, { duration: 8000 })
       console.log(`[ADMIN] Temp password for ${user?.email}: ${tempPassword}`)
+    } catch (err: any) { toast.error(err.message) }
+  }
+
+  const handleRevokeToken = async (tokenId: string) => {
+    try {
+      await adminRevokeUserToken(params.id, tokenId)
+      toast.success("Integration token revoked.")
+      load()
     } catch (err: any) { toast.error(err.message) }
   }
 
@@ -215,6 +223,7 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
         <TabsList>
           <TabsTrigger value="edit">Edit Profile</TabsTrigger>
           <TabsTrigger value="sessions">Device Sessions ({user.deviceSessions.length})</TabsTrigger>
+          <TabsTrigger value="integrations">Integrations</TabsTrigger>
           <TabsTrigger value="ai">AI Usage</TabsTrigger>
         </TabsList>
 
@@ -316,6 +325,76 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
               ))}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Integrations Tab */}
+        <TabsContent value="integrations" className="mt-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* NinjaTrader Status Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Shield className="h-5 w-5" /> NinjaTrader 8 Integration</CardTitle>
+                    <CardDescription>Connection status of the local Add-On.</CardDescription>
+                  </div>
+                  {(() => {
+                    const ntToken = (user as any).apiTokens?.find((t: any) => t.provider === "NinjaTrader")
+                    if (!ntToken) {
+                      return <Badge variant="secondary">Not Configured</Badge>
+                    }
+                    const isConnected = ntToken.lastUsed && (Date.now() - new Date(ntToken.lastUsed).getTime() < 65000)
+                    return isConnected ? (
+                      <Badge variant="outline" className="bg-success/10 text-success border-success/30"><CheckCircle2 className="w-3 h-3 mr-1" /> Active</Badge>
+                    ) : (
+                      <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30"><XCircle className="w-3 h-3 mr-1" /> Offline</Badge>
+                    )
+                  })()}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {(() => {
+                  const ntToken = (user as any).apiTokens?.find((t: any) => t.provider === "NinjaTrader")
+                  if (!ntToken) return <p className="text-sm text-muted-foreground">User has not generated a token.</p>
+                  return (
+                    <div className="space-y-4">
+                      <div className="rounded-lg border bg-muted/20 p-3 flex justify-between items-center">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground uppercase">Last Heartbeat Ping</p>
+                          <p className="font-semibold">{ntToken.lastUsed ? new Date(ntToken.lastUsed).toLocaleString() : "Never"}</p>
+                        </div>
+                        <Button variant="destructive" size="sm" onClick={() => handleRevokeToken(ntToken.id)}>
+                          Revoke Token
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </CardContent>
+            </Card>
+
+            {/* Discovered Accounts Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5" /> Discovered Broker Accounts</CardTitle>
+                <CardDescription>Local accounts automatically synced from NT8.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {!(user as any).discoveredAccounts || (user as any).discoveredAccounts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No accounts discovered yet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {(user as any).discoveredAccounts.map((acc: any) => (
+                      <div key={acc.id} className="flex justify-between items-center p-2 rounded border bg-card">
+                        <span className="font-medium text-sm">{acc.accountName}</span>
+                        <span className="text-xs text-muted-foreground">Seen: {formatDistanceToNow(new Date(acc.lastSeen), { addSuffix: true })}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         {/* AI Usage Tab */}

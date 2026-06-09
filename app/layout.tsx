@@ -3,6 +3,8 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from '@/components/auth-provider'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
 import './globals.css'
 
 const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] })
@@ -22,18 +24,20 @@ export const viewport = {
   themeColor: '#0e0f13',
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const session = await getServerSession(authOptions)
+
   return (
     <html
       lang="en"
       className={`dark ${geistSans.variable} ${geistMono.variable}`}
     >
       <body className="bg-background font-sans antialiased">
-        <AuthProvider>
+        <AuthProvider session={session}>
           {children}
         </AuthProvider>
         <Toaster position="top-right" richColors />

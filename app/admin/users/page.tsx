@@ -106,6 +106,7 @@ export default function AdminUsersPage() {
                 <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Email Verified</TableHead>
+                <TableHead>Integrations</TableHead>
                 <TableHead>Challenges</TableHead>
                 <TableHead>AI Requests</TableHead>
                 <TableHead>Last Login</TableHead>
@@ -154,11 +155,31 @@ export default function AdminUsersPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    {user.emailVerified
-                      ? <CheckCircle2 className="h-4 w-4 text-success" />
-                      : <span className="text-xs text-muted-foreground">—</span>}
+                    {user.emailVerified 
+                      ? <CheckCircle2 className="h-4 w-4 text-success" /> 
+                      : <Badge variant="secondary" className="text-[10px]">Pending</Badge>}
                   </TableCell>
-                  <TableCell>{user._count.challenges}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const ntToken = (user as any).apiTokens?.find((t: any) => t.provider === "NinjaTrader")
+                      if (!ntToken) {
+                        return <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Shield className="h-3 w-3" /> Not Configured</span>
+                      }
+                      const isConnected = ntToken.lastUsed && (Date.now() - new Date(ntToken.lastUsed).getTime() < 65000)
+                      return isConnected ? (
+                        <Badge variant="outline" className="bg-success/10 text-success border-success/30 text-[10px] py-0 h-5">
+                          NT8: Active
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] py-0 h-5">
+                          NT8: Offline
+                        </Badge>
+                      )
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium">{user._count.challenges}</span>
+                  </TableCell>
                   <TableCell>{user.aiSettings?.totalRequests ?? 0}</TableCell>
                   <TableCell className="text-muted-foreground text-xs">
                     {user.lastLogin ? formatDistanceToNow(new Date(user.lastLogin), { addSuffix: true }) : "Never"}

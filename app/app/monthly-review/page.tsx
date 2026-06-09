@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FileText, Download, Calendar } from "lucide-react"
 import { toast } from "sonner"
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import html2canvas from "html2canvas"
 import jsPDF from "jspdf"
 
@@ -16,9 +16,16 @@ export default function MonthlyReviewPage() {
   const psychology = usePropStore(s => s.tradePsychology)
   const reportRef = useRef<HTMLDivElement>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [summary, setSummary] = useState<string>("")
+  const [loading, setLoading] = useState(false)
 
   const monthName = new Date().toLocaleString("default", { month: "long" })
   
+  const getMonthKey = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+  }
+
   const pnl = trades.reduce((s, t) => s + t.pnl, 0)
   const wins = trades.filter(t => t.pnl > 0)
   const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0
@@ -64,6 +71,48 @@ export default function MonthlyReviewPage() {
     { name: "Week 4", pnl: trades.slice(15, 20).reduce((s, t) => s + t.pnl, 0) }
   ]
 
+  useEffect(() => {
+    async function loadCached() {
+      try {
+        const { getAiReviewAction } = await import("@/app/actions/ai-actions")
+        const review = await getAiReviewAction("MONTHLY", getMonthKey())
+        if (review) {
+          const data = JSON.parse(review.summary)
+          setSummary(data.summary)
+        }
+      } catch (err) {
+        console.error(err)
+      }
+    }
+    loadCached()
+  }, [])
+
+  const handleGenerateSummary = async () => {
+    if (trades.length === 0) {
+      toast.error("You need at least one trade to generate a summary.")
+      return
+    }
+    setLoading(true)
+    try {
+      const { generateMonthlySummaryAction } = await import("@/app/actions/ai-actions")
+      const payloadTrades = trades.map(t => ({
+        instrument: t.instrument,
+        pnl: t.pnl,
+        direction: t.direction,
+        session: t.session,
+        notes: t.notes || "",
+        tags: t.tags || []
+      }))
+      const res = await generateMonthlySummaryAction(payloadTrades, getMonthKey())
+      setSummary(res.summary)
+      toast.success("Monthly AI Summary generated!")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate summary.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const exportPDF = async () => {
     if (!reportRef.current) return
     setIsExporting(true)
@@ -92,7 +141,10 @@ export default function MonthlyReviewPage() {
           <p className="text-muted-foreground">Comprehensive monthly breakdown and PDF exports.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => toast.success("AI Summary generated")}><FileText className="w-4 h-4 mr-2" /> AI Summary</Button>
+          <Button variant="outline" onClick={handleGenerateSummary} disabled={loading}>
+            <FileText className="w-4 h-4 mr-2" /> 
+            {loading ? "Generating Summary..." : "AI Summary"}
+          </Button>
           <Button onClick={exportPDF} disabled={isExporting}>
             <Download className="w-4 h-4 mr-2" /> {isExporting ? "Generating..." : "Export PDF"}
           </Button>
@@ -155,9 +207,15 @@ export default function MonthlyReviewPage() {
           <Card className="bg-primary/5">
             <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" /> Month AI Summary</CardTitle></CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                You traded beautifully the first two weeks but overtraded during the FOMC week, heavily dragging down your Rule Compliance score. Your Liquidity Sweep strategy remains your dominant edge.
-              </p>
+              {summary ? (
+                <p className="text-sm text-muted-foreground leading-relaxed italic">
+                  "{summary}"
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground leading-relaxed italic">
+                  Click "AI Summary" above to generate your monthly trading insights.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

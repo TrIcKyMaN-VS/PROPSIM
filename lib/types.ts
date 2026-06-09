@@ -87,4 +87,7 @@ export interface ChallengeAccount {
   createdAt: number
   status: AccountStatus
   failReason?: string
+  challengeType?: "OFFICIAL" | "CUSTOM"
+  customOverrides?: Record<string, any> | null
+  baseRules?: ChallengeRules | null
 }

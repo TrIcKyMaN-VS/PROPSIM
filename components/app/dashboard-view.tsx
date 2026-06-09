@@ -15,6 +15,8 @@ import { AnimatedCard, AnimatedButton } from "./animated-ui"
 import { cn } from "@/lib/utils"
 import { useMemo } from "react"
 
+import { Badge } from "@/components/ui/badge"
+
 export function DashboardView() {
   const accounts = usePropStore((s) => s.accounts)
   const activeId = usePropStore((s) => s.activeAccountId)
@@ -215,6 +217,28 @@ export function DashboardView() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {/* Active Account Title Header & Badge */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
+            {account.name || `${firm.name} ${account.sizeLabel}`}
+            {account.challengeType === "CUSTOM" ? (
+              <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none px-3 py-1 text-xs font-semibold rounded-full">
+                Custom Challenge
+              </Badge>
+            ) : (
+              <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-3 py-1 text-xs font-semibold rounded-full">
+                Official Challenge
+              </Badge>
+            )}
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Account ID: <span className="font-mono text-xs text-muted-foreground/80">{account.id}</span>
+            {account.brokerAccountName && ` · Broker: ${account.brokerAccountName}`}
+          </p>
+        </div>
+      </div>
+
       {/* top section: Core Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard delay={0.05} label="Current Balance" rawNumber={status.balance} formatNumber={fmtCurrency} icon={Wallet} />

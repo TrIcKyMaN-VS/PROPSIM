@@ -80,8 +80,8 @@ export function CSVImport() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline"><Upload className="w-4 h-4 mr-2" /> Import CSV</Button>
+      <DialogTrigger render={<Button variant="outline" />}>
+        <Upload className="w-4 h-4 mr-2" /> Import CSV
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

@@ -312,8 +312,19 @@ export default function IntegrationsPage() {
               <Card key={acc.id} className="overflow-hidden">
                 <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
-                    <div className="font-semibold">{acc.name || `${acc.sizeLabel} Challenge`}</div>
-                    <div className="text-sm text-muted-foreground">Firm: {acc.firmId}</div>
+                    <div className="font-semibold flex items-center gap-2">
+                      {acc.name || `${acc.sizeLabel} Challenge`}
+                      {acc.challengeType === "CUSTOM" ? (
+                        <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none px-2 py-0.5 text-[10px] font-semibold rounded-full">
+                          Custom
+                        </Badge>
+                      ) : (
+                        <Badge className="bg-blue-600 hover:bg-blue-700 text-white border-none px-2 py-0.5 text-[10px] font-semibold rounded-full">
+                          Official
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-1">Firm: {acc.firmId}</div>
                   </div>
                   <div className="flex items-center gap-2 w-full sm:w-auto">
                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">

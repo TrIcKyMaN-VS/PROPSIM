@@ -45,7 +45,12 @@ export function AccountSwitcher() {
               {activeFirm.shortName.slice(0, 2).toUpperCase()}
             </span>
             <div className="flex flex-col items-start leading-none gap-1">
-              <span className="font-bold">{activeFirm.shortName} <span className="text-muted-foreground font-normal">{active!.sizeLabel}</span></span>
+              <span className="font-bold">
+                {activeFirm.shortName} <span className="text-muted-foreground font-normal">{active!.sizeLabel}</span>
+                <span className={`ml-2 text-[9px] font-bold px-1 rounded-sm uppercase ${active!.challengeType === "CUSTOM" ? "bg-amber-500/15 text-amber-500 border border-amber-500/25" : "bg-blue-600/15 text-blue-500 border border-blue-500/25"}`}>
+                  {active!.challengeType === "CUSTOM" ? "CUSTOM" : "OFFICIAL"}
+                </span>
+              </span>
               <div className="flex items-center gap-2 text-[10px]">
                 <span className="text-muted-foreground">Bal: <span className="font-medium text-foreground">${activeBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span></span>
                 <span className={activePnl >= 0 ? "text-success" : "text-destructive"}>
@@ -59,13 +64,14 @@ export function AccountSwitcher() {
         )}
         <ChevronsUpDown className="h-4 w-4 text-muted-foreground ml-2" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent align="start" className="w-68">
         {accounts.map((acc) => {
           const firm = getFirm(acc.firmId)!
           const accTrades = trades.filter(t => t.accountId === acc.id)
           const pnl = accTrades.reduce((sum, t) => sum + t.pnl, 0)
           const size = firm.sizes.find(s => s.label === acc.sizeLabel)
           const bal = (size?.value || 0) + pnl
+          const cType = acc.challengeType || "OFFICIAL"
 
           return (
             <DropdownMenuItem key={acc.id} onClick={() => setActive(acc.id)} className="gap-3 py-2">
@@ -76,7 +82,12 @@ export function AccountSwitcher() {
                 {firm.shortName.slice(0, 2).toUpperCase()}
               </span>
               <div className="flex flex-col flex-1 leading-tight gap-0.5">
-                <span className="font-bold">{firm.shortName} <span className="text-muted-foreground font-normal">{acc.sizeLabel}</span></span>
+                <span className="font-bold flex items-center">
+                  {firm.shortName} <span className="text-muted-foreground font-normal ml-1">{acc.sizeLabel}</span>
+                  <span className={`ml-2 text-[9px] font-bold px-1 rounded-sm uppercase ${cType === "CUSTOM" ? "bg-amber-500/15 text-amber-500 border border-amber-500/25" : "bg-blue-600/15 text-blue-500 border border-blue-500/25"}`}>
+                    {cType === "CUSTOM" ? "CUSTOM" : "OFFICIAL"}
+                  </span>
+                </span>
                 <div className="flex items-center gap-2 text-[10px]">
                   <span className="text-muted-foreground">${bal.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
                   <span className={pnl >= 0 ? "text-success" : "text-destructive"}>

@@ -64,6 +64,9 @@ export async function adminGetUsers(search?: string, statusFilter?: string) {
       aiSettings: {
         select: { totalRequests: true, totalTokens: true, estimatedCost: true },
       },
+      apiTokens: {
+        select: { provider: true, lastUsed: true }
+      }
     },
     orderBy: { createdAt: "desc" },
   })
@@ -91,6 +94,7 @@ export async function adminGetUser(id: string) {
         orderBy: { createdAt: "desc" },
         include: { _count: { select: { trades: true } } },
       },
+      apiTokens: true,
     },
   })
 
@@ -101,7 +105,13 @@ export async function adminGetUser(id: string) {
     where: { account: { userId: id } },
   })
 
-  return { ...user, tradeCount }
+  // Get discovered accounts separately because it's not explicitly related in the Prisma User schema
+  const discoveredAccounts = await prisma.discoveredAccount.findMany({
+    where: { userId: id },
+    orderBy: { lastSeen: "desc" },
+  })
+
+  return { ...user, tradeCount, discoveredAccounts }
 }
 
 export async function adminUpdateUser(
@@ -191,6 +201,22 @@ export async function adminKillAllUserSessions(userId: string) {
   const admin = await assertAdmin()
   await prisma.deviceSession.updateMany({ where: { userId }, data: { isValid: false } })
   await writeAuditLog({ userId: admin.id, targetId: userId, action: "ADMIN_KILL_ALL_SESSIONS" })
+  return { success: true }
+}
+
+export async function adminRevokeUserToken(userId: string, tokenId: string) {
+  const admin = await assertAdmin()
+  const token = await prisma.apiToken.findFirst({ where: { id: tokenId, userId } })
+  if (!token) throw new Error("Token not found")
+  
+  await prisma.apiToken.delete({ where: { id: tokenId } })
+  
+  await writeAuditLog({ 
+    userId: admin.id, 
+    targetId: userId, 
+    action: "ADMIN_REVOKE_INTEGRATION_TOKEN",
+    details: { provider: token.provider }
+  })
   return { success: true }
 }
 

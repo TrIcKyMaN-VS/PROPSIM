@@ -9,69 +9,66 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  role          String    @default("USER")
-  plan          String    @default("FREE")
-  status        String    @default("ACTIVE") // ACTIVE, SUSPENDED, DISABLED, BANNED
-  notes         String?   // Admin-only notes field
-  lastLogin     DateTime?
-  routineConfig String?   // JSON object storing custom morning/eod tasks
-  
-  accounts      Account[]
-  sessions      Session[]
-  deviceSessions DeviceSession[]
-  challenges    ChallengeAccount[]
-  playbooks     Playbook[]
-  checklistTemplates ChecklistTemplate[]
-  challengeTemplates ChallengeTemplate[]
-  ruleTemplates RuleTemplate[]
-  ruleViolations RuleViolation[]
-  dailyPerformances DailyPerformance[]
-  brokerConnections BrokerConnection[]
-  importLogs        ImportLog[]
-  aiSettings        UserAiSettings?
-  auditLogs         AuditLog[]         @relation("UserAuditLogs")
-  adminActions      AuditLog[]         @relation("AdminAuditLogs")
+  id                  String               @id @default(cuid())
+  name                String?
+  email               String?              @unique
+  emailVerified       DateTime?
+  image               String?
+  password            String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  plan                String               @default("FREE")
+  role                String               @default("USER")
+  lastLogin           DateTime?
+  routineConfig       String?
+  notes               String?
+  status              String               @default("ACTIVE")
+  accounts            Account[]
+  apiTokens           ApiToken[]
+  adminActions        AuditLog[]           @relation("AdminAuditLogs")
+  auditLogs           AuditLog[]           @relation("UserAuditLogs")
+  brokerConnections   BrokerConnection[]
+  challenges          ChallengeAccount[]
+  challengeTemplates  ChallengeTemplate[]
+  checklistTemplates  ChecklistTemplate[]
+  dailyPerformances   DailyPerformance[]
+  deviceSessions      DeviceSession[]
+  importLogs          ImportLog[]
   passwordResetTokens PasswordResetToken[]
-  apiTokens         ApiToken[]
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  playbooks           Playbook[]
+  ruleTemplates       RuleTemplate[]
+  ruleViolations      RuleViolation[]
+  sessions            Session[]
+  aiSettings          UserAiSettings?
+  aiReviews           AiReview[]
 }
 
 model DeviceSession {
-  id           String   @id @default(cuid())
-  userId       String
-  userAgent    String?
-  ip           String?
-  expiresAt    DateTime
-  isValid      Boolean  @default(true)
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  isValid   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -96,34 +93,41 @@ model ApiToken {
   id        String    @id @default(cuid())
   userId    String
   token     String    @unique
-  provider  String    // e.g., "ninjatrader"
+  provider  String
   lastUsed  DateTime?
   createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+enum ChallengeType {
+  OFFICIAL
+  CUSTOM
+}
+
 model ChallengeAccount {
-  id                String   @id @default(cuid())
+  id                String          @id @default(cuid())
   userId            String
-  name              String?
-  brokerAccountName String?
   firmId            String
   sizeLabel         String
-  rules             String   // Stored as JSON string
-  status            String   @default("active") // active, passed, failed
+  rules             String
+  challengeType     ChallengeType   @default(OFFICIAL)
+  customOverrides   String?
+  baseRules         String?
+  status            String          @default("active")
   failReason        String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades     Trade[]
-  ruleViolations RuleViolation[]
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  brokerAccountName String?
+  name              String?
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ruleViolations    RuleViolation[]
+  trades            Trade[]
 }
 
 model DiscoveredAccount {
   id          String   @id @default(cuid())
   userId      String
-  provider    String   
+  provider    String
   accountName String
   lastSeen    DateTime @default(now())
 
@@ -131,179 +135,155 @@ model DiscoveredAccount {
 }
 
 model ChallengeTemplate {
-  id               String   @id @default(cuid())
-  userId           String
-  name             String
-  description      String?
-  balance          Float
-  profitTarget     Float
-  dailyLoss        Float
-  maxDrawdown      Float
-  drawdownType     String   // static, trailing, eod
-  consistencyPct   Float    @default(0)
-  maxContracts     Int
-  minTradingDays   Int
-  maxTradingDays   Int?
-  isPublic         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  userId         String
+  name           String
+  description    String?
+  balance        Float
+  profitTarget   Float
+  dailyLoss      Float
+  maxDrawdown    Float
+  drawdownType   String
+  consistencyPct Float    @default(0)
+  maxContracts   Int
+  minTradingDays Int
+  maxTradingDays Int?
+  isPublic       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Playbook {
-  id               String   @id @default(cuid())
-  userId           String
-  name             String
-  category         String   // trend, reversal, breakout, etc.
-  marketCondition  String
-  session          String
-  instrument       String
-  entryRules       String   // JSON or text
-  exitRules        String
-  riskRules        String
-  checklist        String   // JSON array string
-  isPublic         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  deletedAt        DateTime?
-
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  trades           Trade[]
+  id              String    @id @default(cuid())
+  userId          String
+  name            String
+  category        String
+  marketCondition String
+  session         String
+  instrument      String
+  entryRules      String
+  exitRules       String
+  riskRules       String
+  checklist       String
+  isPublic        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  deletedAt       DateTime?
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trades          Trade[]
 }
 
 model ChecklistTemplate {
-  id               String   @id @default(cuid())
-  userId           String
-  name             String
-  items            String   // JSON array of {id, text, required}
-  isPublic         Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  items     String
+  isPublic  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Trade {
-  id               String   @id @default(cuid())
-  accountId        String
-  playbookId       String?
-  playbookName     String?
-  instrument       String
-  direction        String   // long, short
-  entry            Float
-  exit             Float
-  stopLoss         Float?
-  contracts        Float
-  pnl              Float
-  calculatedPnl    Float?
-  pnlMode          String   @default("AUTO")
-  day              Int      // trading day index
-  timestamp        BigInt   // Using BigInt for js Date.now() timestamp
-  session          String
-  notes            String?
-  tags             String?  // JSON array string
-  playbookChecklist String? // JSON object { item: boolean }
-  
-  // Pre-Trade Analysis
-  tradeIdea        String?
-  marketBias       String?
-  reasonForEntry   String?
-  expectedRR       String?
-
-  // Post-Trade Review
-  outcome          String?
-  mistakes         String?
-  lessonsLearned   String?
-  psychologyNotes  String?
-  
-  confidenceScore  Float?   // From AI reconstruction
-  isReconstructed  Boolean  @default(false)
-
-  account          ChallengeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  playbook         Playbook?        @relation(fields: [playbookId], references: [id], onDelete: SetNull)
-
-  psychology       TradePsychology?
-  screenshots      TradeScreenshot[]
-  lesson           LessonLearned?
+  id                String            @id @default(cuid())
+  accountId         String
+  playbookId        String?
+  instrument        String
+  direction         String
+  entry             Float
+  exit              Float
+  contracts         Float
+  pnl               Float
+  day               Int
+  timestamp         BigInt
+  session           String
+  notes             String?
+  tags              String?
+  confidenceScore   Float?
+  isReconstructed   Boolean           @default(false)
+  playbookChecklist String?
+  calculatedPnl     Float?
+  pnlMode           String            @default("AUTO")
+  expectedRR        String?
+  lessonsLearned    String?
+  marketBias        String?
+  mistakes          String?
+  outcome           String?
+  playbookName      String?
+  psychologyNotes   String?
+  reasonForEntry    String?
+  tradeIdea         String?
+  stopLoss          Float?
+  adverseExcursion  Float?
+  favorableExcursion Float?
+  lesson            LessonLearned?
+  account           ChallengeAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  playbook          Playbook?         @relation(fields: [playbookId], references: [id])
+  psychology        TradePsychology?
+  screenshots       TradeScreenshot[]
 }
 
 model TradePsychology {
-  id               String   @id @default(cuid())
-  tradeId          String   @unique
-  
-  // Pre Trade
-  preFeeling       String?
-  preNotes         String?
-  checklistScore   Int?
-  convictionScore  Int?
-  riskAmount       Float?
-  rewardAmount     Float?
-  expectedValue    Float?
-  
-  // During Trade
-  hesitated        Boolean  @default(false)
-  movedStop        Boolean  @default(false)
-  movedTarget      Boolean  @default(false)
-  addedSize        Boolean  @default(false)
-  emotionAffected  Boolean  @default(false)
-  brokeRules       Boolean  @default(false)
-  
-  // Exit & Review
-  exitReason       String?
-  executionGrade   String?  // A+, A, B, C, D, F
-  psychologyGrade  String?
-  riskGrade        String?
-  complianceGrade  String?
-  decisionScore    Int?     // 0-100 score separating process from outcome
-
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  id              String   @id @default(cuid())
+  tradeId         String   @unique
+  preFeeling      String?
+  preNotes        String?
+  checklistScore  Int?
+  convictionScore Int?
+  riskAmount      Float?
+  rewardAmount    Float?
+  expectedValue   Float?
+  hesitated       Boolean  @default(false)
+  movedStop       Boolean  @default(false)
+  movedTarget     Boolean  @default(false)
+  addedSize       Boolean  @default(false)
+  emotionAffected Boolean  @default(false)
+  brokeRules      Boolean  @default(false)
+  exitReason      String?
+  executionGrade  String?
+  psychologyGrade String?
+  riskGrade       String?
+  complianceGrade String?
+  decisionScore   Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  trade           Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 }
 
 model TradeScreenshot {
-  id               String   @id @default(cuid())
-  tradeId          String
-  stage            String   // Before Entry, During Trade, After Exit
-  url              String
-  createdAt        DateTime @default(now())
-
-  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  id        String   @id @default(cuid())
+  tradeId   String
+  stage     String
+  url       String
+  createdAt DateTime @default(now())
+  trade     Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 }
 
 model LessonLearned {
-  id               String   @id @default(cuid())
-  tradeId          String   @unique
-  wentWell         String?
-  wentWrong        String?
-  biggestMistake   String?
-  improvement      String?
-  createdAt        DateTime @default(now())
-
-  trade            Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  id             String   @id @default(cuid())
+  tradeId        String   @unique
+  wentWell       String?
+  wentWrong      String?
+  biggestMistake String?
+  improvement    String?
+  createdAt      DateTime @default(now())
+  trade          Trade    @relation(fields: [tradeId], references: [id], onDelete: Cascade)
 }
 
 model DailyPerformance {
   id               String   @id @default(cuid())
   userId           String
-  date             String   // YYYY-MM-DD
-  
-  // Habits
+  date             String
   sleepHours       Float?
   exercise         Boolean  @default(false)
   meditation       Boolean  @default(false)
-  waterIntake      Int?     // in glasses/liters
-  mood             String?  // 1-10 or text
-  
-  // Checklists (Stored as JSON array of completed items)
+  waterIntake      Int?
+  mood             String?
   morningChecklist String?
   eodChecklist     String?
-
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
-
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
@@ -314,90 +294,80 @@ model RuleTemplate {
   userId      String
   name        String
   description String?
-  nodes       String   // JSON array of {id, type, config}
-  edges       String   // JSON array of edges
+  nodes       String
+  edges       String
   isPublic    Boolean  @default(false)
-  isOfficial  Boolean  @default(false) // e.g. True for Apex, Topstep default templates
+  isOfficial  Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RuleViolation {
-  id            String   @id @default(cuid())
+  id            String           @id @default(cuid())
   userId        String
   accountId     String
   tradeId       String?
   ruleName      String
   violationText String
-  severity      String   // warning, hard_stop, fail
-  timestamp     DateTime @default(now())
-
-  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  severity      String
+  timestamp     DateTime         @default(now())
   account       ChallengeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model BrokerConnection {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
-  provider     String   // Tradovate, TradeLocker, NinjaTrader, Rithmic
-  accountName  String?  
-  status       String   // Connected, Not Connected, Syncing, Error
+  provider     String
+  accountName  String?
+  status       String
   lastSync     DateTime?
-  config       String?  // JSON for OAuth tokens, API keys, env settings
-  errorMessage String?  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  config       String?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model ImportLog {
   id                String   @id @default(cuid())
   userId            String
-  source            String   // CSV, Excel, Tradovate API, NinjaTrader, etc.
+  source            String
   newTradesCount    Int      @default(0)
   duplicatesSkipped Int      @default(0)
   errorsCount       Int      @default(0)
-  status            String   // Success, Partial, Failed
-  message           String?  
+  status            String
+  message           String?
   createdAt         DateTime @default(now())
-
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model UserAiSettings {
   id            String    @id @default(cuid())
   userId        String    @unique
-  provider      String    @default("PROPSIM") // PROPSIM, OPENAI, ANTHROPIC, GEMINI
-  
-  // Encrypted personal keys
+  provider      String    @default("PROPSIM")
   openaiKey     String?
   anthropicKey  String?
   geminiKey     String?
-  
-  // Usage tracking
   totalRequests Int       @default(0)
   totalTokens   Int       @default(0)
   estimatedCost Float     @default(0)
   lastUsage     DateTime?
-  
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {
   id        String   @id @default(cuid())
-  userId    String?  // Actor (null for system events)
-  targetId  String?  // Subject (user being acted upon)
-  action    String   // LOGIN, LOGOUT, REGISTER, PASSWORD_RESET, ROLE_CHANGE, USER_BAN, USER_DELETE, ADMIN_ACTION
-  details   String?  // JSON
+  userId    String?
+  targetId  String?
+  action    String
+  details   String?
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())
-
-  user      User?    @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
-  target    User?    @relation("AdminAuditLogs", fields: [targetId], references: [id], onDelete: SetNull)
+  target    User?    @relation("AdminAuditLogs", fields: [targetId], references: [id])
+  user      User?    @relation("UserAuditLogs", fields: [userId], references: [id])
 }
 
 model PasswordResetToken {
@@ -407,7 +377,28 @@ model PasswordResetToken {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
-
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiReview {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // "DAILY", "WEEKLY", "MONTHLY"
+  dateKey   String   // e.g. "2026-06-09" or "2026-W23" or "2026-06"
+  summary   String
+  score1    Int?     // e.g. execution score
+  score2    Int?     // e.g. psychology score
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, dateKey])
+}
+
+model NewsEvent {
+  id        String   @id @default(cuid())
+  title     String
+  timestamp DateTime
+  impact    String   // "HIGH", "MEDIUM", "LOW"
+  createdAt DateTime @default(now())
 }
 

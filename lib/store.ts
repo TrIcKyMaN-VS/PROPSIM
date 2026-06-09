@@ -4,10 +4,12 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { ChallengeAccount, Trade, TradeDirection } from "./types"
 import { getFirm, SESSIONS, INSTRUMENTS } from "./firms"
-import { getAccounts, createAccount as createDbAccount, deleteAccount } from "@/app/actions/account-actions"
+import { getAccounts, createAccount as createDbAccount, deleteAccount, resetToOfficialRules as resetDbAccountRules } from "@/app/actions/account-actions"
 import { getTrades, addTrade as addDbTrade, deleteTrade as deleteDbTrade, importTradesBatch } from "@/app/actions/trade-actions"
 import { getPlaybooks, createPlaybook as createDbPlaybook, updatePlaybook as updateDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
 import { getRoutineConfig, updateRoutineConfig } from "@/app/actions/user-actions"
+import { getChecklistTemplates } from "@/app/actions/checklist-actions"
+import { getTradePsychology, saveTradePsychology as saveDbTradePsychology, getDailyPerformances, saveDailyPerformance as saveDbDailyPerformance, getLessonsLearned, saveLessonLearned as saveDbLessonLearned } from "@/app/actions/psychology-actions"
 
 function uid() {
   return Math.random().toString(36).slice(2, 10)
@@ -76,6 +78,7 @@ interface PropState {
   tradePsychology: any[]
   tradeScreenshots: any[]
   lessonsLearned: any[]
+  checklistTemplates: any[]
   activeAccountId: string | null
   compareFirmIds: string[]
   seeded: boolean
@@ -83,7 +86,8 @@ interface PropState {
 
   init: () => void
   syncWithDb: () => Promise<void>
-  createAccount: (firmId: string, sizeLabel: string) => Promise<string>
+  createAccount: (firmId: string, sizeLabel: string, challengeType?: "OFFICIAL" | "CUSTOM", customOverrides?: Record<string, any>) => Promise<string>
+  resetToOfficialRules: (accountId: string) => Promise<void>
   setActive: (id: string) => void
   removeAccount: (id: string) => Promise<void>
   addTrade: (t: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) => Promise<Trade>
@@ -95,12 +99,14 @@ interface PropState {
   updatePlaybook: (id: string, data: PlaybookInput) => Promise<void>
   removePlaybook: (id: string) => Promise<void>
   
-  addDailyPerformance: (dp: any) => void
-  updateDailyPerformance: (dp: any) => void
-  saveTradePsychology: (tp: any) => void
+  addDailyPerformance: (dp: any) => Promise<void>
+  updateDailyPerformance: (dp: any) => Promise<void>
+  saveTradePsychology: (tp: any) => Promise<void>
   addScreenshot: (tradeId: string, stage: string, url: string) => Promise<void>
   deleteScreenshot: (tradeId: string, id: string) => Promise<void>
-  saveLesson: (lesson: any) => void
+  saveLesson: (lesson: any) => Promise<void>
+  saveChecklistTemplate: (data: any) => Promise<void>
+  deleteChecklistTemplate: (id: string) => Promise<void>
   
   routineConfig: { morning: string[], eod: string[] }
   setRoutineConfig: (config: { morning: string[], eod: string[] }) => void
@@ -119,6 +125,7 @@ export const usePropStore = create<PropState>()(
       tradePsychology: [],
       tradeScreenshots: [],
       lessonsLearned: [],
+      checklistTemplates: [],
       activeAccountId: null,
       compareFirmIds: ["apex", "topstep", "mffu", "tradeday"],
       routineConfig: {
@@ -145,17 +152,29 @@ export const usePropStore = create<PropState>()(
           const dbTrades = await getTrades()
           const dbPlaybooks = await getPlaybooks()
           const routine = await getRoutineConfig()
+          const dbChecklists = await getChecklistTemplates()
+          const dbPsychology = await getTradePsychology()
+          const dbPerformances = await getDailyPerformances()
+          const dbLessons = await getLessonsLearned()
+
           // parse rules back to object for accounts
           const parsedAccounts = dbAccounts.map(a => ({
             ...a,
             rules: JSON.parse(a.rules as any),
-            createdAt: Number(new Date(a.createdAt).getTime())
+            createdAt: Number(new Date(a.createdAt).getTime()),
+            challengeType: a.challengeType || "OFFICIAL",
+            customOverrides: a.customOverrides ? JSON.parse(a.customOverrides as string) : null,
+            baseRules: a.baseRules ? JSON.parse(a.baseRules as string) : null
           })) as any as ChallengeAccount[]
           
           set({
             accounts: parsedAccounts,
             trades: dbTrades,
             playbooks: dbPlaybooks,
+            checklistTemplates: dbChecklists,
+            tradePsychology: dbPsychology,
+            dailyPerformances: dbPerformances,
+            lessonsLearned: dbLessons,
             activeAccountId: parsedAccounts[0]?.id || null,
             seeded: true,
             ...(routine ? { routineConfig: routine } : {})
@@ -165,11 +184,36 @@ export const usePropStore = create<PropState>()(
         }
       },
 
-      createAccount: async (firmId, sizeLabel) => {
-        const dbAcc = await createDbAccount(firmId, sizeLabel)
-        const acc = { ...dbAcc, rules: JSON.parse(dbAcc.rules as any), createdAt: Number(new Date(dbAcc.createdAt).getTime()) } as any as ChallengeAccount
+      createAccount: async (firmId, sizeLabel, challengeType = "OFFICIAL", customOverrides) => {
+        const dbAcc = await createDbAccount(firmId, sizeLabel, challengeType, customOverrides)
+        const acc = {
+          ...dbAcc,
+          rules: JSON.parse(dbAcc.rules as any),
+          createdAt: Number(new Date(dbAcc.createdAt).getTime()),
+          challengeType: dbAcc.challengeType || "OFFICIAL",
+          customOverrides: dbAcc.customOverrides ? JSON.parse(dbAcc.customOverrides as string) : null,
+          baseRules: dbAcc.baseRules ? JSON.parse(dbAcc.baseRules as string) : null
+        } as any as ChallengeAccount
         set((s) => ({ accounts: [...s.accounts, acc], activeAccountId: acc.id }))
         return acc.id
+      },
+
+      resetToOfficialRules: async (accountId) => {
+        await resetDbAccountRules(accountId)
+        set((s) => ({
+          accounts: s.accounts.map((a) => {
+            if (a.id === accountId) {
+              const baseRules = a.baseRules || a.rules
+              return {
+                ...a,
+                challengeType: "OFFICIAL",
+                customOverrides: null,
+                rules: baseRules
+              }
+            }
+            return a
+          })
+        }))
       },
 
       setActive: (id) => set({ activeAccountId: id }),
@@ -235,13 +279,22 @@ export const usePropStore = create<PropState>()(
         }))
       },
 
-      addDailyPerformance: (dp) => set((s) => ({ dailyPerformances: [...s.dailyPerformances, dp] })),
-      updateDailyPerformance: (dp) => set((s) => ({ dailyPerformances: s.dailyPerformances.map((d) => (d.id === dp.id ? dp : d)) })),
-      saveTradePsychology: (tp) => set((s) => {
-        const exists = s.tradePsychology.find(x => x.tradeId === tp.tradeId)
-        if (exists) return { tradePsychology: s.tradePsychology.map(x => x.tradeId === tp.tradeId ? tp : x) }
-        return { tradePsychology: [...s.tradePsychology, tp] }
-      }),
+      addDailyPerformance: async (dp) => {
+        const saved = await saveDbDailyPerformance(dp)
+        set((s) => ({ dailyPerformances: [...s.dailyPerformances.filter(d => d.id !== saved.id), saved] }))
+      },
+      updateDailyPerformance: async (dp) => {
+        const saved = await saveDbDailyPerformance(dp)
+        set((s) => ({ dailyPerformances: s.dailyPerformances.map((d) => (d.date === dp.date ? saved : d)) }))
+      },
+      saveTradePsychology: async (tp) => {
+        const saved = await saveDbTradePsychology(tp)
+        set((s) => {
+          const exists = s.tradePsychology.find(x => x.tradeId === tp.tradeId)
+          if (exists) return { tradePsychology: s.tradePsychology.map(x => x.tradeId === tp.tradeId ? saved : x) }
+          return { tradePsychology: [...s.tradePsychology, saved] }
+        })
+      },
       addScreenshot: async (tradeId, stage, url) => {
         const { addTradeScreenshot } = await import("@/app/actions/trade-actions")
         const created = await addTradeScreenshot(tradeId, stage, url)
@@ -267,7 +320,32 @@ export const usePropStore = create<PropState>()(
           })
         }))
       },
-      saveLesson: (lesson) => set((s) => ({ lessonsLearned: [...s.lessonsLearned, lesson] })),
+      saveLesson: async (lesson) => {
+        const saved = await saveDbLessonLearned(lesson)
+        set((s) => {
+          const exists = s.lessonsLearned.find(x => x.tradeId === lesson.tradeId)
+          if (exists) return { lessonsLearned: s.lessonsLearned.map(x => x.tradeId === lesson.tradeId ? saved : x) }
+          return { lessonsLearned: [...s.lessonsLearned, saved] }
+        })
+      },
+      saveChecklistTemplate: async (data) => {
+        const { saveChecklistTemplate: saveDbChecklistTemplate } = await import("@/app/actions/checklist-actions")
+        const saved = await saveDbChecklistTemplate(data)
+        set((s) => {
+          const exists = s.checklistTemplates.find(x => x.id === saved.id)
+          if (exists) {
+            return { checklistTemplates: s.checklistTemplates.map(x => x.id === saved.id ? saved : x) }
+          }
+          return { checklistTemplates: [saved, ...s.checklistTemplates] }
+        })
+      },
+      deleteChecklistTemplate: async (id) => {
+        const { deleteChecklistTemplate: deleteDbChecklistTemplate } = await import("@/app/actions/checklist-actions")
+        await deleteDbChecklistTemplate(id)
+        set((s) => ({
+          checklistTemplates: s.checklistTemplates.filter(x => x.id !== id)
+        }))
+      },
 
       toggleCompare: (firmId) =>
         set((s) => {

@@ -14,6 +14,7 @@ export function ChecklistLibrary({ onSelect }: { onSelect?: (checklist: any) => 
   const [open, setOpen] = useState(false)
   const checklistTemplates = usePropStore(s => s.checklistTemplates) || []
   const saveChecklistTemplate = usePropStore(s => s.saveChecklistTemplate)
+  const deleteChecklistTemplate = usePropStore(s => s.deleteChecklistTemplate)
 
   const [newName, setNewName] = useState("")
   const [items, setItems] = useState<{id: string, text: string, required: boolean}[]>([])
@@ -59,9 +60,23 @@ export function ChecklistLibrary({ onSelect }: { onSelect?: (checklist: any) => 
               <p className="text-sm text-muted-foreground">No templates saved yet.</p>
             ) : (
               checklistTemplates.map((t: any) => (
-                <Card key={t.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onSelect && onSelect(t)}>
-                  <CardHeader className="p-4 pb-2">
+                <Card key={t.id} className="relative cursor-pointer hover:border-primary/50 transition-colors" onClick={() => onSelect && onSelect(t)}>
+                  <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
                     <CardTitle className="text-base">{t.name}</CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-destructive hover:bg-destructive/10 z-10"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (confirm(`Are you sure you want to delete template "${t.name}"?`)) {
+                          deleteChecklistTemplate(t.id)
+                          toast.success("Template deleted")
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </CardHeader>
                   <CardContent className="p-4 pt-0">
                     <p className="text-xs text-muted-foreground">{t.items?.length || 0} items</p>
