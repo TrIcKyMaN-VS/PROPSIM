@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePropStore } from "@/lib/store"
 import { getFirm } from "@/lib/firms"
 import { evaluate, equityCurve } from "@/lib/rule-engine"
-import { fmtCurrency, fmtPct } from "@/lib/format"
+import { fmtCurrency, fmtPct, fmtPnl, formatDisplayTime, formatDisplayDateTime } from "@/lib/format"
 import { StatCard } from "./stat-card"
 import { RuleMeter } from "./rule-meter"
 import { EquityChart } from "./equity-chart"
@@ -22,6 +22,9 @@ export function DashboardView() {
   const activeId = usePropStore((s) => s.activeAccountId)
   const trades = usePropStore((s) => s.trades)
   const tradePsychology = usePropStore((s) => s.tradePsychology)
+  const violations = usePropStore((s) => s.activeAccountViolations)
+  const displayTimeMode = usePropStore((s) => s.displayTimeMode)
+  const pnlDisplayMode = usePropStore((s) => s.pnlDisplayMode)
 
   const account = accounts.find((a) => a.id === activeId)
 
@@ -129,6 +132,22 @@ export function DashboardView() {
   }, [tradePsychology, accountTrades])
 
   const hasMistake = commonMistake !== "None detected"
+
+  const timingQuality = useMemo(() => {
+    if (accountTrades.length === 0) return "UNKNOWN"
+    const nullExitsCount = accountTrades.filter(t => t.exitTime === undefined || t.exitTime === null).length
+    const nullExitsPct = (nullExitsCount / accountTrades.length) * 100
+    if (nullExitsCount === 0) return "GOOD"
+    if (nullExitsPct <= 10) return "PARTIAL"
+    return "UNKNOWN"
+  }, [accountTrades])
+
+  const showTimingWarning = useMemo(() => {
+    if (accountTrades.length === 0) return false
+    const nullExitsCount = accountTrades.filter(t => t.exitTime === undefined || t.exitTime === null).length
+    const nullExitsPct = (nullExitsCount / accountTrades.length) * 100
+    return nullExitsPct > 10
+  }, [accountTrades])
 
   // ── Psychology Score: from real psych records ────────────────────────────
   const psyScore = useMemo(() => {
@@ -239,10 +258,107 @@ export function DashboardView() {
         </div>
       </div>
 
+      {/* Challenge Failed Forensic Snapshot Banner */}
+      {account.status === "failed" && (
+        <AnimatedCard className="border border-destructive/30 bg-destructive/5 rounded-xl p-5">
+          <div className="flex items-center gap-3 text-destructive font-bold text-lg mb-2">
+            <XCircle className="w-6 h-6 animate-pulse" />
+            CHALLENGE FAILED
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            Reason: <span className="font-medium text-foreground">{account.failReason || "Rule violation hit."}</span>
+          </p>
+
+          {account.failureSnapshot && (() => {
+            try {
+              const snap = JSON.parse(account.failureSnapshot)
+              return (
+                <div className="mt-4 border-t border-destructive/20 pt-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Forensic Failure Details</h4>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Breach Type</span>
+                      <p className="font-semibold text-sm mt-1 capitalize">{snap.breachType?.replace("_", " ") || "N/A"}</p>
+                    </div>
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Rule Violated</span>
+                      <p className="font-semibold text-sm mt-1">{snap.ruleName || "N/A"}</p>
+                    </div>
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Allowed Value</span>
+                      <p className="font-semibold text-sm mt-1">
+                        {snap.breachType === "daily_loss" || snap.breachType === "max_drawdown" || snap.breachType === "trailing_drawdown"
+                          ? fmtCurrency(snap.allowedValue)
+                          : snap.allowedValue ?? "N/A"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold text-destructive">Actual Value</span>
+                      <p className="font-semibold text-sm mt-1 text-destructive">
+                        {snap.breachType === "daily_loss" || snap.breachType === "max_drawdown" || snap.breachType === "trailing_drawdown"
+                          ? fmtCurrency(snap.actualValue)
+                          : snap.actualValue ?? "N/A"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Breach Time</span>
+                      <p className="font-semibold text-sm mt-1">
+                        {snap.tradeDate
+                          ? formatDisplayTime(snap.tradeDate, displayTimeMode)
+                          : snap.failureTimestamp
+                            ? formatDisplayTime(snap.failureTimestamp, displayTimeMode)
+                            : "N/A"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Date</span>
+                      <p className="font-semibold text-sm mt-1 font-mono">
+                        {snap.tradeDate
+                          ? new Date(snap.tradeDate).toLocaleDateString("en-US", { timeZone: displayTimeMode === "Exchange Time" ? "America/New_York" : undefined, month: "short", day: "numeric" })
+                          : snap.failureTimestamp
+                            ? new Date(snap.failureTimestamp).toLocaleDateString("en-US", { timeZone: displayTimeMode === "Exchange Time" ? "America/New_York" : undefined, month: "short", day: "numeric" })
+                            : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {snap.tradeId && (
+                    <div className="mt-4 border-t border-border/40 pt-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold block mb-1">Triggering Trade</span>
+                        <span className="font-semibold text-sm">Trade ID: </span>
+                        <span className="font-mono text-xs text-muted-foreground">{snap.tradeId}</span>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Balance: <span className="text-foreground font-semibold">{fmtCurrency(snap.balanceAtFailure)}</span> · Equity: <span className="text-foreground font-semibold">{fmtCurrency(snap.equityAtFailure)}</span>
+                        </div>
+                      </div>
+                      {snap.failedTradeScreenshot && (
+                        <div className="flex flex-col items-start md:items-end">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold mb-1">Breaching Trade Chart</span>
+                          <a href={snap.failedTradeScreenshot} target="_blank" rel="noopener noreferrer" className="block group">
+                            <img
+                              src={snap.failedTradeScreenshot}
+                              alt="Breach Chart"
+                              className="h-16 w-32 object-cover rounded-md border border-border shadow-sm group-hover:border-primary/50 transition-colors"
+                            />
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            } catch (e) {
+              return null
+            }
+          })()}
+        </AnimatedCard>
+      )}
+
       {/* top section: Core Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard delay={0.05} label="Current Balance" rawNumber={status.balance} formatNumber={fmtCurrency} icon={Wallet} />
-        <StatCard delay={0.1} label="Current P&L" rawNumber={status.totalPnl} formatNumber={(v) => fmtCurrency(v, { sign: true })} icon={TrendingUp} tone={status.totalPnl >= 0 ? "success" : "destructive"} />
+        <StatCard delay={0.1} label="Current P&L" rawNumber={status.totalPnl} formatNumber={(v) => fmtPnl(v, pnlDisplayMode, r.startingBalance, { sign: true })} icon={TrendingUp} tone={status.totalPnl >= 0 ? "success" : "destructive"} />
         <StatCard delay={0.15} label="Profit Target" rawNumber={r.profitTarget} formatNumber={fmtCurrency} icon={Target} sub={`${status.completionPct.toFixed(1)}% complete`} />
         <StatCard delay={0.2} label="Remaining DD" rawNumber={status.drawdownRemaining} formatNumber={fmtCurrency} icon={Shield} tone={ddTone} />
         <StatCard delay={0.25} label="Trading Days" rawNumber={status.tradingDays} icon={Calendar} sub={`Min ${r.minTradingDays} required`} />
@@ -261,7 +377,7 @@ export function DashboardView() {
               <span className="text-xs text-muted-foreground">Drawdown limit: {fmtCurrency(status.drawdownLimit)}</span>
             </div>
             <div className="h-[250px]">
-              <EquityChart data={curve} target={r.startingBalance + r.profitTarget} maxDrawdown={status.drawdownLimit} />
+              <EquityChart data={curve} target={r.startingBalance + r.profitTarget} />
             </div>
           </AnimatedCard>
 
@@ -302,8 +418,128 @@ export function DashboardView() {
 
           <AnimatedCard delay={0.45} className="rounded-xl border border-border bg-card p-5">
             <h3 className="font-bold mb-4">Risk Limits</h3>
-            <RuleMeter label="Daily loss limit" used={fmtCurrency(status.dailyLossUsed)} limit={fmtCurrency(r.dailyLossLimit)} pct={status.dailyLossUsedPct} tone={dailyTone} />
-            <RuleMeter label="Max drawdown" used={fmtCurrency(status.drawdownUsed)} limit={fmtCurrency(r.maxDrawdown)} pct={status.drawdownUsedPct} tone={ddTone} className="mt-4" />
+            <RuleMeter label="Daily loss limit" value={`${fmtCurrency(status.dailyLossUsed)} / ${fmtCurrency(r.dailyLossLimit)}`} pct={status.dailyLossUsedPct} tone={dailyTone} />
+            <div className="mt-4">
+              <RuleMeter label="Max drawdown" value={`${fmtCurrency(status.drawdownUsed)} / ${fmtCurrency(r.maxDrawdown)}`} pct={status.drawdownUsedPct} tone={ddTone} />
+            </div>
+          </AnimatedCard>
+
+          <AnimatedCard delay={0.48} className="rounded-xl border border-border bg-card p-5">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold flex items-center gap-2">
+                <Layers className="w-5 h-5 text-primary" /> Contract Debug Panel
+              </h3>
+              <div className="flex items-center gap-1.5 text-[11px]">
+                <span className="text-muted-foreground font-semibold">Timing Quality:</span>
+                <Badge variant={timingQuality === "GOOD" ? "default" : timingQuality === "PARTIAL" ? "secondary" : "destructive"} className="px-1.5 py-0.5 text-[10px]">
+                  {timingQuality}
+                </Badge>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Max Allowed</span>
+                <p className="font-semibold text-lg mt-1">{status.maxAllowedContracts || "No Limit"}</p>
+              </div>
+              <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Max Concurrent Seen</span>
+                <p className="font-semibold text-lg mt-1">{status.maxConcurrentContracts}</p>
+              </div>
+              <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Current Open</span>
+                <p className="font-semibold text-lg mt-1">{status.currentOpenContracts}</p>
+              </div>
+              <div className="rounded-lg bg-background/40 p-3 border border-border/50">
+                <span className="text-[10px] text-muted-foreground uppercase font-bold">Largest Position Size</span>
+                <p className="font-semibold text-lg mt-1">{status.largestPositionSizeReached}</p>
+              </div>
+            </div>
+            {showTimingWarning && (
+              <div className="mt-4 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-500 text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>Challenge calculations are using estimated exit times.</span>
+              </div>
+            )}
+          </AnimatedCard>
+
+          <AnimatedCard delay={0.5} className="rounded-xl border border-border bg-card p-5">
+            <h3 className="font-bold mb-4 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-primary" /> Challenge Violations
+            </h3>
+            
+            {violations && violations.length > 0 ? (
+              <div className="space-y-4">
+                {/* Latest Violation */}
+                <div className="rounded-lg border border-border/80 bg-muted/20 p-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1">Latest Violation</span>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{violations[0].ruleName}</span>
+                        {violations[0].severity === "HARD" ? (
+                          <Badge variant="destructive" className="text-[9px] px-1.5 py-0.2">HARD</Badge>
+                        ) : (
+                          <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none text-[9px] px-1.5 py-0.2">SOFT</Badge>
+                        )}
+                        {violations[0].isResolved && (
+                          <Badge variant="secondary" className="text-[9px] px-1.5 py-0.2">Resolved</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">{violations[0].violationText}</p>
+                      {violations[0].tradeId && (
+                        <p className="text-[10px] text-muted-foreground font-mono mt-1">Trade: {violations[0].tradeId.slice(0, 8)}...</p>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                      {violations[0].timestamp ? formatDisplayTime(violations[0].timestamp, displayTimeMode) : ""}
+                    </span>
+                  </div>
+                </div>
+
+                {/* History Table */}
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-2">Violation History</span>
+                  <div className="max-h-[220px] overflow-y-auto pr-1 border border-border/50 rounded-lg">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead>
+                        <tr className="border-b border-border/50 text-[10px] uppercase font-bold text-muted-foreground bg-muted/30">
+                          <th className="p-2">Time</th>
+                          <th className="p-2">Rule</th>
+                          <th className="p-2">Severity</th>
+                          <th className="p-2">Allowed</th>
+                          <th className="p-2">Actual</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {violations.map((v: any, index: number) => {
+                          const timeStr = v.timestamp ? formatDisplayDateTime(v.timestamp, displayTimeMode) : 'N/A'
+                          return (
+                            <tr key={v.id || index} className="border-b border-border/30 hover:bg-muted/10">
+                              <td className="p-2 font-mono text-[10px] text-muted-foreground whitespace-nowrap">{timeStr}</td>
+                              <td className="p-2 font-medium">
+                                <div className="flex flex-col">
+                                  <span>{v.ruleName}</span>
+                                  {v.isResolved && <span className="text-[9px] text-success font-semibold">Resolved</span>}
+                                </div>
+                              </td>
+                              <td className="p-2">
+                                <span className={v.severity === "HARD" ? "text-destructive font-semibold text-[10px]" : "text-amber-500 font-semibold text-[10px]"}>
+                                  {v.severity || "HARD"}
+                                </span>
+                              </td>
+                              <td className="p-2 font-mono">{v.allowedValue !== null && v.allowedValue !== undefined ? fmtCurrency(v.allowedValue) : "—"}</td>
+                              <td className="p-2 font-mono text-destructive">{v.actualValue !== null && v.actualValue !== undefined ? fmtCurrency(v.actualValue) : "—"}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center py-6">No violations logged for this challenge.</p>
+            )}
           </AnimatedCard>
         </div>
       </div>
@@ -314,8 +550,8 @@ export function DashboardView() {
         <AnimatedCard delay={0.6} className="rounded-xl border bg-card p-5">
           <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">This Week</h3>
           <div className="flex justify-between items-end mb-2">
-            <span className={cn("text-2xl font-bold", weeklyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(weeklyPnl, {sign: true})}</span>
-            <span className="text-muted-foreground text-sm">/ {fmtCurrency(weeklyGoal)}</span>
+            <span className={cn("text-2xl font-bold", weeklyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtPnl(weeklyPnl, pnlDisplayMode, r.startingBalance, { sign: true })}</span>
+            <span className="text-muted-foreground text-sm">/ {pnlDisplayMode === "percentage" ? fmtPnl(weeklyGoal, "percentage", r.startingBalance) : fmtCurrency(weeklyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
             <div className={cn("h-full transition-all rounded-full", weeklyPnl >= 0 ? "bg-primary" : "bg-destructive")} style={{width: `${wGoalPct}%`}} />
@@ -327,8 +563,8 @@ export function DashboardView() {
         <AnimatedCard delay={0.7} className="rounded-xl border bg-card p-5">
           <h3 className="font-bold text-sm text-muted-foreground uppercase mb-4">This Month</h3>
           <div className="flex justify-between items-end mb-2">
-            <span className={cn("text-2xl font-bold", monthlyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtCurrency(monthlyPnl, {sign: true})}</span>
-            <span className="text-muted-foreground text-sm">/ {fmtCurrency(monthlyGoal)}</span>
+            <span className={cn("text-2xl font-bold", monthlyPnl >= 0 ? "text-primary" : "text-destructive")}>{fmtPnl(monthlyPnl, pnlDisplayMode, r.startingBalance, { sign: true })}</span>
+            <span className="text-muted-foreground text-sm">/ {pnlDisplayMode === "percentage" ? fmtPnl(monthlyGoal, "percentage", r.startingBalance) : fmtCurrency(monthlyGoal)}</span>
           </div>
           <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
             <div className={cn("h-full transition-all rounded-full", monthlyPnl >= 0 ? "bg-primary" : "bg-destructive")} style={{width: `${mGoalPct}%`}} />
@@ -340,7 +576,7 @@ export function DashboardView() {
         <AnimatedCard delay={0.8} className={cn("rounded-xl border p-5", bestSetupExists ? "bg-success/5 border-success/20" : "bg-card")}>
           <h3 className={cn("font-bold text-sm uppercase mb-2 flex items-center gap-2", bestSetupExists ? "text-success" : "text-muted-foreground")}><TrendingUp className="w-4 h-4"/> Best Setup</h3>
           <div className="text-lg font-bold leading-tight break-words">{bestSetup}</div>
-          <div className="text-sm text-muted-foreground mt-1">{accountTrades.length > 0 ? `${status.winRate} Overall Win Rate` : 'Log trades to calculate'}</div>
+          <div className="text-sm text-muted-foreground mt-1">{accountTrades.length > 0 ? `${winRateStr} Overall Win Rate` : 'Log trades to calculate'}</div>
         </AnimatedCard>
 
         {/* Common Mistake — real data */}

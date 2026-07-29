@@ -23,7 +23,7 @@ export function CSVImport() {
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (results) => {
+      complete: (results: any) => {
         try {
           const trades = []
           for (let i = 0; i < results.data.length; i++) {

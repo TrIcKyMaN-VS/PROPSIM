@@ -39,7 +39,7 @@ export function EquityChart({ data, target }: { data: Point[]; target: number })
               fontSize: 12,
               color: "var(--color-popover-foreground)",
             }}
-            formatter={(value: number, name: string) => [fmtCurrency(value), name === "balance" ? "Equity" : "DD Floor"]}
+            formatter={(value: any, name: any) => [fmtCurrency(Number(value || 0)), name === "balance" ? "Equity" : "DD Floor"]}
           />
           <Area type="monotone" dataKey="balance" stroke="var(--color-primary)" strokeWidth={2} fill="url(#equityFill)" />
           <Line type="monotone" dataKey="floor" stroke="var(--color-destructive)" strokeWidth={1.5} strokeDasharray="4 4" dot={false} />

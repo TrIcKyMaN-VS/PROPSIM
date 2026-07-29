@@ -11,6 +11,7 @@ import { ChallengeStatusBar } from "@/components/app/challenge-status-bar"
 import { UserProfileNav } from "@/components/app/user-profile-nav"
 import { CommandPalette } from "@/components/app/command-palette"
 import { PageTransition } from "@/components/app/page-transition"
+import { PnlModeToggle } from "@/components/app/pnl-mode-toggle"
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions)
@@ -26,7 +27,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <AccountSwitcher />
             <ChallengeStatusBar />
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <PnlModeToggle />
             <div className="hidden md:flex items-center text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md border border-border/50">
               <kbd className="font-mono text-[10px]">CTRL</kbd><span className="mx-1">+</span><kbd className="font-mono text-[10px]">K</kbd>
               <span className="ml-2">Search</span>

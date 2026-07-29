@@ -62,7 +62,7 @@ export function QuickTrade({ account }: { account: ChallengeAccount }) {
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Instrument</Label>
-          <Select value={instrument} onValueChange={setInstrument}>
+          <Select value={instrument} onValueChange={(v) => setInstrument(v || "")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {INSTRUMENTS.map((i) => (
@@ -73,7 +73,7 @@ export function QuickTrade({ account }: { account: ChallengeAccount }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Session</Label>
-          <Select value={session} onValueChange={setSession}>
+          <Select value={session} onValueChange={(v) => setSession(v || "")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {SESSIONS.map((s) => (
@@ -84,7 +84,7 @@ export function QuickTrade({ account }: { account: ChallengeAccount }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Direction</Label>
-          <Select value={direction} onValueChange={(v) => setDirection(v as TradeDirection)}>
+          <Select value={direction} onValueChange={(v) => setDirection((v || "long") as TradeDirection)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="long">Long</SelectItem>

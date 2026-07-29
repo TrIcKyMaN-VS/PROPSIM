@@ -1,10 +1,8 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-
-const prisma = new PrismaClient()
 
 export type PlaybookInput = {
   name: string
@@ -15,7 +13,7 @@ export type PlaybookInput = {
   entryRules: string
   exitRules: string
   riskRules: string
-  checklist: string[] // We will stringify this to JSON
+  checklist: (string | { text: string; required: boolean })[] // We will stringify this to JSON
   isPublic?: boolean
 }
 

@@ -4,7 +4,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { ChallengeAccount, Trade, TradeDirection } from "./types"
 import { getFirm, SESSIONS, INSTRUMENTS } from "./firms"
-import { getAccounts, createAccount as createDbAccount, deleteAccount, resetToOfficialRules as resetDbAccountRules } from "@/app/actions/account-actions"
+import { getAccounts, createAccount as createDbAccount, deleteAccountPermanently as deleteDbAccountPermanently, archiveAccount as archiveDbAccount, restoreAccount as restoreDbAccount, cloneAccount as cloneDbAccount, archiveAllFailedChallenges as archiveAllFailedDbChallenges, resetToOfficialRules as resetDbAccountRules, renameAccount as renameDbAccount } from "@/app/actions/account-actions"
 import { getTrades, addTrade as addDbTrade, deleteTrade as deleteDbTrade, importTradesBatch } from "@/app/actions/trade-actions"
 import { getPlaybooks, createPlaybook as createDbPlaybook, updatePlaybook as updateDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
 import { getRoutineConfig, updateRoutineConfig } from "@/app/actions/user-actions"
@@ -80,16 +80,27 @@ interface PropState {
   lessonsLearned: any[]
   checklistTemplates: any[]
   activeAccountId: string | null
+  activeAccountViolations: any[]
   compareFirmIds: string[]
   seeded: boolean
   animationMode: "Full" | "Reduced" | "Off"
+  displayTimeMode: "Exchange Time" | "Local Time"
+  setDisplayTimeMode: (mode: "Exchange Time" | "Local Time") => void
+  pnlDisplayMode: "currency" | "percentage"
+  setPnlDisplayMode: (mode: "currency" | "percentage") => void
 
   init: () => void
   syncWithDb: () => Promise<void>
   createAccount: (firmId: string, sizeLabel: string, challengeType?: "OFFICIAL" | "CUSTOM", customOverrides?: Record<string, any>) => Promise<string>
   resetToOfficialRules: (accountId: string) => Promise<void>
+  renameAccount: (id: string, name: string) => Promise<void>
   setActive: (id: string) => void
   removeAccount: (id: string) => Promise<void>
+  archiveAccount: (id: string) => Promise<void>
+  restoreAccount: (id: string) => Promise<void>
+  deleteAccountPermanently: (id: string) => Promise<void>
+  cloneAccount: (id: string) => Promise<string>
+  archiveAllFailedChallenges: () => Promise<void>
   addTrade: (t: Omit<Trade, "id" | "timestamp"> & { timestamp?: number }) => Promise<Trade>
   updateTrade: (id: string, updates: Partial<Trade>) => Promise<void>
   removeTrade: (id: string) => Promise<void>
@@ -127,6 +138,7 @@ export const usePropStore = create<PropState>()(
       lessonsLearned: [],
       checklistTemplates: [],
       activeAccountId: null,
+      activeAccountViolations: [],
       compareFirmIds: ["apex", "topstep", "mffu", "tradeday"],
       routineConfig: {
         morning: ["Sleep Completed (7+ Hours)", "Economic Calendar Checked", "Headline News Checked", "Daily Bias Prepared", "Risk Plan Prepared"],
@@ -134,8 +146,12 @@ export const usePropStore = create<PropState>()(
       },
       seeded: false,
       animationMode: "Full",
+      displayTimeMode: "Exchange Time",
+      pnlDisplayMode: "currency",
 
+      setDisplayTimeMode: (mode) => set({ displayTimeMode: mode }),
       setAnimationMode: (mode) => set({ animationMode: mode }),
+      setPnlDisplayMode: (mode) => set({ pnlDisplayMode: mode }),
 
       setRoutineConfig: (config) => {
         set({ routineConfig: config })
@@ -148,24 +164,58 @@ export const usePropStore = create<PropState>()(
 
       syncWithDb: async () => {
         try {
-          const dbAccounts = await getAccounts()
-          const dbTrades = await getTrades()
-          const dbPlaybooks = await getPlaybooks()
-          const routine = await getRoutineConfig()
-          const dbChecklists = await getChecklistTemplates()
-          const dbPsychology = await getTradePsychology()
-          const dbPerformances = await getDailyPerformances()
-          const dbLessons = await getLessonsLearned()
+          const [dbAccounts, dbTrades] = await Promise.all([
+            getAccounts(),
+            getTrades()
+          ])
 
           // parse rules back to object for accounts
           const parsedAccounts = dbAccounts.map(a => ({
             ...a,
             rules: JSON.parse(a.rules as any),
             createdAt: Number(new Date(a.createdAt).getTime()),
+            archivedAt: a.archivedAt ? Number(new Date(a.archivedAt).getTime()) : null,
             challengeType: a.challengeType || "OFFICIAL",
             customOverrides: a.customOverrides ? JSON.parse(a.customOverrides as string) : null,
             baseRules: a.baseRules ? JSON.parse(a.baseRules as string) : null
           })) as any as ChallengeAccount[]
+
+          const currentTrades = get().trades
+          const currentAccounts = get().accounts
+
+          // Simple comparison to prevent unnecessary state triggers and db query cascades
+          const tradesEqual = currentTrades.length === dbTrades.length && 
+            currentTrades.every((t, i) => t.id === dbTrades[i]?.id && Number(t.pnl) === Number(dbTrades[i]?.pnl) && Number(t.exitTime) === Number(dbTrades[i]?.exitTime));
+          
+          const accountsEqual = currentAccounts.length === parsedAccounts.length &&
+            currentAccounts.every((a, i) => a.id === parsedAccounts[i]?.id && a.status === parsedAccounts[i]?.status && a.brokerAccountName === parsedAccounts[i]?.brokerAccountName);
+
+          if (tradesEqual && accountsEqual && get().seeded) {
+            return; // skip if nothing changed
+          }
+
+          const activeId = parsedAccounts.find(a => !a.archivedAt && a.status === "active")?.id || parsedAccounts[0]?.id || null
+
+          const [
+            dbPlaybooks,
+            routine,
+            dbChecklists,
+            dbPsychology,
+            dbPerformances,
+            dbLessons,
+            violations
+          ] = await Promise.all([
+            getPlaybooks(),
+            getRoutineConfig(),
+            getChecklistTemplates(),
+            getTradePsychology(),
+            getDailyPerformances(),
+            getLessonsLearned(),
+            activeId ? (async () => {
+              const { getRuleViolationsForAccount } = await import("@/app/actions/rule-actions")
+              return await getRuleViolationsForAccount(activeId)
+            })() : Promise.resolve([])
+          ])
           
           set({
             accounts: parsedAccounts,
@@ -175,7 +225,8 @@ export const usePropStore = create<PropState>()(
             tradePsychology: dbPsychology,
             dailyPerformances: dbPerformances,
             lessonsLearned: dbLessons,
-            activeAccountId: parsedAccounts[0]?.id || null,
+            activeAccountId: activeId,
+            activeAccountViolations: violations,
             seeded: true,
             ...(routine ? { routineConfig: routine } : {})
           })
@@ -216,23 +267,94 @@ export const usePropStore = create<PropState>()(
         }))
       },
 
-      setActive: (id) => set({ activeAccountId: id }),
+      renameAccount: async (id, name) => {
+        await renameDbAccount(id, name)
+        set((s) => ({
+          accounts: s.accounts.map((a) => a.id === id ? { ...a, name } : a)
+        }))
+      },
+
+      setActive: async (id) => {
+        set({ activeAccountId: id })
+        try {
+          const { getRuleViolationsForAccount } = await import("@/app/actions/rule-actions")
+          const violations = await getRuleViolationsForAccount(id)
+          set({ activeAccountViolations: violations })
+        } catch (e) {
+          console.error("Failed to load active account violations:", e)
+        }
+      },
 
       removeAccount: async (id) => {
-        await deleteAccount(id)
+        await archiveDbAccount(id)
+        set((s) => {
+          const accounts = s.accounts.map((a) => a.id === id ? { ...a, archivedAt: Date.now() } : a)
+          // Also set active account to something else if the active one was archived
+          let nextActive = s.activeAccountId === id ? (accounts.find(a => !a.archivedAt && a.status === "active")?.id ?? null) : s.activeAccountId
+          return {
+            accounts,
+            activeAccountId: nextActive,
+          }
+        })
+      },
+
+      archiveAccount: async (id) => {
+        await archiveDbAccount(id)
+        set((s) => {
+          const accounts = s.accounts.map((a) => a.id === id ? { ...a, archivedAt: Date.now() } : a)
+          let nextActive = s.activeAccountId === id ? (accounts.find(a => !a.archivedAt && a.status === "active")?.id ?? null) : s.activeAccountId
+          return { accounts, activeAccountId: nextActive }
+        })
+      },
+
+      restoreAccount: async (id) => {
+        await restoreDbAccount(id)
+        set((s) => ({
+          accounts: s.accounts.map((a) => a.id === id ? { ...a, archivedAt: null } : a)
+        }))
+      },
+
+      deleteAccountPermanently: async (id) => {
+        await deleteDbAccountPermanently(id)
         set((s) => {
           const accounts = s.accounts.filter((a) => a.id !== id)
           return {
             accounts,
             trades: s.trades.filter((t) => t.accountId !== id),
-            activeAccountId: s.activeAccountId === id ? (accounts[0]?.id ?? null) : s.activeAccountId,
+            activeAccountId: s.activeAccountId === id ? (accounts.find(a => !a.archivedAt && a.status === "active")?.id ?? null) : s.activeAccountId,
           }
+        })
+      },
+
+      cloneAccount: async (id) => {
+        const cloned = await cloneDbAccount(id)
+        const acc = {
+          ...cloned,
+          rules: JSON.parse(cloned.rules as any),
+          createdAt: Number(new Date(cloned.createdAt).getTime()),
+          challengeType: cloned.challengeType || "OFFICIAL",
+          customOverrides: cloned.customOverrides ? JSON.parse(cloned.customOverrides as string) : null,
+          baseRules: cloned.baseRules ? JSON.parse(cloned.baseRules as string) : null
+        } as any as ChallengeAccount
+        set((s) => ({ accounts: [acc, ...s.accounts], activeAccountId: acc.id }))
+        return acc.id
+      },
+
+      archiveAllFailedChallenges: async () => {
+        await archiveAllFailedDbChallenges()
+        set((s) => {
+          const now = Date.now()
+          const accounts = s.accounts.map((a) => a.status === "failed" && !a.archivedAt ? { ...a, archivedAt: now } : a)
+          let nextActive = accounts.find(a => a.id === s.activeAccountId && a.archivedAt) ? 
+            (accounts.find(a => !a.archivedAt && a.status === "active")?.id ?? null) : s.activeAccountId
+          return { accounts, activeAccountId: nextActive }
         })
       },
 
       addTrade: async (t) => {
         const added = await addDbTrade(t)
         set((state) => ({ trades: [...state.trades, added] }))
+        await get().syncWithDb()
         return added
       },
       updateTrade: async (id, updates) => {
@@ -241,10 +363,14 @@ export const usePropStore = create<PropState>()(
         set((state) => ({
           trades: state.trades.map((tr) => (tr.id === id ? { ...tr, ...updated } : tr))
         }))
+        await get().syncWithDb()
       },
       removeTrade: async (id) => {
+        set((s) => {
+          const trades = s.trades.filter((t) => t.id !== id)
+          return { trades }
+        })
         await deleteDbTrade(id)
-        set((s) => ({ trades: s.trades.filter((t) => t.id !== id) }))
       },
 
       importTrades: async (rows, accountId) => {
@@ -256,7 +382,7 @@ export const usePropStore = create<PropState>()(
       assignTradeToPlaybook: async (tradeId, playbookId) => {
         await assignDbTrade(tradeId, playbookId)
         set((s) => ({
-          trades: s.trades.map(t => t.id === tradeId ? { ...t, playbookId } : t)
+          trades: s.trades.map(t => t.id === tradeId ? { ...t, playbookId: playbookId || undefined } : t)
         }))
       },
 

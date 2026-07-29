@@ -278,3 +278,63 @@ export async function adminGetDashboardStats() {
     totalAiCost: aiStats._sum.estimatedCost ?? 0,
   }
 }
+
+export async function adminRecalculateChallenge(accountId: string) {
+  const admin = await assertAdmin()
+  const res = await adminRecalculateChallengeInternal(accountId)
+
+  await writeAuditLog({
+    userId: admin.id,
+    targetId: accountId,
+    action: "ADMIN_RECALCULATE_CHALLENGE",
+    details: { accountId, backfilledCount: res.backfilledCount }
+  })
+
+  return { success: true, backfilledCount: res.backfilledCount }
+}
+
+export async function adminRecalculateAllChallenges() {
+  const admin = await assertAdmin()
+
+  const accounts = await prisma.challengeAccount.findMany({
+    select: { id: true }
+  })
+
+  let totalBackfilled = 0
+  for (const acc of accounts) {
+    const res = await adminRecalculateChallengeInternal(acc.id)
+    totalBackfilled += res.backfilledCount
+  }
+
+  await writeAuditLog({
+    userId: admin.id,
+    action: "ADMIN_RECALCULATE_ALL_CHALLENGES",
+    details: { accountsCount: accounts.length, totalBackfilled }
+  })
+
+  return { success: true, accountsCount: accounts.length, totalBackfilled }
+}
+
+async function adminRecalculateChallengeInternal(accountId: string) {
+  const trades = await prisma.trade.findMany({
+    where: { accountId }
+  })
+
+  let backfilledCount = 0
+  for (const t of trades) {
+    if (t.exitTime === null) {
+      const entryTimeMs = Number(t.timestamp)
+      const exitTimeMs = entryTimeMs + 60 * 1000
+      await prisma.trade.update({
+        where: { id: t.id },
+        data: { exitTime: BigInt(exitTimeMs) }
+      })
+      backfilledCount++
+    }
+  }
+
+  const { reindexTradeDays } = await import("./trade-actions")
+  await reindexTradeDays(accountId, true)
+
+  return { backfilledCount }
+}

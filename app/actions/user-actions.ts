@@ -1,10 +1,8 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-
-const prisma = new PrismaClient()
 
 export async function updateRoutineConfig(config: { morning: string[], eod: string[] }) {
   const session = await getServerSession(authOptions)

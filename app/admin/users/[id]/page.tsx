@@ -245,7 +245,7 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={edit.role} onValueChange={v => setEdit({ ...edit, role: v })}>
+                <Select value={edit.role} onValueChange={v => v && setEdit({ ...edit, role: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USER">USER</SelectItem>
@@ -255,7 +255,7 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
               </div>
               <div className="space-y-2">
                 <Label>Plan</Label>
-                <Select value={edit.plan} onValueChange={v => setEdit({ ...edit, plan: v })}>
+                <Select value={edit.plan} onValueChange={v => v && setEdit({ ...edit, plan: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="FREE">FREE</SelectItem>
@@ -266,7 +266,7 @@ export default function AdminUserDetailPage({ params: paramsPromise }: { params:
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
-                <Select value={edit.status} onValueChange={v => setEdit({ ...edit, status: v })}>
+                <Select value={edit.status} onValueChange={v => v && setEdit({ ...edit, status: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ACTIVE">ACTIVE</SelectItem>

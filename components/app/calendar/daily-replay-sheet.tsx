@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { usePropStore } from "@/lib/store"
+import { formatDisplayTime } from "@/lib/format"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -19,15 +20,36 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const trades = usePropStore(s => s.trades).filter(t => t.accountId === activeAccountId)
   const psychology = usePropStore(s => s.tradePsychology)
+  const displayTimeMode = usePropStore(s => s.displayTimeMode)
   const router = useRouter()
 
   const [dailyReview, setDailyReview] = useState<any>(null)
   const [loadingReview, setLoadingReview] = useState(false)
 
-  if (!dateStr) return null
+  const getTradeDateKey = (timestamp: number) => {
+    const date = new Date(timestamp)
+    if (displayTimeMode === "Exchange Time") {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      })
+      const parts = formatter.formatToParts(date)
+      const year = parts.find(p => p.type === "year")?.value || ""
+      const month = parts.find(p => p.type === "month")?.value || ""
+      const day = parts.find(p => p.type === "day")?.value || ""
+      return `${year}-${month}-${day}`
+    } else {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+  }
 
   // Get trades for this day
-  const dayTrades = trades.filter(t => new Date(Number(t.timestamp)).toISOString().split("T")[0] === dateStr)
+  const dayTrades = trades.filter(t => getTradeDateKey(Number(t.timestamp)) === dateStr)
   const pnl = dayTrades.reduce((s, t) => s + t.pnl, 0)
   const wins = dayTrades.filter(t => t.pnl > 0)
   const winRate = dayTrades.length > 0 ? (wins.length / dayTrades.length) * 100 : 0
@@ -47,6 +69,7 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
 
   useEffect(() => {
     if (!open || !dateStr) return
+    const activeDateStr = dateStr
 
     async function loadOrGenerate() {
       setLoadingReview(true)
@@ -54,7 +77,7 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
         const { getAiReviewAction, generateDailyReviewAction } = await import("@/app/actions/ai-actions")
         
         // Try cached first
-        const cached = await getAiReviewAction("DAILY", dateStr)
+        const cached = await getAiReviewAction("DAILY", activeDateStr)
         if (cached) {
           setDailyReview(JSON.parse(cached.summary))
         } else {
@@ -67,7 +90,7 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
               session: t.session,
               notes: t.notes || ""
             }))
-            const res = await generateDailyReviewAction(payloadTrades, dateStr)
+            const res = await generateDailyReviewAction(payloadTrades, activeDateStr)
             setDailyReview(res)
           } else {
             setDailyReview(null)
@@ -82,6 +105,8 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
 
     loadOrGenerate()
   }, [open, dateStr, dayTrades.length])
+
+  if (!dateStr) return null
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -174,7 +199,7 @@ export function DailyReplaySheet({ dateStr, open, onOpenChange }: Props) {
                             {ps?.brokeRules && <Badge variant="outline" className="border-destructive text-destructive text-[10px] px-1.5 py-0">Rule Broken</Badge>}
                           </div>
                           <div className="text-xs text-muted-foreground mt-0.5">
-                            {t.contracts} Contracts • Exit: {ps?.exitReason || 'Unknown'}
+                            {formatDisplayTime(t.timestamp, displayTimeMode)} • {t.contracts} Contracts • Exit: {ps?.exitReason || 'Unknown'}
                           </div>
                         </div>
                       </div>

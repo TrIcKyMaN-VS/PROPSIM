@@ -1,11 +1,9 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { getFirm } from "@/lib/firms"
-
-const prisma = new PrismaClient()
 
 export async function getAccounts() {
   const session = await getServerSession(authOptions)
@@ -71,13 +69,70 @@ export async function createAccount(
   return account
 }
 
-export async function deleteAccount(id: string) {
+export async function deleteAccountPermanently(id: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
 
   await prisma.challengeAccount.deleteMany({
     where: { id, userId: session.user.id }
   })
+}
+
+export async function archiveAccount(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  await prisma.challengeAccount.updateMany({
+    where: { id, userId: session.user.id },
+    data: { archivedAt: new Date() }
+  })
+}
+
+export async function restoreAccount(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  await prisma.challengeAccount.updateMany({
+    where: { id, userId: session.user.id },
+    data: { archivedAt: null }
+  })
+}
+
+export async function archiveAllFailedChallenges() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  await prisma.challengeAccount.updateMany({
+    where: { userId: session.user.id, status: "failed", archivedAt: null },
+    data: { archivedAt: new Date() }
+  })
+}
+
+export async function cloneAccount(id: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const existing = await prisma.challengeAccount.findUnique({
+    where: { id }
+  })
+
+  if (!existing || existing.userId !== session.user.id) throw new Error("Account not found")
+
+  const account = await prisma.challengeAccount.create({
+    data: {
+      userId: session.user.id,
+      firmId: existing.firmId,
+      sizeLabel: existing.sizeLabel,
+      rules: existing.rules,
+      challengeType: existing.challengeType,
+      customOverrides: existing.customOverrides,
+      baseRules: existing.baseRules,
+      status: "active",
+      archivedAt: null
+    }
+  })
+
+  return account
 }
 
 export async function updateAccountMapping(accountId: string, brokerAccountName: string) {
@@ -120,6 +175,18 @@ export async function resetToOfficialRules(accountId: string) {
       challengeType: "OFFICIAL",
       customOverrides: null
     }
+  })
+
+  return { success: true }
+}
+
+export async function renameAccount(accountId: string, newName: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  await prisma.challengeAccount.updateMany({
+    where: { id: accountId, userId: session.user.id },
+    data: { name: newName || null }
   })
 
   return { success: true }

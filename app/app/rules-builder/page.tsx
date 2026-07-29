@@ -97,10 +97,10 @@ export default function RulesBuilderPage() {
 
   const updateNodeData = (key: string, val: any) => {
     if (!selectedNode) return
-    const isCondition = selectedNode.data.label.toString().startsWith("IF")
+    const isCondition = (selectedNode.data as any).label.toString().startsWith("IF")
     const newConfig = { ...selectedNode.data.config as any, [key]: val }
     
-    let newLabel = selectedNode.data.label
+    let newLabel = (selectedNode.data as any).label
     if (isCondition) {
        newLabel = `IF: ${newConfig.type || ""} ${newConfig.operator || ""} ${newConfig.value || ""}`
     } else {
@@ -181,7 +181,7 @@ export default function RulesBuilderPage() {
           
           {selectedNode && (
             <div className="space-y-6 pt-4">
-              {selectedNode.data.label.toString().startsWith("IF") ? (
+              {(selectedNode.data as any).label.toString().startsWith("IF") ? (
                 // Condition Config
                 <>
                   <div className="space-y-2">

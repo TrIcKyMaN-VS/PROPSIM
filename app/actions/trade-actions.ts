@@ -1,13 +1,12 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { Trade } from "@/lib/types"
+import { calculateTradeScores } from "@/lib/ai/scoring-engine"
 import fs from "fs"
 import path from "path"
-
-const prisma = new PrismaClient()
 
 export async function getTrades(accountId?: string) {
   const session = await getServerSession(authOptions)
@@ -31,8 +30,15 @@ export async function getTrades(accountId?: string) {
     ...t,
     direction: t.direction as "long" | "short",
     timestamp: Number(t.timestamp),
+    exitTime: t.exitTime ? Number(t.exitTime) : undefined,
+    timingIncomplete: t.timingIncomplete,
     tags: t.tags ? JSON.parse(t.tags) : [],
     playbookChecklist: t.playbookChecklist ? JSON.parse(t.playbookChecklist) : {},
+    setupQualityScore: t.setupQualityScore ?? undefined,
+    entryQualityScore: t.entryQualityScore ?? undefined,
+    exitQualityScore: t.exitQualityScore ?? undefined,
+    riskScore: t.riskScore ?? undefined,
+    disciplineScore: t.disciplineScore ?? undefined,
     screenshots: t.screenshots || []
   })) as Trade[]
 }
@@ -48,6 +54,12 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
   if (!account || account.userId !== session.user.id) throw new Error("Unauthorized")
 
   const ts = trade.timestamp ?? Date.now()
+  const exitTime = trade.exitTime ?? null
+  const timingIncomplete = trade.timingIncomplete ?? !trade.exitTime
+  
+  // Calculate scores deterministically
+  const scores = calculateTradeScores(trade, null)
+
   const created = await prisma.trade.create({
     data: {
       accountId: trade.accountId,
@@ -68,6 +80,8 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       tags: JSON.stringify(trade.tags || []),
       playbookChecklist: trade.playbookChecklist ? JSON.stringify(trade.playbookChecklist) : null,
       timestamp: BigInt(ts),
+      exitTime: exitTime ? BigInt(exitTime) : null,
+      timingIncomplete,
       tradeIdea: trade.tradeIdea || "",
       marketBias: trade.marketBias || "",
       reasonForEntry: trade.reasonForEntry || "",
@@ -75,7 +89,12 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       outcome: trade.outcome || "",
       mistakes: trade.mistakes || "",
       lessonsLearned: trade.lessonsLearned || "",
-      psychologyNotes: trade.psychologyNotes || ""
+      psychologyNotes: trade.psychologyNotes || "",
+      setupQualityScore: scores.setupQualityScore,
+      entryQualityScore: scores.entryQualityScore,
+      exitQualityScore: scores.exitQualityScore,
+      riskScore: scores.riskScore,
+      disciplineScore: scores.disciplineScore
     },
     include: {
       screenshots: true
@@ -95,8 +114,15 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
     ...finalTrade,
     direction: finalTrade.direction as "long" | "short",
     timestamp: Number(finalTrade.timestamp),
+    exitTime: finalTrade.exitTime ? Number(finalTrade.exitTime) : undefined,
+    timingIncomplete: finalTrade.timingIncomplete,
     tags: finalTrade.tags ? JSON.parse(finalTrade.tags) : [],
     playbookChecklist: finalTrade.playbookChecklist ? JSON.parse(finalTrade.playbookChecklist) : {},
+    setupQualityScore: finalTrade.setupQualityScore ?? undefined,
+    entryQualityScore: finalTrade.entryQualityScore ?? undefined,
+    exitQualityScore: finalTrade.exitQualityScore ?? undefined,
+    riskScore: finalTrade.riskScore ?? undefined,
+    disciplineScore: finalTrade.disciplineScore ?? undefined,
     screenshots: finalTrade.screenshots || []
   } as Trade
 }
@@ -116,6 +142,17 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
     data.playbookChecklist = data.playbookChecklist ? JSON.stringify(data.playbookChecklist) : null
   }
 
+  // Load psychology if it exists to calculate scores
+  const psy = await prisma.tradePsychology.findUnique({
+    where: { tradeId: id }
+  })
+  
+  // Calculate scores
+  const currentTrade = await prisma.trade.findUnique({ where: { id } })
+  const mergedTrade = { ...currentTrade, ...updates }
+  const scores = calculateTradeScores(mergedTrade, psy)
+  Object.assign(data, scores)
+
   const updated = await prisma.trade.update({
     where: { 
       id,
@@ -131,8 +168,15 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
     ...updated,
     direction: updated.direction as "long" | "short",
     timestamp: Number(updated.timestamp),
+    exitTime: updated.exitTime ? Number(updated.exitTime) : undefined,
+    timingIncomplete: updated.timingIncomplete,
     tags: updated.tags ? JSON.parse(updated.tags) : [],
     playbookChecklist: updated.playbookChecklist ? JSON.parse(updated.playbookChecklist) : {},
+    setupQualityScore: updated.setupQualityScore ?? undefined,
+    entryQualityScore: updated.entryQualityScore ?? undefined,
+    exitQualityScore: updated.exitQualityScore ?? undefined,
+    riskScore: updated.riskScore ?? undefined,
+    disciplineScore: updated.disciplineScore ?? undefined,
     screenshots: updated.screenshots || []
   } as Trade
 }
@@ -302,6 +346,13 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
   
   const data = trades.map(t => {
     ts += 1000 * 60 // space them by 1 min
+    const entryTime = ts
+    const exitTime = t.exitTime ?? null
+    const timingIncomplete = t.timingIncomplete ?? !t.exitTime
+    
+    // Calculate default scores for imported trades
+    const scores = calculateTradeScores(t, null)
+    
     return {
       accountId,
       instrument: t.instrument,
@@ -314,7 +365,14 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
       session: t.session,
       notes: t.notes || "",
       tags: JSON.stringify(t.tags || []),
-      timestamp: BigInt(ts)
+      timestamp: BigInt(entryTime),
+      exitTime: exitTime ? BigInt(exitTime) : null,
+      timingIncomplete,
+      setupQualityScore: scores.setupQualityScore,
+      entryQualityScore: scores.entryQualityScore,
+      exitQualityScore: scores.exitQualityScore,
+      riskScore: scores.riskScore,
+      disciplineScore: scores.disciplineScore
     }
   })
 
@@ -331,10 +389,11 @@ function getESTDateString(timestampMs: number): string {
   }).format(new Date(timestampMs))
 }
 
-export async function reindexTradeDays(accountId: string) {
+export async function reindexTradeDays(accountId: string, forceRecalculate?: boolean) {
   const trades = await prisma.trade.findMany({
     where: { accountId },
-    orderBy: { timestamp: "asc" }
+    orderBy: { timestamp: "asc" },
+    include: { screenshots: true }
   })
 
   if (trades.length === 0) return
@@ -371,6 +430,14 @@ export async function reindexTradeDays(accountId: string) {
     where: { id: accountId }
   })
   if (account) {
+    // Audit freeze: do not modify status or violations for accounts created before 2026-06-10T22:30:00Z
+    const freezeTime = new Date("2026-06-10T22:30:00Z").getTime()
+    const accountCreatedTime = new Date(account.createdAt).getTime()
+    const isFrozen = accountCreatedTime < freezeTime
+    if (isFrozen) {
+      return
+    }
+
     const rulesObj = JSON.parse(account.rules)
     const frontendTrades = trades.map(t => {
       const dateStr = getESTDateString(Number(t.timestamp))
@@ -380,9 +447,16 @@ export async function reindexTradeDays(accountId: string) {
         day,
         direction: t.direction as "long" | "short",
         timestamp: Number(t.timestamp),
+        exitTime: t.exitTime ? Number(t.exitTime) : undefined,
+        timingIncomplete: t.timingIncomplete,
         tags: t.tags ? JSON.parse(t.tags) : [],
         playbookChecklist: t.playbookChecklist ? JSON.parse(t.playbookChecklist) : {},
-        screenshots: []
+        setupQualityScore: t.setupQualityScore ?? undefined,
+        entryQualityScore: t.entryQualityScore ?? undefined,
+        exitQualityScore: t.exitQualityScore ?? undefined,
+        riskScore: t.riskScore ?? undefined,
+        disciplineScore: t.disciplineScore ?? undefined,
+        screenshots: t.screenshots || []
       }
     }) as any[]
 
@@ -393,35 +467,124 @@ export async function reindexTradeDays(accountId: string) {
       ? evalResult.violations.map(v => v.detail).join("; ")
       : null
 
-    await prisma.challengeAccount.update({
-      where: { id: accountId },
-      data: {
-        status: evalResult.status,
-        failReason
+    let statusToUpdate = evalResult.status
+    let failReasonToUpdate = failReason
+    let failureAtToUpdate = account.failureAt
+    let failureSnapshotToUpdate = account.failureSnapshot
+
+    if (account.status === "failed" && !forceRecalculate) {
+      statusToUpdate = "failed"
+      failReasonToUpdate = account.failReason
+    } else if (evalResult.status === "failed") {
+      const firstHardViolation = evalResult.violations.find(v => v.severity === "HARD") || evalResult.violations[0]
+      const triggeringTrade = firstHardViolation?.tradeId
+        ? trades.find(t => t.id === firstHardViolation.tradeId)
+        : null
+
+      const snapshot = {
+        breachType: firstHardViolation?.type || "unknown",
+        ruleName: firstHardViolation?.label || "Unknown Breach",
+        allowedValue: firstHardViolation?.allowedValue || null,
+        actualValue: firstHardViolation?.actualValue || null,
+        tradeId: triggeringTrade?.id || null,
+        tradeDate: triggeringTrade ? new Date(Number(triggeringTrade.timestamp)).toISOString() : null,
+        balanceAtFailure: evalResult.balance,
+        equityAtFailure: evalResult.equity,
+        remainingDrawdown: evalResult.remainingDrawdown,
+        tradingDay: triggeringTrade?.day || evalResult.tradingDays,
+        challengeProgress: evalResult.completionPct,
+        accountSize: account.sizeLabel,
+        firm: account.firmId,
+        failureTimestamp: new Date().toISOString(),
+        failedTradeScreenshot: triggeringTrade?.screenshots?.[0]?.url || null
       }
-    })
 
-    await prisma.ruleViolation.deleteMany({
-      where: { accountId }
-    })
+      statusToUpdate = "failed"
+      failReasonToUpdate = firstHardViolation?.detail || "Rule Violation"
+      failureAtToUpdate = new Date()
+      failureSnapshotToUpdate = JSON.stringify(snapshot)
+    } else if (forceRecalculate) {
+      statusToUpdate = evalResult.status
+      failReasonToUpdate = null
+      failureAtToUpdate = null
+      failureSnapshotToUpdate = null
+    }
 
-    if (evalResult.violations.length > 0) {
-      await prisma.ruleViolation.createMany({
-        data: evalResult.violations.map(v => {
-          let severity = "warning"
-          if (v.type === "daily_loss" || v.type === "max_drawdown" || v.type === "trailing_drawdown") {
-            severity = "fail"
-          }
-          return {
-            userId: account.userId,
-            accountId,
-            ruleName: v.label,
-            violationText: v.detail,
-            severity,
-            timestamp: new Date()
+    const isHistorical = account.createdAt < new Date("2026-06-10T22:30:00Z")
+
+    if (!isHistorical) {
+      await prisma.challengeAccount.update({
+        where: { id: accountId },
+        data: {
+          status: statusToUpdate,
+          failReason: failReasonToUpdate,
+          failureAt: failureAtToUpdate,
+          failureSnapshot: failureSnapshotToUpdate
+        }
+      })
+
+      // Hash Reconciliation & Soft Resolution
+      const existingViolations = await prisma.ruleViolation.findMany({
+        where: { accountId }
+      })
+
+      const newHashes = evalResult.violations.map(v => `${accountId}_${v.type}_${v.tradeId || "none"}`)
+
+      // Mark no longer active violations as resolved
+      const hashesToResolve = existingViolations
+        .filter(ev => !ev.isResolved && !newHashes.includes(ev.violationHash || ""))
+        .map(ev => ev.id)
+
+      if (hashesToResolve.length > 0) {
+        await prisma.ruleViolation.updateMany({
+          where: { id: { in: hashesToResolve } },
+          data: {
+            isResolved: true,
+            resolvedAt: new Date()
           }
         })
-      })
+      }
+
+      // Upsert active violations
+      for (const v of evalResult.violations) {
+        const hash = `${accountId}_${v.type}_${v.tradeId || "none"}`
+        const existing = existingViolations.find(ev => ev.violationHash === hash)
+
+        if (existing) {
+          await prisma.ruleViolation.update({
+            where: { id: existing.id },
+            data: {
+              isResolved: false,
+              resolvedAt: null,
+              violationText: v.detail,
+              allowedValue: v.allowedValue || null,
+              actualValue: v.actualValue || null,
+              severity: v.severity || "HARD"
+            }
+          })
+        } else {
+          try {
+            await prisma.ruleViolation.create({
+              data: {
+                userId: account.userId,
+                accountId,
+                tradeId: v.tradeId || null,
+                ruleName: v.label,
+                violationText: v.detail,
+                severity: v.severity || "HARD",
+                allowedValue: v.allowedValue || null,
+                actualValue: v.actualValue || null,
+                violationHash: hash,
+                isResolved: false,
+                resolvedAt: null,
+                timestamp: v.timestamp ? new Date(v.timestamp) : new Date()
+              }
+            })
+          } catch (err) {
+            console.error("Duplicate violation insert caught:", err)
+          }
+        }
+      }
     }
   }
 }

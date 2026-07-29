@@ -35,6 +35,7 @@ export default async function RootLayout({
     <html
       lang="en"
       className={`dark ${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
     >
       <body className="bg-background font-sans antialiased">
         <AuthProvider session={session}>

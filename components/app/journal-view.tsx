@@ -8,6 +8,17 @@ import { Button } from "@/components/ui/button"
 import { Trash2, ArrowUp, ArrowDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 export function JournalView() {
   const accounts = usePropStore((s) => s.accounts)
@@ -15,6 +26,7 @@ export function JournalView() {
   const trades = usePropStore((s) => s.trades)
   const removeTrade = usePropStore((s) => s.removeTrade)
   const [filter, setFilter] = useState<"all" | "win" | "loss">("all")
+  const [deleteTradeId, setDeleteTradeId] = useState<string | null>(null)
 
   const account = accounts.find((a) => a.id === activeId)
   const firm = account ? getFirm(account.firmId) : undefined
@@ -44,7 +56,7 @@ export function JournalView() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Trade journal</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {firm?.name} · {account.sizeLabel} · {rows.length} trades
+            {account.name || `${firm?.name} · ${account.sizeLabel}`} · {rows.length} trades
           </p>
         </div>
         <div className="flex gap-1.5">
@@ -98,12 +110,9 @@ export function JournalView() {
                   <td className={cn("px-4 py-3 text-right font-medium tabular-nums", t.pnl >= 0 ? "text-success" : "text-destructive")}>
                     {fmtCurrency(t.pnl, { sign: true })}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => {
-                        removeTrade(t.id)
-                        toast.success("Trade removed")
-                      }}
+                      onClick={() => setDeleteTradeId(t.id)}
                       className="text-muted-foreground transition-colors hover:text-destructive"
                       aria-label="Delete trade"
                     >
@@ -119,6 +128,39 @@ export function JournalView() {
           <div className="bg-background py-16 text-center text-sm text-muted-foreground">No trades match this filter.</div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteTradeId !== null} onOpenChange={(open) => !open && setDeleteTradeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Trade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this trade from your journal? This will permanently erase the trade record and recalculate your challenge rules.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTradeId) {
+                  const id = deleteTradeId
+                  setDeleteTradeId(null)
+                  removeTrade(id)
+                    .then(() => {
+                      toast.success("Trade deleted successfully")
+                    })
+                    .catch(() => {
+                      toast.error("Failed to delete trade")
+                    })
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

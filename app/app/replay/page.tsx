@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { usePropStore } from "@/lib/store"
 import { evaluate } from "@/lib/rule-engine"
+import { formatDisplayDateTime } from "@/lib/format"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -14,6 +15,7 @@ export default function ReplayPage() {
   const accounts = usePropStore(s => s.accounts)
   const activeId = usePropStore(s => s.activeAccountId)
   const allTrades = usePropStore(s => s.trades)
+  const displayTimeMode = usePropStore(s => s.displayTimeMode)
 
   const account = accounts.find(a => a.id === activeId)
   const trades = account ? allTrades.filter(t => t.accountId === account.id).sort((a, b) => a.timestamp - b.timestamp) : []
@@ -59,7 +61,14 @@ export default function ReplayPage() {
       </div>
 
       <div className="bg-card border rounded-xl p-4 flex items-center gap-4">
-        <span className="text-sm font-medium whitespace-nowrap">Trade {currentIndex} / {trades.length}</span>
+        <div className="flex flex-col min-w-[120px]">
+          <span className="text-sm font-medium whitespace-nowrap">Trade {currentIndex} / {trades.length}</span>
+          {currentIndex > 0 && (
+            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+              {formatDisplayDateTime(trades[currentIndex - 1].timestamp, displayTimeMode)}
+            </span>
+          )}
+        </div>
         <input 
           type="range"
           className="w-full accent-primary"

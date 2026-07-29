@@ -1,10 +1,8 @@
 "use server"
 
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
-
-const prisma = new PrismaClient()
 
 // --- TRADE PSYCHOLOGY ---
 
@@ -66,6 +64,14 @@ export async function saveTradePsychology(data: {
       tradeId,
       ...fields
     }
+  })
+
+  // Recalculate scores for the trade
+  const { calculateTradeScores } = await import("@/lib/ai/scoring-engine")
+  const scores = calculateTradeScores(trade, upserted)
+  await prisma.trade.update({
+    where: { id: tradeId },
+    data: scores
   })
 
   return upserted

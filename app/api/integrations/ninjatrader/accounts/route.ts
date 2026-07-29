@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { prisma } from "@/lib/prisma"
 
 export async function POST(req: Request) {
   try {
@@ -44,6 +42,17 @@ export async function POST(req: Request) {
         }
       })
     }
+    
+    // Prune stale accounts that are no longer present in NinjaTrader's active accounts list
+    await prisma.discoveredAccount.deleteMany({
+      where: {
+        userId: apiToken.userId,
+        provider: "NinjaTrader",
+        accountName: {
+          notIn: accounts
+        }
+      }
+    })
     
     return NextResponse.json({ success: true })
   } catch (e: any) {

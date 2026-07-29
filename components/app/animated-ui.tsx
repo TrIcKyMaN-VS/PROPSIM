@@ -11,7 +11,7 @@ export function AnimatedCard({ children, className = "", delay = 0 }: { children
     return <div className={className}>{children}</div>
   }
 
-  const variants = animationMode === "Reduced" 
+  const variants: any = animationMode === "Reduced" 
     ? {
         hidden: { opacity: 0 },
         visible: { opacity: 1, transition: { delay } }

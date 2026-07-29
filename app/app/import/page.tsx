@@ -72,6 +72,7 @@ export default function ImportCenterPage() {
         }
         
         // Mock pushing to the Zustand store (which syncs with DB inside addTrade)
+        const entryTimeMs = new Date(t.date).getTime()
         await addTrade({
           accountId: activeAccountId,
           instrument: t.instrument,
@@ -81,7 +82,9 @@ export default function ImportCenterPage() {
           contracts: t.contracts,
           pnl: t.pnl,
           day: 1, // simplified logic, normally calculate day from date
-          session: "New York AM"
+          session: "New York AM",
+          timestamp: isNaN(entryTimeMs) ? Date.now() : entryTimeMs,
+          exitTime: t.exitTime
         })
         added++
       }
@@ -151,7 +154,7 @@ export default function ImportCenterPage() {
                 <div className="flex gap-4 items-center">
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-muted-foreground">Duplicate Strategy</label>
-                    <Select value={strategy} onValueChange={(v: ImportStrategy) => setStrategy(v)}>
+                    <Select value={strategy} onValueChange={(v: any) => v && setStrategy(v as ImportStrategy)}>
                       <SelectTrigger className="w-[180px]">
                         <SelectValue />
                       </SelectTrigger>

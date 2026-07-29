@@ -16,8 +16,72 @@ async function getAuthUserId() {
   return session.user.id
 }
 
+export async function getHistoricalAiReviewsAction() {
+  const userId = await getAuthUserId()
+  return await prisma.aiReview.findMany({
+    where: {
+      userId,
+      type: "COACH_REPORT"
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  })
+}
+
 export async function analyzeTraderDnaAction(trades: any[]) {
-  return await detectMistakesAndDna(trades)
+  const userId = await getAuthUserId()
+  
+  const psychology = await prisma.tradePsychology.findMany({
+    where: {
+      trade: { account: { userId } }
+    }
+  })
+  
+  const tradeHash = trades
+    .map(t => `${t.id}-${t.timestamp}-${t.pnl}-${t.setupQualityScore || ''}`)
+    .join("|")
+  
+  const crypto = await import("crypto")
+  const hash = crypto.createHash("md5").update(tradeHash).digest("hex")
+  
+  const cached = await prisma.aiReview.findUnique({
+    where: {
+      userId_type_dateKey: {
+        userId,
+        type: "COACH_REPORT",
+        dateKey: hash
+      }
+    }
+  })
+  
+  if (cached) {
+    const report = JSON.parse(cached.summary)
+    // Inject source if missing in old caches
+    if (report && !report.metadata) {
+      report.metadata = {
+        provider: cached.source || "PROGRAMMATIC",
+        model: cached.source === "GEMINI" ? "gemini-2.5-flash" : cached.source === "OPENAI" ? "gpt-4o" : "Programmatic Engine"
+      }
+    }
+    return report
+  }
+  
+  const report = await detectMistakesAndDna(trades, psychology, userId)
+  
+  await prisma.aiReview.create({
+    data: {
+      userId,
+      type: "COACH_REPORT",
+      dateKey: hash,
+      summary: JSON.stringify(report),
+      source: report.metadata.provider,
+      score1: report.monthlyCoachReport.propFirmSurvivalScore,
+      score2: report.traderDna.confidenceScore
+    }
+  })
+  
+  return report
 }
 
 export async function matchPlaybookAction(trade: any, playbooks: any[]) {
@@ -49,7 +113,6 @@ export async function getAiReviewAction(type: "DAILY" | "WEEKLY" | "MONTHLY", da
 export async function generateWeeklyReviewAction(trades: any[], psychology: any[], dateKey: string) {
   const userId = await getAuthUserId()
 
-  // Check cache
   const cached = await prisma.aiReview.findUnique({
     where: {
       userId_type_dateKey: {
@@ -60,19 +123,22 @@ export async function generateWeeklyReviewAction(trades: any[], psychology: any[
     }
   })
   if (cached) {
-    return JSON.parse(cached.summary)
+    const analysis = JSON.parse(cached.summary)
+    if (analysis && !analysis.metadata) {
+      analysis.metadata = { provider: cached.source || "PROGRAMMATIC", model: "" }
+    }
+    return analysis
   }
 
-  // Generate real AI review
-  const analysis = await generateTherapistSession(psychology, trades)
+  const analysis = await generateTherapistSession(psychology, trades, userId)
 
-  // Cache in database
   await prisma.aiReview.create({
     data: {
       userId,
       type: "WEEKLY",
       dateKey,
       summary: JSON.stringify(analysis),
+      source: analysis.metadata.provider,
       score1: analysis.executionScore,
       score2: analysis.psychologyScore
     }
@@ -94,17 +160,22 @@ export async function generateDailyReviewAction(trades: any[], dateKey: string) 
     }
   })
   if (cached) {
-    return JSON.parse(cached.summary)
+    const analysis = JSON.parse(cached.summary)
+    if (analysis && !analysis.metadata) {
+      analysis.metadata = { provider: cached.source || "PROGRAMMATIC", model: "" }
+    }
+    return analysis
   }
 
-  const analysis = await generateDailyReview(trades)
+  const analysis = await generateDailyReview(trades, userId)
 
   await prisma.aiReview.create({
     data: {
       userId,
       type: "DAILY",
       dateKey,
-      summary: JSON.stringify(analysis)
+      summary: JSON.stringify(analysis),
+      source: analysis.metadata.provider
     }
   })
 
@@ -124,17 +195,22 @@ export async function generateMonthlySummaryAction(trades: any[], dateKey: strin
     }
   })
   if (cached) {
-    return JSON.parse(cached.summary)
+    const analysis = JSON.parse(cached.summary)
+    if (analysis && !analysis.metadata) {
+      analysis.metadata = { provider: cached.source || "PROGRAMMATIC", model: "" }
+    }
+    return analysis
   }
 
-  const analysis = await generateMonthlySummary(trades)
+  const analysis = await generateMonthlySummary(trades, userId)
 
   await prisma.aiReview.create({
     data: {
       userId,
       type: "MONTHLY",
       dateKey,
-      summary: JSON.stringify(analysis)
+      summary: JSON.stringify(analysis),
+      source: analysis.metadata.provider
     }
   })
 

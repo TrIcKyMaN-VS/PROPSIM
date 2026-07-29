@@ -198,7 +198,7 @@ export function CompareView() {
                       borderRadius: "8px",
                       fontSize: "12px",
                     }}
-                    formatter={(value: number) => [fmtCurrency(value), "Balance"]}
+                    formatter={(value: any) => [fmtCurrency(Number(value || 0)), "Balance"]}
                     labelFormatter={(label) => `Trade #${label}`}
                   />
                   <Legend
@@ -208,7 +208,7 @@ export function CompareView() {
                   {accountCurves.map(({ account }, i) => {
                     const key = `${account.firmId}-${account.sizeLabel}-${account.id.slice(-4)}`
                     const firm = getFirm(account.firmId)
-                    const label = `${firm?.shortName ?? account.firmId} ${account.sizeLabel}`
+                    const label = account.name || `${firm?.shortName ?? account.firmId} ${account.sizeLabel}`
                     return (
                       <Line
                         key={key}

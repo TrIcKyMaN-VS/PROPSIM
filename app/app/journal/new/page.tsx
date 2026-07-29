@@ -135,8 +135,8 @@ export default function NewManualTradePage() {
       
       const createdTrade = await addTrade({
         accountId: activeAccountId,
-        playbookId: selectedPlaybookId || null,
-        playbookName: selectedPlaybook ? selectedPlaybook.name : null,
+        playbookId: selectedPlaybookId || undefined,
+        playbookName: selectedPlaybook ? selectedPlaybook.name : undefined,
         instrument: form.instrument,
         direction: form.direction,
         entry: entryVal,
@@ -145,7 +145,7 @@ export default function NewManualTradePage() {
         pnl: pnlVal,
         calculatedPnl: calculatedPnlState,
         pnlMode: pnlMode,
-        session: form.session,
+        session: form.session as any,
         day: 1,
         tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
         timestamp,

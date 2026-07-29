@@ -472,6 +472,8 @@ function ViolationCard({ v }: { v: Violation }) {
     consistency: "Consistency",
     max_contracts: "Max Contracts",
     max_days: "Max Days",
+    news: "News Restriction",
+    trading_hours: "Trading Hours",
   }
 
   return (
@@ -616,8 +618,8 @@ export default function CompliancePage() {
       {/* ── Status Banner ─────────────────────────────────────────── */}
       <StatusBanner
         status={status.status}
-        firmName={firm?.name ?? account.firmId}
-        accountLabel={account.sizeLabel}
+        firmName={account.name ? "" : (firm?.name ?? account.firmId)}
+        accountLabel={account.name || account.sizeLabel}
         completionPct={status.completionPct}
       />
 
@@ -893,8 +895,8 @@ export default function CompliancePage() {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </div>
           <span className="font-semibold">Challenge Rules Reference</span>
-          <span className="ml-auto text-xs text-muted-foreground">
-            {firm?.name ?? account.firmId} · {account.sizeLabel}
+          <span className="ml-auto text-xs text-muted-foreground font-semibold">
+            {account.name || `${firm?.name ?? account.firmId} · ${account.sizeLabel}`}
           </span>
         </div>
 

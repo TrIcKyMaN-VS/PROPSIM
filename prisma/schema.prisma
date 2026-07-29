@@ -115,6 +115,9 @@ model ChallengeAccount {
   baseRules         String?
   status            String          @default("active")
   failReason        String?
+  failureAt         DateTime?
+  failureSnapshot   String?
+  archivedAt        DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   brokerAccountName String?
@@ -197,6 +200,7 @@ model Trade {
   pnl               Float
   day               Int
   timestamp         BigInt
+  exitTime          BigInt?
   session           String
   notes             String?
   tags              String?
@@ -217,6 +221,12 @@ model Trade {
   stopLoss          Float?
   adverseExcursion  Float?
   favorableExcursion Float?
+  timingIncomplete  Boolean           @default(false)
+  setupQualityScore  Float?
+  entryQualityScore  Float?
+  exitQualityScore   Float?
+  riskScore          Float?
+  disciplineScore    Float?
   lesson            LessonLearned?
   account           ChallengeAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
   playbook          Playbook?         @relation(fields: [playbookId], references: [id])
@@ -310,10 +320,17 @@ model RuleViolation {
   tradeId       String?
   ruleName      String
   violationText String
-  severity      String
-  timestamp     DateTime         @default(now())
+  severity      String           @default("HARD")
+  allowedValue  Float?
+  actualValue   Float?
+  violationHash String?
+  isResolved    Boolean          @default(false)
+  resolvedAt    DateTime?
+  timestamp     DateTime?        @default(now())
   account       ChallengeAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([accountId, violationHash])
 }
 
 model BrokerConnection {
@@ -386,6 +403,7 @@ model AiReview {
   type      String   // "DAILY", "WEEKLY", "MONTHLY"
   dateKey   String   // e.g. "2026-06-09" or "2026-W23" or "2026-06"
   summary   String
+  source    String   @default("PROGRAMMATIC")
   score1    Int?     // e.g. execution score
   score2    Int?     // e.g. psychology score
   createdAt DateTime @default(now())

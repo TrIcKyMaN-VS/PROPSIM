@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export function AccountSwitcher() {
-  const accounts = usePropStore((s) => s.accounts)
+  const allAccounts = usePropStore((s) => s.accounts)
+  const accounts = allAccounts.filter(a => !a.archivedAt && a.status === "active")
   const activeId = usePropStore((s) => s.activeAccountId)
   const setActive = usePropStore((s) => s.setActive)
   const trades = usePropStore((s) => s.trades)
@@ -29,8 +30,7 @@ export function AccountSwitcher() {
   if (active && activeFirm) {
     const accTrades = trades.filter(t => t.accountId === active.id)
     activePnl = accTrades.reduce((sum, t) => sum + t.pnl, 0)
-    const size = activeFirm.sizes.find(s => s.label === active.sizeLabel)
-    activeBalance = (size?.value || 0) + activePnl
+    activeBalance = (active.rules.startingBalance || 0) + activePnl
   }
 
   return (
@@ -46,7 +46,7 @@ export function AccountSwitcher() {
             </span>
             <div className="flex flex-col items-start leading-none gap-1">
               <span className="font-bold">
-                {activeFirm.shortName} <span className="text-muted-foreground font-normal">{active!.sizeLabel}</span>
+                {active!.name || activeFirm.shortName} {!active!.name && <span className="text-muted-foreground font-normal ml-1">{active!.sizeLabel}</span>}
                 <span className={`ml-2 text-[9px] font-bold px-1 rounded-sm uppercase ${active!.challengeType === "CUSTOM" ? "bg-amber-500/15 text-amber-500 border border-amber-500/25" : "bg-blue-600/15 text-blue-500 border border-blue-500/25"}`}>
                   {active!.challengeType === "CUSTOM" ? "CUSTOM" : "OFFICIAL"}
                 </span>
@@ -69,8 +69,7 @@ export function AccountSwitcher() {
           const firm = getFirm(acc.firmId)!
           const accTrades = trades.filter(t => t.accountId === acc.id)
           const pnl = accTrades.reduce((sum, t) => sum + t.pnl, 0)
-          const size = firm.sizes.find(s => s.label === acc.sizeLabel)
-          const bal = (size?.value || 0) + pnl
+          const bal = (acc.rules.startingBalance || 0) + pnl
           const cType = acc.challengeType || "OFFICIAL"
 
           return (
@@ -83,7 +82,7 @@ export function AccountSwitcher() {
               </span>
               <div className="flex flex-col flex-1 leading-tight gap-0.5">
                 <span className="font-bold flex items-center">
-                  {firm.shortName} <span className="text-muted-foreground font-normal ml-1">{acc.sizeLabel}</span>
+                  {acc.name || firm.shortName} {!acc.name && <span className="text-muted-foreground font-normal ml-1">{acc.sizeLabel}</span>}
                   <span className={`ml-2 text-[9px] font-bold px-1 rounded-sm uppercase ${cType === "CUSTOM" ? "bg-amber-500/15 text-amber-500 border border-amber-500/25" : "bg-blue-600/15 text-blue-500 border border-blue-500/25"}`}>
                     {cType === "CUSTOM" ? "CUSTOM" : "OFFICIAL"}
                   </span>

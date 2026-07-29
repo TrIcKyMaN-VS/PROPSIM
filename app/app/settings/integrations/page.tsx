@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from "sonner"
 import { Plug, Key, Trash2, Copy, CheckCircle2, RefreshCw, XCircle, Download, BookOpen } from "lucide-react"
 import { generateApiToken, getApiTokens, revokeApiToken } from "@/app/actions/integration-actions"
-import { getAccounts, updateAccountMapping, getDiscoveredAccounts } from "@/app/actions/account-actions"
+import { getAccounts, updateAccountMapping, getDiscoveredAccounts, renameAccount } from "@/app/actions/account-actions"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 
@@ -17,9 +17,34 @@ export default function IntegrationsPage() {
   const [accounts, setAccounts] = useState<any[]>([])
   const [discoveredAccounts, setDiscoveredAccounts] = useState<any[]>([])
   const [mappingInput, setMappingInput] = useState<Record<string, string>>({})
+  const [nameInput, setNameInput] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+
+  const [syncStartDate, setSyncStartDate] = useState("")
+  const [syncEndDate, setSyncEndDate] = useState("")
+  const [syncLoading, setSyncLoading] = useState(false)
+
+  const handleSyncHistory = async () => {
+    try {
+      setSyncLoading(true)
+      const res = await fetch("/api/integrations/ninjatrader/command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startDate: new Date(syncStartDate + "T00:00:00").toISOString(),
+          endDate: new Date(syncEndDate + "T23:59:59").toISOString()
+        })
+      })
+      if (!res.ok) throw new Error("Failed to queue sync command")
+      toast.success("Sync request queued! NinjaTrader will query database on next heartbeat.")
+    } catch (e: any) {
+      toast.error(e.message || "Failed to queue sync request")
+    } finally {
+      setSyncLoading(false)
+    }
+  }
 
   async function load(silent = false) {
     try {
@@ -27,18 +52,24 @@ export default function IntegrationsPage() {
       const data = await getApiTokens()
       setTokens(data)
       const accs = await getAccounts()
-      setAccounts(accs)
+      const activeAccs = accs.filter((a: any) => !a.archivedAt && a.status === "active")
+      setAccounts(activeAccs)
       const discovered = await getDiscoveredAccounts()
       setDiscoveredAccounts(discovered)
       
       const initialMapping: Record<string, string> = {}
+      const initialNames: Record<string, string> = {}
       accs.forEach((a: any) => {
+        initialNames[a.id] = a.name || ""
         if (a.brokerAccountName) {
           initialMapping[a.id] = a.brokerAccountName
         }
       })
       // Only set mapping input if we are doing initial load, to not overwrite user typing
-      if (!silent) setMappingInput(initialMapping)
+      if (!silent) {
+        setMappingInput(initialMapping)
+        setNameInput(initialNames)
+      }
     } catch (e) {
       if (!silent) toast.error("Failed to load integrations")
     } finally {
@@ -94,6 +125,17 @@ export default function IntegrationsPage() {
     }
   }
 
+  const handleSaveName = async (accountId: string) => {
+    try {
+      const name = nameInput[accountId] || ""
+      await renameAccount(accountId, name)
+      toast.success("Challenge custom name saved")
+      load(true)
+    } catch (e) {
+      toast.error("Failed to save custom name")
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -120,7 +162,7 @@ export default function IntegrationsPage() {
                 return (
                   <div className="flex flex-col items-end gap-1">
                     <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={load} disabled={loading}>
+                      <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => load()} disabled={loading}>
                         <RefreshCw className={cn("w-3 h-3 text-muted-foreground", loading && "animate-spin")} />
                       </Button>
                       {isConnected ? (
@@ -188,6 +230,7 @@ export default function IntegrationsPage() {
                       </div>
                     </div>
 
+
                     <div className="space-y-2">
                       <h3 className="font-semibold text-foreground flex items-center gap-2">
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary text-xs">3</span> 
@@ -199,6 +242,11 @@ export default function IntegrationsPage() {
                           <li>Open your computer's Documents folder and navigate to: <br/><code>Documents\NinjaTrader 8\</code></li>
                           <li>Create a new Text Document and name it exactly: <code>propsim_token.txt</code></li>
                           <li>Open the file, paste your API token inside, and click Save.</li>
+                          <li>
+                            <strong>Optional (Custom Server URL):</strong> By default, it connects to <code>http://localhost:3000</code>.
+                            If your server is running on a different port or domain (e.g. <code>http://localhost:3001</code>), 
+                            create a file named <code>propsim_url.txt</code> in the same folder, paste the full URL inside, and save.
+                          </li>
                           <li>Now, completely <strong>Restart NinjaTrader 8</strong>.</li>
                         </ul>
                         <p className="text-xs italic text-primary/80 mt-2">You will now see a green "Connected" badge on this page!</p>
@@ -230,6 +278,46 @@ export default function IntegrationsPage() {
             >
               <Key className="w-4 h-4 mr-2" />
               Generate Sync Token
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Sync History Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5" />
+              Sync Trade History
+            </CardTitle>
+            <CardDescription>
+              Query and sync past trades for a custom date range directly from NinjaTrader.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">Start Date</label>
+                <Input
+                  type="date"
+                  value={syncStartDate}
+                  onChange={e => setSyncStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-muted-foreground">End Date</label>
+                <Input
+                  type="date"
+                  value={syncEndDate}
+                  onChange={e => setSyncEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleSyncHistory}
+              disabled={syncLoading || !syncStartDate || !syncEndDate}
+              className="w-full"
+            >
+              {syncLoading ? "Sync Request Queued..." : "Sync Date Range"}
             </Button>
           </CardContent>
         </Card>
@@ -313,8 +401,8 @@ export default function IntegrationsPage() {
           <div className="space-y-4">
             {accounts.map((acc: any) => (
               <Card key={acc.id} className="overflow-hidden">
-                <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div>
+                <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
                     <div className="font-semibold flex items-center gap-2">
                       {acc.name || `${acc.sizeLabel} Challenge`}
                       {acc.challengeType === "CUSTOM" ? (
@@ -329,19 +417,31 @@ export default function IntegrationsPage() {
                     </div>
                     <div className="text-sm text-muted-foreground mt-1">Firm: {acc.firmId}</div>
                   </div>
-                  <div className="flex items-center gap-2 w-full sm:w-auto">
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                  <div className="flex flex-col gap-3 w-full sm:w-auto">
+                    {/* Rename Form */}
+                    <div className="flex items-center gap-2 w-full">
+                      <Input
+                        type="text"
+                        placeholder="Custom Name"
+                        value={nameInput[acc.id] || ""}
+                        onChange={(e) => setNameInput({...nameInput, [acc.id]: e.target.value})}
+                        className="h-9 w-full sm:w-[200px]"
+                      />
+                      <Button variant="outline" size="sm" onClick={() => handleSaveName(acc.id)}>Save Name</Button>
+                    </div>
+                    {/* Broker Mapping Dropdown */}
+                    <div className="flex items-center gap-2 w-full">
                       <select
                         value={mappingInput[acc.id] || ""}
                         onChange={(e) => setMappingInput({...mappingInput, [acc.id]: e.target.value})}
-                        className="flex h-9 w-full sm:w-[250px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-9 w-full sm:w-[200px] items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       >
-                        <option value="">-- Select Broker Account --</option>
+                        <option value="">-- Map Broker Account --</option>
                         {discoveredAccounts.map(da => (
                           <option key={da.id} value={da.accountName}>{da.accountName}</option>
                         ))}
                       </select>
-                      <Button onClick={() => handleSaveMapping(acc.id)}>Save Mapping</Button>
+                      <Button size="sm" onClick={() => handleSaveMapping(acc.id)}>Map Account</Button>
                     </div>
                   </div>
                 </CardContent>

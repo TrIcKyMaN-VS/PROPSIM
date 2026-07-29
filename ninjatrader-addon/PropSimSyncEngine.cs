@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using NinjaTrader.Cbi;
 using NinjaTrader.NinjaScript;
 
@@ -13,18 +15,154 @@ namespace NinjaTrader.Custom.AddOns.PropSim
         // Key: "AccountName-InstrumentName"
         private readonly Dictionary<string, OngoingTrade> _ongoingTrades = new Dictionary<string, OngoingTrade>();
 
-        public PropSimSyncEngine(string token)
+        public PropSimSyncEngine(string token, string baseUrl = "http://localhost:3000")
         {
-            _apiClient = new PropSimApiClient(token);
+            _apiClient = new PropSimApiClient(token, baseUrl);
+        }
+
+        public PropSimApiClient GetApiClient()
+        {
+            return _apiClient;
+        }
+
+        public async Task<string> SendHeartbeatAsync()
+        {
+            return await _apiClient.SendHeartbeatAsync();
+        }
+
+        public void SafeLog(string message)
+        {
+            try
+            {
+                if (System.Windows.Application.Current != null && System.Windows.Application.Current.Dispatcher != null)
+                {
+                    System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+                    {
+                        try
+                        {
+                            NinjaTrader.Code.Output.Process(message, PrintTo.OutputTab1);
+                        }
+                        catch { }
+                    }));
+                }
+                else
+                {
+                    NinjaTrader.Code.Output.Process(message, PrintTo.OutputTab1);
+                }
+            }
+            catch { }
+        }
+
+        public void SyncHistoryRange(DateTime startDate, DateTime endDate)
+        {
+            var historicalExecs = new List<Execution>();
+            lock (Account.All)
+            {
+                foreach (Account acc in Account.All)
+                {
+                    foreach (Execution exec in acc.Executions)
+                    {
+                        if (exec.Time >= startDate && exec.Time <= endDate)
+                        {
+                            historicalExecs.Add(exec);
+                        }
+                    }
+                }
+            }
+
+            if (historicalExecs.Count > 0)
+            {
+                SafeLog(string.Format("PROPSIM: Found {0} historical executions in platform. Reconstructing trades...", historicalExecs.Count));
+                SyncHistory(historicalExecs);
+            }
+            else
+            {
+                SafeLog("PROPSIM: No executions found in the selected date range.");
+            }
+        }
+
+        public void SyncHistory(List<Execution> executions)
+        {
+            var tempOngoing = new Dictionary<string, OngoingTrade>();
+            var sortedExecs = executions.OrderBy(e => e.Time).ToList();
+            int syncCount = 0;
+
+            foreach (var exec in sortedExecs)
+            {
+                string key = string.Format("{0}-{1}", exec.Account.Name, exec.Instrument.FullName);
+
+                if (!tempOngoing.ContainsKey(key))
+                {
+                    tempOngoing[key] = new OngoingTrade
+                    {
+                        AccountName = exec.Account.Name,
+                        Instrument = exec.Instrument.FullName,
+                        Direction = exec.MarketPosition == MarketPosition.Long ? "long" : "short",
+                        EntryTime = exec.Time,
+                        TotalContracts = 0,
+                        TotalEntryCost = 0,
+                        TotalExitContracts = 0,
+                        TotalExitCost = 0,
+                        ExitTime = exec.Time
+                    };
+                }
+
+                var trade = tempOngoing[key];
+
+                bool isEntry = (trade.Direction == "long" && exec.MarketPosition == MarketPosition.Long) ||
+                               (trade.Direction == "short" && exec.MarketPosition == MarketPosition.Short);
+
+                if (isEntry)
+                {
+                    trade.TotalContracts += exec.Quantity;
+                    trade.TotalEntryCost += (exec.Price * exec.Quantity);
+                }
+                else
+                {
+                    trade.TotalExitContracts += exec.Quantity;
+                    trade.TotalExitCost += (exec.Price * exec.Quantity);
+                    trade.ExitTime = exec.Time;
+                }
+
+                if (trade.TotalContracts > 0 && trade.TotalContracts == trade.TotalExitContracts)
+                {
+                    double entryPrice = trade.TotalEntryCost / trade.TotalContracts;
+                    double exitPrice = trade.TotalExitCost / trade.TotalExitContracts;
+
+                    double pointValue = exec.Instrument.MasterInstrument.PointValue;
+                    if (pointValue <= 0) pointValue = 1.0;
+                    double pnlMult = trade.Direction == "long" ? 1.0 : -1.0;
+                    double pnl = (exitPrice - entryPrice) * trade.TotalContracts * pointValue * pnlMult;
+
+                    var payload = new PropSimTradePayload
+                    {
+                        ProviderTradeId = string.Format("HIST-{0}-{1}", exec.ExecutionId, exec.Time.Ticks),
+                        AccountName = trade.AccountName,
+                        Instrument = trade.Instrument,
+                        Direction = trade.Direction,
+                        EntryPrice = entryPrice,
+                        ExitPrice = exitPrice,
+                        Contracts = trade.TotalContracts,
+                        PnL = pnl,
+                        EntryTime = trade.EntryTime,
+                        ExitTime = trade.ExitTime
+                    };
+
+                    _ = _apiClient.SyncTradeAsync(payload);
+                    tempOngoing.Remove(key);
+                    syncCount++;
+                }
+            }
+
+            SafeLog(string.Format("PROPSIM: Historical trade sync complete. Reconstructed and sent {0} trades.", syncCount));
         }
 
         public void OnExecutionUpdate(Execution execution, string executionId, double price, int quantity, MarketPosition marketPosition, string orderId, DateTime time)
         {
-            string key = $"{execution.Account.Name}-{execution.Instrument.FullName}";
+            string key = string.Format("{0}-{1}", execution.Account.Name, execution.Instrument.FullName);
 
             if (!_ongoingTrades.ContainsKey(key))
             {
-                // Start tracking a new trade sequence
                 _ongoingTrades[key] = new OngoingTrade
                 {
                     AccountName = execution.Account.Name,
@@ -32,53 +170,62 @@ namespace NinjaTrader.Custom.AddOns.PropSim
                     Direction = marketPosition == MarketPosition.Long ? "long" : "short",
                     EntryTime = time,
                     TotalContracts = 0,
-                    TotalEntryCost = 0
+                    TotalEntryCost = 0,
+                    TotalExitContracts = 0,
+                    TotalExitCost = 0,
+                    ExitTime = time
                 };
             }
 
             var trade = _ongoingTrades[key];
 
-            // If this is an entry fill (increasing position)
-            // For simplicity, we just accumulate quantity and cost for now
-            trade.TotalContracts += quantity;
-            trade.TotalEntryCost += (price * quantity);
+            bool isEntry = (trade.Direction == "long" && marketPosition == MarketPosition.Long) ||
+                           (trade.Direction == "short" && marketPosition == MarketPosition.Short);
+
+            if (isEntry)
+            {
+                trade.TotalContracts += quantity;
+                trade.TotalEntryCost += (price * quantity);
+            }
+            else
+            {
+                trade.TotalExitContracts += quantity;
+                trade.TotalExitCost += (price * quantity);
+                trade.ExitTime = time;
+            }
         }
 
         public void OnPositionUpdate(Position position, double averagePrice, int quantity, MarketPosition marketPosition)
         {
-            // If position drops to 0, the trade is fully closed
             if (quantity == 0)
             {
-                string key = $"{position.Account.Name}-{position.Instrument.FullName}";
-                if (_ongoingTrades.TryGetValue(key, out OngoingTrade trade))
+                string key = string.Format("{0}-{1}", position.Account.Name, position.Instrument.FullName);
+                OngoingTrade trade;
+                if (_ongoingTrades.TryGetValue(key, out trade))
                 {
-                    // Calculate final stats
-                    double entryPrice = trade.TotalEntryCost / trade.TotalContracts;
+                    double entryPrice = trade.TotalContracts > 0 ? (trade.TotalEntryCost / trade.TotalContracts) : averagePrice;
+                    double exitPrice = trade.TotalExitContracts > 0 ? (trade.TotalExitCost / trade.TotalExitContracts) : averagePrice;
                     
-                    // We grab the last known realized PnL. In a full production script, 
-                    // we'd match the exact executions to get the precise exit price and PnL.
-                    // For simplicity, we use the account's realized PnL change.
-                    double pnl = position.Account.Get(AccountItem.RealizedProfitLoss, position.Instrument.MasterInstrument.Name);
+                    double pointValue = position.Instrument.MasterInstrument.PointValue;
+                    if (pointValue <= 0) pointValue = 1.0;
+                    double pnlMult = trade.Direction == "long" ? 1.0 : -1.0;
+                    double pnl = (exitPrice - entryPrice) * trade.TotalContracts * pointValue * pnlMult;
 
-                    // Send payload
                     var payload = new PropSimTradePayload
                     {
-                        ProviderTradeId = Guid.NewGuid().ToString(), // Or derive from executions
+                        ProviderTradeId = Guid.NewGuid().ToString(),
                         AccountName = trade.AccountName,
                         Instrument = trade.Instrument,
                         Direction = trade.Direction,
                         EntryPrice = entryPrice,
-                        ExitPrice = averagePrice, // Average exit price
+                        ExitPrice = exitPrice,
                         Contracts = trade.TotalContracts,
                         PnL = pnl,
                         EntryTime = trade.EntryTime,
-                        ExitTime = DateTime.UtcNow // Position close time
+                        ExitTime = trade.TotalExitContracts > 0 ? trade.ExitTime : DateTime.UtcNow
                     };
 
-                    // Fire and forget the sync
                     _ = _apiClient.SyncTradeAsync(payload);
-
-                    // Clear the tracked trade
                     _ongoingTrades.Remove(key);
                 }
             }
@@ -92,6 +239,9 @@ namespace NinjaTrader.Custom.AddOns.PropSim
             public DateTime EntryTime { get; set; }
             public double TotalContracts { get; set; }
             public double TotalEntryCost { get; set; }
+            public double TotalExitContracts { get; set; }
+            public double TotalExitCost { get; set; }
+            public DateTime ExitTime { get; set; }
         }
     }
 }

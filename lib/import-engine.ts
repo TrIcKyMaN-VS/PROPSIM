@@ -8,6 +8,7 @@ export type ParsedTrade = {
   entry: number
   exit: number
   pnl: number
+  exitTime?: number
   raw?: any
 }
 
@@ -54,6 +55,15 @@ export function parseCSVData(rows: any[]): { platform: string, trades: ParsedTra
     const directionRaw = String(raw.direction ?? raw.side ?? raw.action ?? "long").toLowerCase()
     const direction = (directionRaw.includes("sell") || directionRaw.includes("short")) ? "short" : "long"
 
+    const exitTimeRaw = raw["exit time"] ?? raw["exit date"] ?? raw.exittime ?? raw.exitdate ?? raw.exit_time ?? raw.exitTime
+    let exitTime: number | undefined = undefined
+    if (exitTimeRaw) {
+      const parsedExit = new Date(exitTimeRaw).getTime()
+      if (!isNaN(parsedExit)) {
+        exitTime = parsedExit
+      }
+    }
+
     trades.push({
       date: dateRaw,
       instrument,
@@ -62,6 +72,7 @@ export function parseCSVData(rows: any[]): { platform: string, trades: ParsedTra
       entry,
       exit,
       pnl,
+      exitTime,
       raw: row
     })
   }

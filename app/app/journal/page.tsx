@@ -1,6 +1,7 @@
 "use client"
 
 import { usePropStore } from "@/lib/store"
+import { formatDisplayTime, fmtPnl } from "@/lib/format"
 import { ImportDialog } from "@/components/app/import-dialog"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -8,10 +9,21 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import { Plus, Search, SlidersHorizontal, X, RefreshCw, Plug } from "lucide-react"
+import { Plus, Search, SlidersHorizontal, X, RefreshCw, Plug, Trash2 } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { getApiTokens } from "@/app/actions/integration-actions"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { toast } from "sonner"
 
 const GRADE_COLORS: Record<string, string> = {
   "A+": "bg-success text-success-foreground",
@@ -29,11 +41,18 @@ export default function JournalPage() {
   const playbooks = usePropStore(s => s.playbooks) || []
   const accountTrades = trades.filter(t => t.accountId === activeAccountId)
   const syncWithDb = usePropStore(s => s.syncWithDb)
+  const removeTrade = usePropStore(s => s.removeTrade)
+  const displayTimeMode = usePropStore(s => s.displayTimeMode)
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const accounts = usePropStore(s => s.accounts)
+  const account = accounts.find(a => a.id === activeAccountId)
+  const accountBalance = account?.rules?.startingBalance ?? 100000
   const router = useRouter()
 
   const [search, setSearch] = useState("")
   const [ntConnected, setNtConnected] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
+  const [deleteTradeId, setDeleteTradeId] = useState<string | null>(null)
 
   // Check NT connection and auto-sync
   useEffect(() => {
@@ -280,6 +299,7 @@ export default function JournalPage() {
                 <TableHead>Grade</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
                 <TableHead>Tags</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -291,9 +311,13 @@ export default function JournalPage() {
                 </TableRow>
               )}
               {filteredTrades.map(trade => {
-                const dateObj = new Date(trade.timestamp)
-                const dateStr = dateObj.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-                const timeStr = dateObj.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+                 const dateStr = new Date(Number(trade.timestamp)).toLocaleDateString("en-US", {
+                  timeZone: displayTimeMode === "Exchange Time" ? "America/New_York" : undefined,
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric"
+                })
+                const timeStr = formatDisplayTime(trade.timestamp, displayTimeMode)
                 const open = isOpen(trade)
                 
                 // Look up execution grade from psychology store
@@ -361,7 +385,7 @@ export default function JournalPage() {
                       {open ? (
                         <Badge variant="outline" className="text-xs font-semibold border-warning/60 text-warning">OPEN</Badge>
                       ) : (
-                        `${trade.pnl >= 0 ? "+" : ""}$${trade.pnl.toFixed(2)}`
+                        fmtPnl(trade.pnl, pnlDisplayMode, accountBalance, { sign: true })
                       )}
                     </TableCell>
 
@@ -376,6 +400,17 @@ export default function JournalPage() {
                         )}
                       </div>
                     </TableCell>
+
+                    {/* Delete action */}
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setDeleteTradeId(trade.id)}
+                        className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity hover:text-destructive p-1 rounded hover:bg-destructive/10"
+                        aria-label="Delete trade"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TableCell>
                   </TableRow>
                 )
               })}
@@ -383,6 +418,39 @@ export default function JournalPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteTradeId !== null} onOpenChange={(open) => !open && setDeleteTradeId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Trade?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this trade? This will permanently erase the trade record from your journal and update your challenge stats.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTradeId) {
+                  const id = deleteTradeId
+                  setDeleteTradeId(null)
+                  removeTrade(id)
+                    .then(() => {
+                      toast.success("Trade deleted successfully")
+                    })
+                    .catch(() => {
+                      toast.error("Failed to delete trade")
+                    })
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

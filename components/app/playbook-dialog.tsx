@@ -15,7 +15,17 @@ export function PlaybookDialog() {
   const [loading, setLoading] = useState(false)
   const createPlaybook = usePropStore(s => s.createPlaybook)
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string
+    category: string
+    marketCondition: string
+    session: string
+    instrument: string
+    entryRules: string
+    exitRules: string
+    riskRules: string
+    checklist: (string | { text: string; required: boolean })[]
+  }>({
     name: "",
     category: "Trend Following",
     marketCondition: "Trending",
@@ -24,7 +34,7 @@ export function PlaybookDialog() {
     entryRules: "",
     exitRules: "",
     riskRules: "",
-    checklist: [""]
+    checklist: [{ text: "", required: false }]
   })
 
   const handleSubmit = async (e: React.FormEvent) => {

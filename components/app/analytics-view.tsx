@@ -54,7 +54,7 @@ export function AnalyticsView() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {firm?.name} · {account.sizeLabel} · {a.totalTrades} trades
+            {account.name || `${firm?.name} · ${account.sizeLabel}`} · {a.totalTrades} trades
           </p>
         </div>
       </div>
@@ -140,7 +140,7 @@ export function AnalyticsView() {
                 <Tooltip
                   cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                   contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                  formatter={(v: number) => [fmtCurrency(v), "P&L"]}
+                  formatter={(v: any) => [fmtCurrency(Number(v || 0)), "P&L"]}
                 />
                 <Bar dataKey="pnl" radius={[6, 6, 0, 0]}>
                   {a.bySession.map((s, i) => (
@@ -164,7 +164,7 @@ export function AnalyticsView() {
               <Tooltip
                 cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                 contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                formatter={(v: number) => [fmtCurrency(v), "P&L"]}
+                formatter={(v: any) => [fmtCurrency(Number(v || 0)), "P&L"]}
               />
               <Bar dataKey="pnl" radius={[6, 6, 0, 0]}>
                 {a.byInstrument.map((s, i) => (
@@ -217,7 +217,7 @@ export function AnalyticsView() {
                     <Tooltip
                       cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                       contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                      formatter={(v: any, _: any, props: any) => [fmtCurrency(Number(v || 0)), `P&L (${props?.payload?.trades ?? 0} trades)`]}
                     />
                     <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
                       {byDay.map((d, i) => (
@@ -247,7 +247,7 @@ export function AnalyticsView() {
                       <Tooltip
                         cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                         contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                        formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                        formatter={(v: any, _: any, props: any) => [fmtCurrency(Number(v || 0)), `P&L (${props?.payload?.trades ?? 0} trades)`]}
                       />
                       <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
                         {byHour.map((h, i) => (
@@ -305,7 +305,7 @@ export function AnalyticsView() {
                     <Tooltip
                       cursor={{ fill: "var(--color-secondary)", opacity: 0.4 }}
                       contentStyle={{ background: "var(--color-popover)", border: "1px solid var(--color-border)", borderRadius: 8, fontSize: 12 }}
-                      formatter={(v: number, _: string, props: any) => [fmtCurrency(v), `P&L (${props?.payload?.trades ?? 0} trades)`]}
+                      formatter={(v: any, _: any, props: any) => [fmtCurrency(Number(v || 0)), `P&L (${props?.payload?.trades ?? 0} trades)`]}
                     />
                     <Bar dataKey="pnl" radius={[5, 5, 0, 0]}>
                       {byTag.map((d, i) => (

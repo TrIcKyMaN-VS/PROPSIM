@@ -2,7 +2,9 @@ import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import fs from "fs"
 import path from "path"
+import { createRequire } from "module"
 
+const require = createRequire(import.meta.url)
 const prisma = new PrismaClient()
 
 async function runAudit() {
@@ -76,7 +78,7 @@ async function runAudit() {
       minTradingDays: 5,
       maxContracts: 5,
       consistencyPct: 30
-    }
+    } as any
     testAccount = await prisma.challengeAccount.create({
       data: {
         userId: testUser.id,
@@ -209,7 +211,7 @@ async function runAudit() {
 
     // Run reindexing
     console.log("3. Running reindexTradeDays algorithm...")
-    const { reindexTradeDays } = await import("./app/actions/trade-actions")
+    const { reindexTradeDays } = await import("./app/actions/trade-actions.js")
     await reindexTradeDays(testAccount.id)
 
     // Verify day values
@@ -460,14 +462,189 @@ async function runAudit() {
     ] as any[]
 
     console.log("1. Running trailing open equity drawdown evaluation...")
-    const { evaluate } = await import("./lib/rule-engine")
+    const { evaluate } = await import("./lib/rule-engine.js")
     const evalResult = evaluate(rulesObj, evaluateTrades)
     console.log(`- Challenge Status: ${evalResult.status}`)
     console.log(`- Total P&L: $${evalResult.totalPnl}`)
     console.log(`- Violations count: ${evalResult.violations.length}`)
     console.log(`- Breach description: ${evalResult.violations[0]?.detail}`)
 
-    if (evalResult.status === "failed" && evalResult.violations[0]?.type === "trailing_drawdown") {
+    // --- CONTRACT CONCURRENCY AUDIT SCENARIOS ---
+    console.log("\n2. Running Contract Concurrency Audit Scenarios...")
+    const contractRules = {
+      startingBalance: 50000,
+      profitTarget: 3000,
+      dailyLossLimit: 1000,
+      maxDrawdown: 2000,
+      drawdownType: "static",
+      minTradingDays: 5,
+      maxContracts: 2,
+      consistencyPct: 30
+    } as any
+
+    // Scenario A: 10 separate trades of 1 contract (Expected concurrent: 1, no breach)
+    const scenarioA = Array.from({ length: 10 }).map((_, i) => ({
+      id: `sa_${i}`,
+      accountId: testAccount.id,
+      instrument: "ES",
+      direction: "long" as any,
+      entry: 5000,
+      exit: 5010,
+      contracts: 1,
+      pnl: 100,
+      day: 1,
+      timestamp: 1718000000000 + i * 10 * 60 * 1000, // spaced by 10 mins
+      exitTime: 1718000000000 + i * 10 * 60 * 1000 + 5 * 60 * 1000, // exits after 5 mins
+      session: "New York AM" as any
+    })) as any[]
+    const resA = evaluate(contractRules, scenarioA)
+    console.log(`- Scenario A (10 separate trades of 1 contract): Max Concurrent Seen = ${resA.maxConcurrentContracts} (Expected: 1), Status = ${resA.status} (Expected: active)`)
+
+    // Scenario B: 1 trade of 3 contracts (Expected concurrent: 3, breach)
+    const scenarioB = [
+      {
+        id: "sb_1",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 3,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000,
+        exitTime: 1718000000000 + 5 * 60 * 1000,
+        session: "New York AM" as any
+      }
+    ] as any[]
+    const resB = evaluate(contractRules, scenarioB)
+    console.log(`- Scenario B (1 trade of 3 contracts): Max Concurrent Seen = ${resB.maxConcurrentContracts} (Expected: 3), Status = ${resB.status} (Expected: failed)`)
+
+    // Scenario C: 3 overlapping trades of 1 contract (Expected concurrent: 3, breach)
+    const scenarioC = [
+      {
+        id: "sc_1",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000,
+        exitTime: 1718000000000 + 10 * 60 * 1000,
+        session: "New York AM" as any
+      },
+      {
+        id: "sc_2",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000 + 2 * 60 * 1000,
+        exitTime: 1718000000000 + 12 * 60 * 1000,
+        session: "New York AM" as any
+      },
+      {
+        id: "sc_3",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000 + 4 * 60 * 1000,
+        exitTime: 1718000000000 + 14 * 60 * 1000,
+        session: "New York AM" as any
+      }
+    ] as any[]
+    const resC = evaluate(contractRules, scenarioC)
+    console.log(`- Scenario C (3 overlapping trades of 1 contract): Max Concurrent Seen = ${resC.maxConcurrentContracts} (Expected: 3), Status = ${resC.status} (Expected: failed)`)
+
+    // Scenario D: 3 sequential trades of 1 contract (Expected concurrent: 1, no breach)
+    // where trade exits exactly at entry of next
+    const scenarioD = [
+      {
+        id: "sd_1",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000,
+        exitTime: 1718000000000 + 5 * 60 * 1000,
+        session: "New York AM" as any
+      },
+      {
+        id: "sd_2",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000 + 5 * 60 * 1000,
+        exitTime: 1718000000000 + 10 * 60 * 1000,
+        session: "New York AM" as any
+      },
+      {
+        id: "sd_3",
+        accountId: testAccount.id,
+        instrument: "ES",
+        direction: "long" as any,
+        entry: 5000,
+        exit: 5010,
+        contracts: 1,
+        pnl: 100,
+        day: 1,
+        timestamp: 1718000000000 + 10 * 60 * 1000,
+        exitTime: 1718000000000 + 15 * 60 * 1000,
+        session: "New York AM" as any
+      }
+    ] as any[]
+    const resD = evaluate(contractRules, scenarioD)
+    console.log(`- Scenario D (3 sequential trades of 1 contract): Max Concurrent Seen = ${resD.maxConcurrentContracts} (Expected: 1), Status = ${resD.status} (Expected: active)`)
+
+    // Scenario E: 50 sequential 1-contract trades (Expected concurrent: 1, no breach)
+    const scenarioE = Array.from({ length: 50 }).map((_, i) => ({
+      id: `se_${i}`,
+      accountId: testAccount.id,
+      instrument: "ES",
+      direction: "long" as any,
+      entry: 5000,
+      exit: 5010,
+      contracts: 1,
+      pnl: 100,
+      day: 1,
+      timestamp: 1718000000000 + i * 15 * 60 * 1000, // spaced by 15 mins
+      exitTime: 1718000000000 + i * 15 * 60 * 1000 + 10 * 60 * 1000, // exits after 10 mins
+      session: "New York AM" as any
+    })) as any[]
+    const resE = evaluate(contractRules, scenarioE)
+    console.log(`- Scenario E (50 sequential trades of 1 contract): Max Concurrent Seen = ${resE.maxConcurrentContracts} (Expected: 1), Status = ${resE.status} (Expected: active)`)
+
+    const concurrencyAuditPassed = 
+      resA.maxConcurrentContracts === 1 && resA.status === "active" &&
+      resB.maxConcurrentContracts === 3 && resB.status === "failed" &&
+      resC.maxConcurrentContracts === 3 && resC.status === "failed" &&
+      resD.maxConcurrentContracts === 1 && resD.status === "active" &&
+      resE.maxConcurrentContracts === 1 && resE.status === "active"
+
+    console.log(`- Concurrency audit passed status: ${concurrencyAuditPassed ? "PASS" : "FAIL"}`)
+
+    if (evalResult.status === "failed" && evalResult.violations[0]?.type === "trailing_drawdown" && concurrencyAuditPassed) {
       results.test8 = "PASS"
       console.log("✓ TEST 8: PASS")
     }
@@ -478,7 +655,7 @@ async function runAudit() {
     console.log("\n--- TEST 9: Challenge Type: Official vs Custom & Reset ---")
     
     // Import actions dynamically after require cache injection
-    const { createAccount, resetToOfficialRules } = await import("./app/actions/account-actions")
+    const { createAccount, resetToOfficialRules } = await import("./app/actions/account-actions.js")
 
     // 1. Create Official Challenge
     console.log("1. Creating Official challenge...")
@@ -584,13 +761,22 @@ async function runAudit() {
   console.log("               AUDIT SCORECARD                    ")
   console.log("==================================================")
   let passedCount = 0
+  const totalCount = Object.keys(results).length
   for (const [t, r] of Object.entries(results)) {
     console.log(`${t.toUpperCase()}: ${r}`)
     if (r === "PASS") passedCount++
   }
-  const score = Math.round((passedCount / 9) * 100)
+  const failedCount = totalCount - passedCount
+  const score = Math.round((passedCount / totalCount) * 100)
   console.log(`\nPRODUCTION READINESS SCORE: ${score}/100`)
+  console.log(`Total tests executed: ${totalCount}`)
+  console.log(`Passed: ${passedCount}`)
+  console.log(`Failed: ${failedCount}`)
   console.log("==================================================")
+
+  console.log("AUDIT COMPLETE")
+  console.log("PROCESS EXITING")
+  process.exit(failedCount > 0 ? 1 : 0)
 }
 
 runAudit()

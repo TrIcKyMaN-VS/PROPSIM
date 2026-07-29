@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { prisma } from "@/lib/prisma"
 import { reindexTradeDays } from "@/app/actions/trade-actions"
-
-const prisma = new PrismaClient()
+import { calculateTradeScores } from "@/lib/ai/scoring-engine"
 
 export async function POST(req: Request) {
   try {
@@ -34,6 +33,7 @@ export async function POST(req: Request) {
       const accounts = await prisma.challengeAccount.findMany({
         where: { 
           userId: apiToken.userId,
+          archivedAt: null,
           OR: [
             { brokerAccountName: payload.accountName },
             { name: payload.accountName }
@@ -41,40 +41,114 @@ export async function POST(req: Request) {
         }
       })
       
-      let account = accounts.find(a => a.brokerAccountName === payload.accountName)
+      // Map accountName to ChallengeAccount. Priority to active accounts.
+      let account = accounts.find(a => a.brokerAccountName === payload.accountName && a.status === "active")
+      if (!account) {
+        account = accounts.find(a => a.name === payload.accountName && a.status === "active")
+      }
+      if (!account) {
+        account = accounts.find(a => a.brokerAccountName === payload.accountName)
+      }
       if (!account && accounts.length > 0) {
         account = accounts[0]
       }
       
       if (!account) {
         if (!isArray) {
-          return NextResponse.json({ error: `Account mapping not found for ${payload.accountName}` }, { status: 400 })
+          return NextResponse.json({ success: false, message: `Ignored: Account mapping not found for ${payload.accountName}` }, { status: 200 })
         }
         errors.push({ payload, error: `Account mapping not found for ${payload.accountName}` })
         continue
       }
       
-      const ts = new Date(payload.entryTime || Date.now()).getTime()
+      const parseToUtcMs = (dateStr: string): number => {
+        if (!dateStr.endsWith("Z") && !/[+-]\d{2}:?\d{2}$/.test(dateStr)) {
+          return new Date(dateStr + "Z").getTime();
+        }
+        return new Date(dateStr).getTime();
+      }
+
+      let entryTimeMs = payload.entryTime ? parseToUtcMs(payload.entryTime) : Date.now()
+      if (isNaN(entryTimeMs)) {
+        entryTimeMs = Date.now()
+      }
+
+      let exitTimeMs = payload.exitTime ? parseToUtcMs(payload.exitTime) : null
+      if (exitTimeMs !== null && isNaN(exitTimeMs)) {
+        exitTimeMs = Date.now()
+      }
+
+      const timingIncomplete = !payload.exitTime
       
-      // Duplicate prevention: check if trade with same instrument and timestamp exists
+      const mappedTrade = {
+        entry: payload.entryPrice,
+        exit: payload.exitPrice,
+        pnl: payload.pnl,
+        contracts: payload.contracts,
+        instrument: payload.instrument
+      }
+      const scores = calculateTradeScores(mappedTrade, null)
+
+      // Duplicate prevention: check if trade with same NT providerTradeId or instrument+timestamp exists
+      const ntTag = `NT-${payload.providerTradeId}`
       const existing = await prisma.trade.findFirst({
         where: {
           accountId: account.id,
-          instrument: payload.instrument,
-          timestamp: BigInt(ts)
+          OR: [
+            { tags: { contains: ntTag } },
+            {
+              instrument: payload.instrument,
+              timestamp: BigInt(entryTimeMs)
+            }
+          ]
         }
       })
       
       if (existing) {
-        if (!isArray) {
-          return NextResponse.json({ message: "Trade already synced", tradeId: existing.id }, { status: 200 })
+        // Update existing trade
+        const updated = await prisma.trade.update({
+          where: { id: existing.id },
+          data: {
+            instrument: payload.instrument,
+            direction: payload.direction,
+            entry: payload.entryPrice,
+            exit: payload.exitPrice,
+            contracts: payload.contracts,
+            pnl: payload.pnl,
+            exitTime: exitTimeMs ? BigInt(exitTimeMs) : null,
+            timingIncomplete,
+            setupQualityScore: scores.setupQualityScore,
+            entryQualityScore: scores.entryQualityScore,
+            exitQualityScore: scores.exitQualityScore,
+            riskScore: scores.riskScore,
+            disciplineScore: scores.disciplineScore
+          }
+        })
+        
+        const safeTrade = {
+          ...updated,
+          timestamp: Number(updated.timestamp),
+          exitTime: updated.exitTime ? Number(updated.exitTime) : null,
+          timingIncomplete: updated.timingIncomplete,
+          setupQualityScore: updated.setupQualityScore ?? undefined,
+          entryQualityScore: updated.entryQualityScore ?? undefined,
+          exitQualityScore: updated.exitQualityScore ?? undefined,
+          riskScore: updated.riskScore ?? undefined,
+          disciplineScore: updated.disciplineScore ?? undefined
         }
-        syncedTrades.push({ ...existing, timestamp: Number(existing.timestamp), status: 'already_synced' })
+        
+        if (!isArray) {
+          return NextResponse.json({ message: "Trade updated successfully", trade: safeTrade }, { status: 200 })
+        }
+        syncedTrades.push({ 
+          ...safeTrade, 
+          status: 'synced'
+        })
         continue
       }
 
       // Determine session naively
-      const hour = new Date(ts).getUTCHours()
+      const hour = new Date(entryTimeMs).getUTCHours()
       const session = hour >= 13 && hour <= 20 ? "New York AM" : "London"
       
       const trade = await prisma.trade.create({
@@ -88,16 +162,30 @@ export async function POST(req: Request) {
           pnl: payload.pnl,
           day: 1, // Should be computed based on challenge start, defaulting to 1
           session,
-          timestamp: BigInt(ts),
-          tags: JSON.stringify([`NT-${payload.providerTradeId}`]),
-          notes: "Imported via NinjaTrader Sync"
+          timestamp: BigInt(entryTimeMs),
+          exitTime: exitTimeMs ? BigInt(exitTimeMs) : null,
+          timingIncomplete,
+          tags: JSON.stringify([ntTag]),
+          notes: "Imported via NinjaTrader Sync",
+          setupQualityScore: scores.setupQualityScore,
+          entryQualityScore: scores.entryQualityScore,
+          exitQualityScore: scores.exitQualityScore,
+          riskScore: scores.riskScore,
+          disciplineScore: scores.disciplineScore
         }
       })
       
       // Convert BigInt to Number for JSON serialization
       const safeTrade = {
         ...trade,
-        timestamp: Number(trade.timestamp)
+        timestamp: Number(trade.timestamp),
+        exitTime: trade.exitTime ? Number(trade.exitTime) : null,
+        timingIncomplete: trade.timingIncomplete,
+        setupQualityScore: trade.setupQualityScore ?? undefined,
+        entryQualityScore: trade.entryQualityScore ?? undefined,
+        exitQualityScore: trade.exitQualityScore ?? undefined,
+        riskScore: trade.riskScore ?? undefined,
+        disciplineScore: trade.disciplineScore ?? undefined
       }
       
       if (!isArray) {

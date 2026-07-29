@@ -54,12 +54,16 @@ export interface Trade {
   entry: number
   exit: number
   stopLoss?: number
+  takeProfit?: number
+  riskAmount?: number
   contracts: number
   pnl: number
   calculatedPnl?: number | null
   pnlMode?: string
   day: number // trading day index (1-based)
   timestamp: number
+  exitTime?: number
+  timingIncomplete?: boolean
   session: "Asia" | "London" | "New York AM" | "New York PM"
   notes?: string
   tags?: string[]
@@ -74,6 +78,11 @@ export interface Trade {
   mistakes?: string
   lessonsLearned?: string
   psychologyNotes?: string
+  setupQualityScore?: number
+  entryQualityScore?: number
+  exitQualityScore?: number
+  riskScore?: number
+  disciplineScore?: number
   screenshots?: any[]
 }
 
@@ -90,4 +99,9 @@ export interface ChallengeAccount {
   challengeType?: "OFFICIAL" | "CUSTOM"
   customOverrides?: Record<string, any> | null
   baseRules?: ChallengeRules | null
+  name?: string | null
+  brokerAccountName?: string | null
+  failureAt?: number | string | Date | null
+  failureSnapshot?: string | null
+  archivedAt?: number | string | Date | null
 }

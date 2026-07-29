@@ -7,12 +7,18 @@ import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { ChevronLeft, ChevronRight, BarChart, Flame, Droplets, Target, AlertTriangle } from "lucide-react"
 import { DailyReplaySheet } from "@/components/app/calendar/daily-replay-sheet"
+import { fmtPnl } from "@/lib/format"
 
 export default function CalendarPage() {
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const trades = usePropStore(s => s.trades)
   const routines = usePropStore(s => s.dailyPerformances)
   const psychology = usePropStore(s => s.tradePsychology)
+  const displayTimeMode = usePropStore(s => s.displayTimeMode)
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const accounts = usePropStore(s => s.accounts)
+  const account = accounts.find(a => a.id === activeAccountId)
+  const accountBalance = account?.rules?.startingBalance ?? 100000
 
   const accountTrades = trades.filter(t => t.accountId === activeAccountId)
 
@@ -33,10 +39,24 @@ export default function CalendarPage() {
 
   const getLocalDateString = (d: Date | number) => {
     const date = new Date(d)
-    const year = date.getFullYear()
-    const month = String(date.getMonth() + 1).padStart(2, '0')
-    const day = String(date.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    if (displayTimeMode === "Exchange Time") {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+      })
+      const parts = formatter.formatToParts(date)
+      const year = parts.find(p => p.type === "year")?.value || ""
+      const month = parts.find(p => p.type === "month")?.value || ""
+      const day = parts.find(p => p.type === "day")?.value || ""
+      return `${year}-${month}-${day}`
+    } else {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
   }
 
   // Calculate stats per day
@@ -59,10 +79,11 @@ export default function CalendarPage() {
     return stats
   }, [accountTrades, psychology])
 
-  const getESTDayAndHour = (timestampMs: number) => {
+  const getDayAndHour = (timestampMs: number) => {
     const date = new Date(timestampMs)
+    const timeZone = displayTimeMode === "Exchange Time" ? "America/New_York" : undefined
     const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: "America/New_York",
+      timeZone,
       weekday: "long",
       hour: "numeric",
       hour12: false
@@ -88,7 +109,7 @@ export default function CalendarPage() {
     })
 
     accountTrades.forEach(t => {
-      const { weekday, hour } = getESTDayAndHour(t.timestamp)
+      const { weekday, hour } = getDayAndHour(t.timestamp)
       const key = `${weekday}-${hour}`
       if (matrix[key] !== undefined) {
         matrix[key].pnl += t.pnl
@@ -230,7 +251,7 @@ export default function CalendarPage() {
                         {cell.count > 0 ? (
                           <>
                             <span className="text-xs font-bold leading-none">
-                              {cell.pnl >= 0 ? "+" : ""}${Math.round(cell.pnl)}
+                              {fmtPnl(cell.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                             </span>
                             <span className="text-[9px] opacity-75 mt-1 leading-none">{cell.count} Trades</span>
                             
@@ -239,7 +260,7 @@ export default function CalendarPage() {
                               <div className="text-xs font-bold border-b border-border/50 pb-1">{day} at {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}</div>
                               <div className="flex justify-between text-[11px]">
                                 <span className="text-muted-foreground">Cumulative P&L:</span>
-                                <span className={`font-bold ${cell.pnl >= 0 ? 'text-success' : 'text-destructive'}`}>${cell.pnl.toFixed(2)}</span>
+                                <span className={`font-bold ${cell.pnl >= 0 ? 'text-success' : 'text-destructive'}`}>{fmtPnl(cell.pnl, pnlDisplayMode, accountBalance, { sign: true })}</span>
                               </div>
                               <div className="flex justify-between text-[11px]">
                                 <span className="text-muted-foreground">Total Trades:</span>
@@ -247,7 +268,7 @@ export default function CalendarPage() {
                               </div>
                               <div className="flex justify-between text-[11px]">
                                 <span className="text-muted-foreground">Avg P&L:</span>
-                                <span className="font-bold text-foreground">${(cell.pnl / cell.count).toFixed(2)}</span>
+                                <span className="font-bold text-foreground">{fmtPnl(cell.pnl / cell.count, pnlDisplayMode, accountBalance, { sign: true })}</span>
                               </div>
                             </div>
                           </>
@@ -336,7 +357,7 @@ export default function CalendarPage() {
                       <>
                         <div className="mt-auto space-y-1">
                           <div className={`font-bold text-lg leading-none ${textColor}`}>
-                            {stat.pnl >= 0 ? "+" : ""}${stat.pnl.toFixed(2)}
+                            {fmtPnl(stat.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                           </div>
                           <div className="flex justify-between text-xs font-medium text-muted-foreground">
                             <span>{stat.trades} Trades</span>
@@ -346,10 +367,10 @@ export default function CalendarPage() {
 
                         {/* Hover Preview Tooltip */}
                         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 rounded-lg bg-popover border border-border shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 flex flex-col gap-2">
-                          <div className="text-sm font-bold border-b border-border/50 pb-1">{new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</div>
+                          <div className="text-sm font-bold border-b border-border/50 pb-1">{new Date(dateStr + "T12:00:00").toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric'})}</div>
                           <div className="flex justify-between text-xs">
                             <span className="text-muted-foreground">P&L:</span>
-                            <span className={`font-bold ${stat.pnl >= 0 ? 'text-success' : 'text-destructive'}`}>${stat.pnl.toFixed(2)}</span>
+                            <span className={`font-bold ${stat.pnl >= 0 ? 'text-success' : 'text-destructive'}`}>{fmtPnl(stat.pnl, pnlDisplayMode, accountBalance, { sign: true })}</span>
                           </div>
                           <div className="flex justify-between text-xs">
                             <span className="text-muted-foreground">Trades:</span>
@@ -396,8 +417,8 @@ export default function CalendarPage() {
                     return (
                       <div key={week} onClick={() => toast.info(`Navigating to Week ${week} Review`)} className="p-3 border rounded-lg hover:border-primary/50 cursor-pointer transition-colors bg-card flex justify-between items-center group">
                         <span className="font-medium text-sm text-muted-foreground group-hover:text-primary transition-colors">Week {week}</span>
-                        <span className={`font-bold ${weekPnl > 0 ? "text-success" : weekPnl < 0 ? "text-destructive" : ""}`}>
-                          {weekPnl > 0 ? "+" : ""}${Math.abs(weekPnl) >= 1000 ? (weekPnl/1000).toFixed(1) + "k" : weekPnl.toFixed(2)}
+                      <span className={`font-bold ${weekPnl > 0 ? "text-success" : weekPnl < 0 ? "text-destructive" : ""}`}>
+                          {fmtPnl(weekPnl, pnlDisplayMode, accountBalance, { sign: true })}
                         </span>
                       </div>
                     )

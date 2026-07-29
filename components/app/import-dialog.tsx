@@ -34,6 +34,10 @@ export function ImportDialog() {
   const [strategy, setStrategy] = useState<ImportStrategy>("skip")
   const [parsedTrades, setParsedTrades] = useState<ParsedTrade[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+
+  const [useDateFilter, setUseDateFilter] = useState(false)
+  const [importStartDate, setImportStartDate] = useState("")
+  const [importEndDate, setImportEndDate] = useState("")
   
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const existingTrades = usePropStore(s => s.trades)
@@ -45,6 +49,9 @@ export function ImportDialog() {
     setStep(1)
     setParsedTrades([])
     setStrategy("skip")
+    setUseDateFilter(false)
+    setImportStartDate("")
+    setImportEndDate("")
   }
 
   const checkDuplicate = (trade: Partial<ParsedTrade>) => {
@@ -97,7 +104,17 @@ export function ImportDialog() {
       toast.error("No data found in file")
       return
     }
-    const mapped = data.map(mapRowToTrade).filter(t => !isNaN(t.pnl))
+    let mapped = data.map(mapRowToTrade).filter(t => !isNaN(t.pnl))
+
+    if (useDateFilter && importStartDate && importEndDate) {
+      const start = new Date(importStartDate + "T00:00:00").getTime()
+      const end = new Date(importEndDate + "T23:59:59").getTime()
+      mapped = mapped.filter(t => {
+        const tDate = new Date(t.date).getTime()
+        return tDate >= start && tDate <= end
+      })
+    }
+
     setParsedTrades(mapped)
     setStep(2)
   }
@@ -112,7 +129,7 @@ export function ImportDialog() {
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
-          complete: (results) => processData(results.data)
+          complete: (results: any) => processData(results.data)
         })
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         const buffer = await file.arrayBuffer()
@@ -210,6 +227,42 @@ export function ImportDialog() {
               </div>
               <p className="font-medium text-lg">Click or Drag to Upload</p>
               <p className="text-sm text-muted-foreground mt-2">Supports .csv, .xlsx</p>
+            </div>
+
+            <div className="space-y-3 p-4 border rounded-lg bg-card">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="date-filter"
+                  checked={useDateFilter}
+                  onChange={(e) => setUseDateFilter(e.target.checked)}
+                  className="rounded border-muted-foreground/30 accent-primary"
+                />
+                <Label htmlFor="date-filter" className="text-sm font-semibold cursor-pointer">Filter imports by Custom Date Range</Label>
+              </div>
+
+              {useDateFilter && (
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground">Start Date</Label>
+                    <input
+                      type="date"
+                      value={importStartDate}
+                      onChange={(e) => setImportStartDate(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-muted-foreground">End Date</Label>
+                    <input
+                      type="date"
+                      value={importEndDate}
+                      onChange={(e) => setImportEndDate(e.target.value)}
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             
             <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">

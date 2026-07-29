@@ -10,6 +10,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.80",
     "@ai-sdk/openai": "^3.0.68",
     "@auth/prisma-adapter": "^2.11.2",
     "@base-ui/react": "^1.5.0",
@@ -45,6 +46,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^24",
+    "@types/papaparse": "^5.5.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "postcss": "^8.5",

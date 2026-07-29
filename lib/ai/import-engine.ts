@@ -17,36 +17,60 @@ export type TradeMapping = z.infer<typeof TradeMappingSchema>
 
 export async function detectCsvMapping(csvSample: object[]): Promise<TradeMapping> {
   const sampleData = JSON.stringify(csvSample.slice(0, 3))
-  const columns = Object.keys(csvSample[0] || {}).join(", ")
+  const columns = Object.keys(csvSample[0] || {})
+  const columnsStr = columns.join(", ")
 
-  const { model, userId } = await getAiProvider()
+  try {
+    const { model, userId, provider } = await getAiProvider()
 
-  const { object, usage } = await generateObject({
-    model: model,
-    schema: TradeMappingSchema,
-    prompt: `You are a Universal Trade Import AI. A user uploaded a broker statement.
-    Columns available: ${columns}
-    Data sample:
-    ${sampleData}
+    const { object, usage } = await generateObject({
+      model: model,
+      schema: TradeMappingSchema,
+      prompt: `You are a Universal Trade Import AI. A user uploaded a broker statement.
+      Columns available: ${columnsStr}
+      Data sample:
+      ${sampleData}
+      
+      Determine which columns map to our internal Trade fields:
+      - instrument (e.g. Symbol, Ticker)
+      - direction (e.g. Action, Side)
+      - entry (e.g. Buy Price, Open Price, Price)
+      - exit (e.g. Sell Price, Close Price)
+      - contracts (e.g. Qty, Quantity)
+      - pnl (e.g. Net PnL, Profit, Gross)
+      - date (e.g. Date, Time, Exec Time)
+      
+      If exit price is not present, omit exitCol and the Trade Reconstruction Engine will handle it.
+      `
+    })
+
+    if (usage) {
+      await trackAiUsage(userId, usage.totalTokens || 0, provider)
+    }
+
+    return object
+  } catch (err) {
+    console.error("CSV mapper AI failed. Making programmatic headers mapping guess:", err)
     
-    Determine which columns map to our internal Trade fields:
-    - instrument (e.g. Symbol, Ticker)
-    - direction (e.g. Action, Side)
-    - entry (e.g. Buy Price, Open Price, Price)
-    - exit (e.g. Sell Price, Close Price)
-    - contracts (e.g. Qty, Quantity)
-    - pnl (e.g. Net PnL, Profit, Gross)
-    - date (e.g. Date, Time, Exec Time)
+    const findCol = (keys: string[], targets: string[]): string => {
+      const match = keys.find(k => targets.some(t => k.toLowerCase().includes(t.toLowerCase())))
+      return match || keys[0]
+    }
     
-    If exit price is not present, omit exitCol and the Trade Reconstruction Engine will handle it.
-    `
-  })
-
-  if (usage) {
-    await trackAiUsage(userId, usage.totalTokens)
+    const directionCol = columns.find(k => ["action", "side", "direction", "type", "bs"].some(t => k.toLowerCase().includes(t.toLowerCase())))
+    const exitCol = columns.find(k => ["exit", "close price", "sell price"].some(t => k.toLowerCase().includes(t.toLowerCase())))
+    
+    return {
+      instrumentCol: findCol(columns, ["symbol", "ticker", "instrument", "contract", "product"]),
+      directionCol,
+      entryCol: findCol(columns, ["entry", "open price", "buy price", "price", "avg price"]),
+      exitCol,
+      contractsCol: findCol(columns, ["qty", "quantity", "size", "contracts", "volume"]),
+      pnlCol: findCol(columns, ["net pnl", "profit", "pnl", "gain", "realized", "amount"]),
+      dateCol: findCol(columns, ["date", "time", "timestamp", "execution time", "exec_time", "created"]),
+      directionBuyValues: ["buy", "long", "b", "l"]
+    }
   }
-
-  return object
 }
 
 // Trade Reconstruction Engine
@@ -56,7 +80,6 @@ export function reconstructTrade(rawRow: any, mapping: TradeMapping) {
     const dirVal = String(rawRow[mapping.directionCol]).trim()
     direction = (mapping.directionBuyValues || ["buy", "long"]).some(v => dirVal.toLowerCase().includes(v.toLowerCase())) ? "long" : "short"
   } else {
-    // Infer direction from Entry and Exit if both exist and PnL exists
     if (mapping.exitCol && rawRow[mapping.exitCol] && rawRow[mapping.entryCol]) {
        const entry = Number(rawRow[mapping.entryCol])
        const exit = Number(rawRow[mapping.exitCol])
@@ -80,11 +103,8 @@ export function reconstructTrade(rawRow: any, mapping: TradeMapping) {
   if (mapping.exitCol && rawRow[mapping.exitCol]) {
     exit = Number(rawRow[mapping.exitCol])
   } else {
-    // Reconstruct Exit Price roughly using PnL
     isReconstructed = true
     confidenceScore = 0.8
-    // Simple estimation assuming $1 per tick/point. In a real system we'd use tick sizes.
-    // Exit = Entry + (PnL / contracts)
     const priceDiff = pnl / contracts
     exit = direction === "long" ? entry + priceDiff : entry - priceDiff
   }

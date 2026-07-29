@@ -372,7 +372,7 @@ export function ChallengeWizard() {
             <div className="mt-6 max-w-md space-y-4">
                <div className="space-y-2">
                  <Label>Select Official or Custom Rules</Label>
-                 <Select value={ruleTemplate || "none"} onValueChange={(v: string) => setRuleTemplate(v === "none" ? null : v)}>
+                 <Select value={ruleTemplate || "none"} onValueChange={(v: string | null) => setRuleTemplate(!v || v === "none" ? null : v)}>
                    <SelectTrigger>
                      <SelectValue placeholder="None" />
                    </SelectTrigger>
@@ -474,7 +474,7 @@ function Row({ label, value, locked }: { label: string; value: string; locked?: 
       <dt className="text-xs text-muted-foreground flex items-center gap-1.5">
         {label}
         {locked !== undefined && (
-          locked ? <Lock className="h-3 w-3 text-muted-foreground/60" title="Locked to official rules" /> : <Unlock className="h-3 w-3 text-warning" title="Custom override active" />
+          locked ? <span title="Locked to official rules"><Lock className="h-3 w-3 text-muted-foreground/60" /></span> : <span title="Custom override active"><Unlock className="h-3 w-3 text-warning" /></span>
         )}
       </dt>
       <dd className="mt-0.5 font-medium tabular-nums">{value}</dd>

@@ -11,15 +11,23 @@ export interface RuleStatus {
   drawdownFloor: number // equity level that triggers failure
   remainingDrawdown: number
   drawdownUsedPct: number
+  drawdownLimit: number
+  drawdownUsed: number
+  drawdownRemaining: number
   // daily loss
   remainingDailyLoss: number
   dailyLossUsedPct: number
+  dailyLossUsed: number
   // profit target
   profitTargetProgress: number // 0-100
   profitRemaining: number
   // contracts
   maxContractsUsed: number
   contractUsagePct: number
+  maxAllowedContracts: number
+  maxConcurrentContracts: number
+  currentOpenContracts: number
+  largestPositionSizeReached: number
   // days
   tradingDays: number
   tradingDaysProgress: number // 0-100 toward min days
@@ -42,8 +50,17 @@ export interface Violation {
     | "consistency"
     | "max_contracts"
     | "max_days"
+    | "news"
+    | "trading_hours"
   label: string
   detail: string
+  tradeId?: string
+  accountId?: string
+  allowedValue?: number
+  actualValue?: number
+  timestamp?: number
+  severity?: "SOFT" | "HARD"
+  dataSource?: "REAL_TIMESTAMPS" | "ESTIMATED_TIMESTAMPS"
 }
 
 function groupByDay(trades: Trade[]): Map<number, Trade[]> {
@@ -81,28 +98,87 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   const byDay = groupByDay(ordered)
   const days = [...byDay.keys()].sort((a, b) => a - b)
 
-  // Track concurrent contracts: check if active positions overlap in a 30-min window
-  let maxContractsUsed = 0
-  let maxConcurrentContracts = 0
+  // Timeline event sweep for overlapping contracts
+  const timelineEvents: { time: number; type: "entry" | "exit"; contracts: number; trade: Trade }[] = []
   for (const t of ordered) {
-    maxContractsUsed = Math.max(maxContractsUsed, t.contracts)
-    const tTime = Number(t.timestamp)
-    const windowTrades = ordered.filter(ot => {
-      const otTime = Number(ot.timestamp)
-      return Math.abs(tTime - otTime) <= 30 * 60 * 1000
-    })
-    const activeContracts = windowTrades.reduce((sum, wt) => sum + wt.contracts, 0)
-    maxConcurrentContracts = Math.max(maxConcurrentContracts, activeContracts)
+    const entryTime = Number(t.timestamp)
+    // If exitTime is missing, do not fabricate a 60s duration. Set exitTime to entryTime.
+    const exitTime = t.exitTime ? Number(t.exitTime) : entryTime
+    timelineEvents.push({ time: entryTime, type: "entry", contracts: t.contracts, trade: t })
+    timelineEvents.push({ time: exitTime, type: "exit", contracts: t.contracts, trade: t })
   }
+
+  // Sort events: exit events processed first if times are identical
+  timelineEvents.sort((a, b) => {
+    if (a.time !== b.time) return a.time - b.time
+    return a.type === "exit" ? -1 : 1
+  })
+
+  let currentOpenContracts = 0
+  let maxConcurrentContracts = 0
+  let triggeringTradeForContracts: Trade | null = null
+  let maxContractsUsed = 0
+  let peakHasEstimated = false
+  const activeTradesMap = new Map<string, Trade>()
+
+  for (const ev of timelineEvents) {
+    if (ev.type === "entry") {
+      currentOpenContracts += ev.contracts
+      maxContractsUsed = Math.max(maxContractsUsed, ev.contracts)
+      activeTradesMap.set(ev.trade.id, ev.trade)
+      
+      if (currentOpenContracts > maxConcurrentContracts) {
+        maxConcurrentContracts = currentOpenContracts
+        peakHasEstimated = false
+        for (const t of activeTradesMap.values()) {
+          if (!t.exitTime || t.timingIncomplete) {
+            peakHasEstimated = true
+          }
+        }
+      }
+
+      if (rules.maxContracts > 0 && currentOpenContracts > rules.maxContracts && !triggeringTradeForContracts) {
+        triggeringTradeForContracts = ev.trade
+      }
+    } else {
+      currentOpenContracts -= ev.contracts
+      activeTradesMap.delete(ev.trade.id)
+    }
+  }
+
+  currentOpenContracts = Math.max(0, currentOpenContracts)
 
   // Enforce contract size limits
   if (rules.maxContracts > 0 && maxConcurrentContracts > rules.maxContracts) {
-    violations.push({
-      type: "max_contracts",
-      label: "Contracts limit exceeded",
-      detail: `Active position size reached ${maxConcurrentContracts} contracts (max concurrent limit: ${rules.maxContracts}).`,
-    })
-    failed = true
+    const dataSource = peakHasEstimated ? "ESTIMATED_TIMESTAMPS" : "REAL_TIMESTAMPS"
+    
+    // Safeguard: contract-limit failures must never be generated from estimated durations
+    if (dataSource === "REAL_TIMESTAMPS") {
+      violations.push({
+        type: "max_contracts",
+        label: "Contracts limit exceeded",
+        detail: `Active position size reached ${maxConcurrentContracts} contracts (max concurrent limit: ${rules.maxContracts}). Data Source: ${dataSource}.`,
+        tradeId: triggeringTradeForContracts?.id,
+        allowedValue: rules.maxContracts,
+        actualValue: maxConcurrentContracts,
+        timestamp: triggeringTradeForContracts ? Number(triggeringTradeForContracts.timestamp) : Date.now(),
+        severity: "HARD",
+        dataSource
+      })
+      failed = true
+    } else {
+      violations.push({
+        type: "max_contracts",
+        label: "Contracts limit warning",
+        detail: `Active position size reached ${maxConcurrentContracts} contracts (max concurrent limit: ${rules.maxContracts}) but calculation contains estimated durations. Data Source: ${dataSource}.`,
+        tradeId: triggeringTradeForContracts?.id,
+        allowedValue: rules.maxContracts,
+        actualValue: maxConcurrentContracts,
+        timestamp: triggeringTradeForContracts ? Number(triggeringTradeForContracts.timestamp) : Date.now(),
+        severity: "SOFT",
+        dataSource
+      })
+    }
   }
 
   let lastDayBalance = start
@@ -138,6 +214,11 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
           type: "trailing_drawdown",
           label: "Intraday Trailing Drawdown breached",
           detail: `Open equity fell to $${worstOpenEquity.toLocaleString()} (MAE: $${mae.toLocaleString()}) on day ${day}, below trailing floor $${trailingFloor.toLocaleString()}.`,
+          tradeId: t.id,
+          allowedValue: rules.maxDrawdown,
+          actualValue: Math.round(highestEquity - worstOpenEquity),
+          timestamp: Number(t.timestamp),
+          severity: "HARD"
         })
         failed = true
       }
@@ -146,6 +227,11 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
           type: "max_drawdown",
           label: "Max drawdown breached (Intraday)",
           detail: `Open equity fell to $${worstOpenEquity.toLocaleString()} (MAE: $${mae.toLocaleString()}) on day ${day}, below floor $${staticFloor.toLocaleString()}.`,
+          tradeId: t.id,
+          allowedValue: rules.maxDrawdown,
+          actualValue: Math.round(highestEquity - worstOpenEquity),
+          timestamp: Number(t.timestamp),
+          severity: "HARD"
         })
         failed = true
       }
@@ -235,27 +321,39 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
                   violations.push({
                     type: "trailing_drawdown",
                     label: "Custom Node Breach: Fail Challenge",
-                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`
+                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`,
+                    tradeId: t.id,
+                    timestamp: Number(t.timestamp),
+                    severity: "HARD"
                   })
                   failed = true
                 } else if (action === "Warning") {
                   violations.push({
                     type: "consistency",
                     label: "Custom Node Warning",
-                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`
+                    detail: `Triggered by "${condNode.data.label}" -> "${actNode.data.label}" on day ${day}.`,
+                    tradeId: t.id,
+                    timestamp: Number(t.timestamp),
+                    severity: "SOFT"
                   })
                 } else if (action === "Block Trade" || action === "Lock Account") {
                   violations.push({
                     type: "max_contracts",
                     label: `Custom Node Violation: ${action}`,
-                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`
+                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`,
+                    tradeId: t.id,
+                    timestamp: Number(t.timestamp),
+                    severity: "HARD"
                   })
                   failed = true
                 } else if (action === "Reduce Position Size") {
                   violations.push({
                     type: "max_contracts",
                     label: "Custom Node: Size Reduction Warning",
-                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`
+                    detail: `Triggered by "${condNode.data.label}" on day ${day}.`,
+                    tradeId: t.id,
+                    timestamp: Number(t.timestamp),
+                    severity: "SOFT"
                   })
                 }
               }
@@ -267,10 +365,24 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
 
     // daily loss limit (checked on the day's net)
     if (rules.dailyLossLimit > 0 && dayPnl <= -rules.dailyLossLimit && !failed) {
+      let runningDayPnl = 0
+      let triggeringTrade: Trade | null = null
+      for (const dt of dayTrades) {
+        runningDayPnl += dt.pnl
+        if (runningDayPnl <= -rules.dailyLossLimit) {
+          triggeringTrade = dt
+          break
+        }
+      }
       violations.push({
         type: "daily_loss",
         label: "Daily loss limit hit",
         detail: `Day ${day} lost $${Math.abs(dayPnl).toLocaleString()}, limit is $${rules.dailyLossLimit.toLocaleString()}.`,
+        tradeId: triggeringTrade?.id,
+        allowedValue: rules.dailyLossLimit,
+        actualValue: Math.abs(dayPnl),
+        timestamp: triggeringTrade ? Number(triggeringTrade.timestamp) : Date.now(),
+        severity: "HARD"
       })
       failed = true
     }
@@ -291,17 +403,24 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   // drawdown floor presented to UI
   const drawdownFloor = (isTrailing || isHybrid) ? trailingFloor : staticFloor
   const remainingDrawdown = Math.max(0, equity - drawdownFloor)
-  const drawdownUsedPct = clampPct(100 - (remainingDrawdown / rules.maxDrawdown) * 100)
+  const maxDD = rules.maxDrawdown || 1 // Avoid division by zero
+  const drawdownUsedPct = clampPct(100 - (remainingDrawdown / maxDD) * 100)
 
   // today's pnl = last day net
   const lastDay = days.length ? days[days.length - 1] : 0
   const dailyPnl = lastDay ? byDay.get(lastDay)!.reduce((s, t) => s + t.pnl, 0) : 0
   const remainingDailyLoss = rules.dailyLossLimit > 0 ? Math.max(0, rules.dailyLossLimit + Math.min(0, dailyPnl)) : 0
+  const dailyLossLimitVal = rules.dailyLossLimit || 1 // Avoid division by zero
   const dailyLossUsedPct =
-    rules.dailyLossLimit > 0 ? clampPct((Math.max(0, -dailyPnl) / rules.dailyLossLimit) * 100) : 0
+    rules.dailyLossLimit > 0 ? clampPct((Math.max(0, -dailyPnl) / dailyLossLimitVal) * 100) : 0
+
+  const drawdownLimit = drawdownFloor
+  const drawdownUsed = Math.max(0, highestEquity - balance)
+  const dailyLossUsed = Math.max(0, -dailyPnl)
 
   // profit target
-  const profitTargetProgress = clampPct((totalPnl / rules.profitTarget) * 100)
+  const profitTargetVal = rules.profitTarget || 1 // Avoid division by zero
+  const profitTargetProgress = clampPct((totalPnl / profitTargetVal) * 100)
   const profitRemaining = Math.max(0, rules.profitTarget - totalPnl)
 
   // consistency: largest winning day vs total profit
@@ -314,33 +433,19 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   const consistencyOk = rules.consistencyPct === 0 || totalPnl <= 0 || consistencyPct <= rules.consistencyPct
 
   const tradingDays = days.length
-  const tradingDaysProgress = rules.minTradingDays > 0 ? clampPct((tradingDays / rules.minTradingDays) * 100) : 100
-
-  if (rules.maxTradingDays && tradingDays > rules.maxTradingDays && !failed) {
-    violations.push({
-      type: "max_days",
-      label: "Max trading days exceeded",
-      detail: `Used ${tradingDays} days, limit is ${rules.maxTradingDays}.`,
-    })
-    failed = true
-  }
+  const minTradingDaysVal = rules.minTradingDays || 1 // Avoid division by zero
+  const tradingDaysProgress = rules.minTradingDays > 0 ? clampPct((tradingDays / minTradingDaysVal) * 100) : 100
 
   // determine pass: target met, min days met, consistency ok, not failed
+  const hasHardViolation = violations.some(v => v.severity === "HARD")
   const targetMet = totalPnl >= rules.profitTarget
   const daysMet = tradingDays >= rules.minTradingDays
   let status: RuleStatus["status"] = "active"
-  if (failed) status = "failed"
+  if (hasHardViolation) status = "failed"
   else if (targetMet && daysMet && consistencyOk) status = "passed"
 
-  if (!consistencyOk && targetMet) {
-    violations.push({
-      type: "consistency",
-      label: "Consistency rule not met",
-      detail: `Largest day is ${consistencyPct.toFixed(0)}% of profit, max allowed is ${rules.consistencyPct}%.`,
-    })
-  }
-
-  const contractUsagePct = rules.maxContracts > 0 ? clampPct((maxContractsUsed / rules.maxContracts) * 100) : 0
+  const maxContractsVal = rules.maxContracts || 1 // Avoid division by zero
+  const contractUsagePct = rules.maxContracts > 0 ? clampPct((maxContractsUsed / maxContractsVal) * 100) : 0
 
   // overall completion: weighted blend of the gates
   const completionPct = clampPct(
@@ -356,12 +461,20 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
     drawdownFloor,
     remainingDrawdown,
     drawdownUsedPct,
+    drawdownLimit,
+    drawdownUsed,
+    drawdownRemaining: remainingDrawdown,
     remainingDailyLoss,
     dailyLossUsedPct,
+    dailyLossUsed,
     profitTargetProgress,
     profitRemaining,
     maxContractsUsed,
     contractUsagePct,
+    maxAllowedContracts: rules.maxContracts,
+    maxConcurrentContracts,
+    currentOpenContracts,
+    largestPositionSizeReached: maxContractsUsed,
     tradingDays,
     tradingDaysProgress,
     consistencyPct,

@@ -42,7 +42,7 @@ export default function SimulatorPage() {
     }
 
     if (toggles.onlyAplus) {
-      filtered = filtered.filter(t => t.confidenceScore && t.confidenceScore > 0.8)
+      filtered = filtered.filter(t => t.tags && t.tags.includes("A+ setup"))
     }
 
     if (toggles.noRevenge) {
