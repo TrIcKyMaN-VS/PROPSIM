@@ -11,7 +11,7 @@ namespace NinjaTrader.Custom.AddOns.PropSim
         private string _tokenFilePath;
         private string _urlFilePath;
         private string _apiToken;
-        private string _apiUrl = "http://localhost:3000";
+        private string _apiUrl = "https://propsim.vercel.app";
         private System.Threading.Timer _heartbeatTimer;
         private readonly System.Collections.Generic.List<string> _subscribedAccounts = new System.Collections.Generic.List<string>();
 

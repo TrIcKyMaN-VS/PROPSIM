@@ -18,9 +18,10 @@ This is a custom C# NinjaScript Add-On designed to automatically sync trades fro
 4. Copy the generated API token.
 5. On your local machine, open `Documents\NinjaTrader 8\` and create a text file named `propsim_token.txt`.
 6. Paste the API token into `propsim_token.txt` and save it.
-7. Restart NinjaTrader 8.
+7. (Optional) By default, the Add-On syncs to `https://propsim.vercel.app`. If you want to use a different URL (e.g. a local server or custom domain), create a file named `propsim_url.txt` in the same directory and paste your URL there.
+8. Restart NinjaTrader 8.
 
-*Note: In the final production build, a custom WPF UI menu will be added to the NinjaTrader Control Center to manage the token without needing to create a text file manually.*
+*Note: In the final production build, a custom WPF UI menu will be added to the NinjaTrader Control Center to manage the token and URL without needing to create text files manually.*
 
 ## How It Works
 

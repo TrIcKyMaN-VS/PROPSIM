@@ -11,13 +11,13 @@ namespace NinjaTrader.Custom.AddOns.PropSim
     {
         private readonly HttpClient _httpClient;
         // Defaulting to localhost for development, but in production this would be https://app.propsim.com
-        private readonly string _baseUrl = "http://localhost:3000"; 
+        private readonly string _baseUrl = "https://propsim.vercel.app"; 
         private readonly string _token;
 
-        public PropSimApiClient(string token, string baseUrl = "http://localhost:3000")
+        public PropSimApiClient(string token, string baseUrl = "https://propsim.vercel.app")
         {
             _token = token;
-            _baseUrl = string.IsNullOrEmpty(baseUrl) ? "http://localhost:3000" : baseUrl.Trim().TrimEnd('/');
+            _baseUrl = string.IsNullOrEmpty(baseUrl) ? "https://propsim.vercel.app" : baseUrl.Trim().TrimEnd('/');
             _httpClient = new HttpClient();
             _httpClient.DefaultRequestHeaders.Add("Authorization", string.Format("Bearer {0}", _token));
             _httpClient.DefaultRequestHeaders.Add("Accept", "application/json");

@@ -68,6 +68,7 @@ export default function TradeDetailsPage() {
   const playbook = trade?.playbookId ? playbooks.find(p => p.id === trade.playbookId) : null
 
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
+  const [isZoomed, setIsZoomed] = useState(false)
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({})
 
   // ── form state ────────────────────────────────────────────────────────────
@@ -241,13 +242,13 @@ export default function TradeDetailsPage() {
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-6xl mx-auto pb-24">
+    <div className="max-w-[1600px] mx-auto pb-24">
 
       {/* ─────────────────────────────────────────────────────────────────────
           ① STICKY HEADER
       ───────────────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-40 bg-background/90 backdrop-blur-md border-b border-border py-3 mb-8 -mx-4 md:-mx-6 px-4 md:px-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 max-w-6xl mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 max-w-[1600px] mx-auto">
           {/* Left: back + chips */}
           <div className="flex items-center gap-2 flex-wrap">
             <Button variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => router.back()}>
@@ -744,7 +745,7 @@ export default function TradeDetailsPage() {
               </div>
             ) : (
               /* Gallery grid */
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {screenshots.map((sc: any) => (
                   <div
                     key={sc.id}
@@ -795,17 +796,22 @@ export default function TradeDetailsPage() {
       {/* ─────────────────────────────────────────────────────────────────────
           LIGHTBOX
       ───────────────────────────────────────────────────────────────────── */}
-      <Dialog open={!!expandedImage} onOpenChange={() => setExpandedImage(null)}>
-        <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 bg-black/95 border-border flex flex-col">
-          <DialogHeader className="px-2 pt-1 pb-0">
-            <DialogTitle className="text-xs font-semibold text-white/60 uppercase tracking-wider">Screenshot</DialogTitle>
+      <Dialog open={!!expandedImage} onOpenChange={(open) => { if(!open) { setExpandedImage(null); setIsZoomed(false); } }}>
+        <DialogContent className="sm:max-w-[95vw] !max-w-[95vw] w-full max-h-[95vh] p-2 bg-black/95 border-border flex flex-col">
+          <DialogHeader className="px-2 pt-1 pb-0 flex flex-row items-center justify-between">
+            <DialogTitle className="text-xs font-semibold text-white/60 uppercase tracking-wider">
+              Screenshot {isZoomed ? "(Zoomed In - Click to Zoom Out)" : "(Click to Zoom In)"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 flex items-center justify-center overflow-auto p-2">
+          <div 
+            className="flex-1 flex items-center justify-center overflow-auto p-2"
+            onClick={() => setIsZoomed(!isZoomed)}
+          >
             {expandedImage && (
               <img
                 src={expandedImage}
                 alt="Trade screenshot expanded"
-                className="max-w-full max-h-[82vh] object-contain rounded-lg"
+                className={isZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
               />
             )}
           </div>
