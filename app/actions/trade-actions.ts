@@ -276,9 +276,9 @@ export async function addTradeScreenshot(tradeId: string, stage: string, url: st
           }
 
           finalUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`
-        } catch (error) {
-          console.error("Failed to upload to Supabase, falling back to local filesystem:", error)
-          finalUrl = await saveLocalFile(fileName, buffer)
+        } catch (error: any) {
+          console.error("Failed to upload to Supabase:", error)
+          throw new Error(`Failed to upload to Supabase: ${error.message}`)
         }
       } else {
         finalUrl = await saveLocalFile(fileName, buffer)
