@@ -7,6 +7,7 @@ import { Trade } from "@/lib/types"
 import { calculateTradeScores } from "@/lib/ai/scoring-engine"
 import fs from "fs"
 import path from "path"
+import { createClient } from "@supabase/supabase-js"
 
 export async function getTrades(accountId?: string) {
   const session = await getServerSession(authOptions)
@@ -257,24 +258,16 @@ export async function addTradeScreenshot(tradeId: string, stage: string, url: st
 
       if (supabaseUrl && supabaseServiceKey) {
         try {
-          const uploadRes = await fetch(
-            `${supabaseUrl}/storage/v1/object/screenshots/${fileName}`,
-            {
-              method: "POST",
-              headers: {
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-                "Content-Type": mimeType,
-                "x-upsert": "true"
-              },
-              body: buffer
-            }
-          )
-
-          if (!uploadRes.ok) {
-            const errText = await uploadRes.text()
-            throw new Error(`Supabase upload failed: ${uploadRes.statusText} - ${errText}`)
-          }
-
+          const supabase = createClient(supabaseUrl, supabaseServiceKey)
+          const { data, error } = await supabase.storage
+            .from('screenshots')
+            .upload(fileName, buffer, {
+              contentType: mimeType,
+              upsert: true
+            })
+          
+          if (error) throw error
+          
           finalUrl = `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`
         } catch (error: any) {
           console.error("Failed to upload to Supabase:", error)

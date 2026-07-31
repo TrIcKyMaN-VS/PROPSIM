@@ -3,6 +3,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
+import { createClient } from '@supabase/supabase-js'
 
 dotenv.config()
 
@@ -49,22 +50,16 @@ async function main() {
     if (ext === ".webp") mimeType = "image/webp"
 
     try {
-      const uploadRes = await fetch(
-        `${supabaseUrl}/storage/v1/object/screenshots/${fileName}`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${supabaseKey}`,
-            "Content-Type": mimeType,
-            "x-upsert": "true"
-          },
-          body: buffer
-        }
-      )
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const { data, error } = await supabase.storage
+        .from('screenshots')
+        .upload(fileName, buffer, {
+          contentType: mimeType,
+          upsert: true
+        })
 
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text()
-        console.error(`❌ Failed to upload ${fileName}: ${uploadRes.statusText} - ${errText}`)
+      if (error) {
+        console.error(`❌ Failed to upload ${fileName}:`, error.message)
         continue
       }
 
