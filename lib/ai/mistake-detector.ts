@@ -134,7 +134,9 @@ export function generateProgrammaticFallback(trades: any[], psychologyLogs: any[
       type: "Overtrading" as const,
       desc: "Executing more than 5 trades in a single session.",
       filter: (t: any, p: any) => {
-        const dayTrades = trades.filter(x => x.day === t.day)
+        const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York" })
+        const targetDate = fmt.format(new Date(Number(t.timestamp)))
+        const dayTrades = trades.filter(x => fmt.format(new Date(Number(x.timestamp))) === targetDate)
         return dayTrades.length > 5
       }
     },

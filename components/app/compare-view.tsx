@@ -178,7 +178,7 @@ export function CompareView() {
             </div>
           ) : (
             <div className="rounded-xl border border-border bg-card/40 p-4">
-              <ResponsiveContainer width="100%" height={380}>
+              <ResponsiveContainer width="100%" height={380} minWidth={0} minHeight={0}>
                 <LineChart data={mergedData} margin={{ top: 8, right: 24, left: 16, bottom: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                   <XAxis

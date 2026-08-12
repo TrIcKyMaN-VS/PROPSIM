@@ -57,7 +57,7 @@ export function MonteCarloCharts({ stats }: MonteCarloChartsProps) {
             <CardTitle className="text-sm font-medium">Equity Projection (Median &amp; 95% Confidence Bands)</CardTitle>
           </CardHeader>
           <CardContent className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={equityData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                 <defs>
                   <linearGradient id="equityBandFill" x1="0" y1="0" x2="0" y2="1">
@@ -139,7 +139,7 @@ export function MonteCarloCharts({ stats }: MonteCarloChartsProps) {
             <CardTitle className="text-sm font-medium">Median Drawdown Progression</CardTitle>
           </CardHeader>
           <CardContent className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <AreaChart data={drawdownData} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                 <defs>
                   <linearGradient id="drawdownFill" x1="0" y1="0" x2="0" y2="1">
@@ -193,7 +193,7 @@ export function MonteCarloCharts({ stats }: MonteCarloChartsProps) {
             <CardTitle className="text-sm font-medium">Return Distribution (Ending Balance Probability)</CardTitle>
           </CardHeader>
           <CardContent className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={stats.returnHistogram} margin={{ top: 10, right: 10, left: 10, bottom: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" vertical={false} />
                 <XAxis
@@ -237,7 +237,7 @@ export function MonteCarloCharts({ stats }: MonteCarloChartsProps) {
             <CardTitle className="text-sm font-medium">Streak Probability Distribution (Losing vs Winning)</CardTitle>
           </CardHeader>
           <CardContent className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart
                 data={stats.winningStreakDistribution.map((w, idx) => ({
                   streak: w.length,

@@ -14,6 +14,9 @@ export interface MonteCarloInputs {
   minTradingDays?: number
   consistencyPct?: number
   drawdownType?: string
+  // Derived from historical trade timestamps (Bug #6, #11 fixes)
+  tradesPerDay?: number    // actual trades per day from history (used for daily loss limit grouping)
+  tradesPerMonth?: number  // actual trades per month from history (used for monthly return scaling)
 }
 
 export interface SavedSimulation {

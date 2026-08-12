@@ -569,8 +569,9 @@ export default function CompliancePage() {
   const r = account.rules
 
   // Derived
-  const dailyLossUsed = r.dailyLossLimit > 0 ? r.dailyLossLimit - status.remainingDailyLoss : 0
-  const drawdownUsed = r.maxDrawdown - status.remainingDrawdown
+  // Use rule-engine computed values directly to avoid sign errors when account is profitable
+  const dailyLossUsed = status.dailyLossUsed
+  const drawdownUsed = status.drawdownUsed
   const profitEarned = Math.max(0, status.totalPnl)
 
   const ddZone = zoneColor(status.drawdownUsedPct)

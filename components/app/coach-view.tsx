@@ -307,7 +307,9 @@ export function CoachView() {
       {
         type: "Overtrading",
         filter: (t: Trade, p: any) => {
-          const dayTrades = accountTrades.filter(x => x.day === t.day)
+          const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York" })
+          const targetDate = fmt.format(new Date(Number(t.timestamp)))
+          const dayTrades = accountTrades.filter(x => fmt.format(new Date(Number(x.timestamp))) === targetDate)
           return dayTrades.length > 5
         }
       },

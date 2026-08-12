@@ -4,11 +4,11 @@ import { MonteCarloInputs, MonteCarloStats } from "./monte-carlo-types"
 const ctx: Worker = self as any
 
 ctx.onmessage = (event: MessageEvent) => {
-  const { type, inputs, historicalTradePnlPcts } = event.data
+  const { type, inputs, historicalTradePnlPcts, historicalTradePnlDollars } = event.data
 
   if (type === "run") {
     try {
-      const stats = runMonteCarlo(inputs, historicalTradePnlPcts)
+      const stats = runMonteCarlo(inputs, historicalTradePnlPcts, historicalTradePnlDollars)
       ctx.postMessage({ type: "complete", stats })
     } catch (error: any) {
       ctx.postMessage({ type: "error", error: error.message || String(error) })
@@ -18,7 +18,8 @@ ctx.onmessage = (event: MessageEvent) => {
 
 function runMonteCarlo(
   inputs: MonteCarloInputs,
-  historicalTradePnlPcts?: number[]
+  historicalTradePnlPcts?: number[],
+  historicalTradePnlDollars?: number[]
 ): MonteCarloStats {
   const {
     startingBalance,
@@ -50,8 +51,8 @@ function runMonteCarlo(
     drawdownCurve: number[]
   }[] = []
 
-  // Estimate trades per day from history or default to 2
-  const tradesPerDay = 2
+  // BUG #11 FIX: Use actual trades-per-day from inputs instead of hardcoded 2
+  const tradesPerDay = inputs.tradesPerDay ?? 2
 
   for (let s = 0; s < simCount; s++) {
     // Send progress report every 10%
@@ -117,6 +118,12 @@ function runMonteCarlo(
       currentDayPnl += pnl
       currentDayTrades++
 
+      // BUG #7 FIX: Check daily loss limit IMMEDIATELY after each trade, not just at day-end.
+      // Real prop firms halt trading the moment the limit is breached intraday.
+      if (dailyLossLimit > 0 && currentDayPnl <= -dailyLossLimit) {
+        ruined = true
+      }
+
       // Streaks
       if (pnl > 0) {
         currentWinStreak++
@@ -142,11 +149,12 @@ function runMonteCarlo(
       equityCurve.push(balance)
       drawdownCurve.push(drawdownP)
 
-      // Update drawdown floor dynamically based on drawdownType (trailing cap start balance)
+      // BUG #8 FIX: Trailing drawdown floor correctly rises with peak when account is profitable.
+      // Removed Math.min(startingBalance, ...) cap which was incorrectly freezing the floor.
       if (maxDrawdownLimit > 0) {
         if (drawdownType === "trailing" || drawdownType === "intraday") {
           const currentFloor = peakBalance - maxDrawdownLimit
-          drawdownFloor = Math.max(drawdownFloor, Math.min(startingBalance, currentFloor))
+          drawdownFloor = Math.max(drawdownFloor, currentFloor)
         }
       }
 
@@ -155,16 +163,11 @@ function runMonteCarlo(
         tradingDaysCompleted++
         dailyPnls.push(currentDayPnl)
 
-        // Check Daily Loss Limit
-        if (dailyLossLimit > 0 && currentDayPnl <= -dailyLossLimit) {
-          ruined = true
-        }
-
-        // Update EOD drawdown floor
+        // BUG #8 FIX (EOD): Also remove the Math.min cap for EOD drawdown floor
         if (maxDrawdownLimit > 0 && drawdownType === "eod") {
           const eodHigh = Math.max(lastDayBalance, balance)
           if (eodHigh > startingBalance) {
-            drawdownFloor = Math.max(drawdownFloor, Math.min(startingBalance, eodHigh - maxDrawdownLimit))
+            drawdownFloor = Math.max(drawdownFloor, eodHigh - maxDrawdownLimit)
           }
         }
 
@@ -260,17 +263,19 @@ function runMonteCarlo(
     medianDrawdownCurve.push(getPercentile(sortedTradeDrawdowns, 50))
   }
 
-  // Create return histogram (20 bins)
+  // BUG #12 FIX: Dynamic histogram label rounding based on bin size.
+  // Previously hardcoded to round to $100, which collapsed small-account bins into identical labels.
   const minReturn = sortedReturns[0]
   const maxReturn = sortedReturns[sortedReturns.length - 1]
   const binWidth = (maxReturn - minReturn) / 20 || 1
   const returnHistogram: { bin: string; count: number; countPct: number }[] = []
+  const roundTo = binWidth >= 100 ? 100 : binWidth >= 10 ? 10 : 1
 
   for (let i = 0; i < 20; i++) {
     const binStart = minReturn + i * binWidth
     const binEnd = binStart + binWidth
     const count = returns.filter((r) => r >= binStart && r < binEnd).length
-    const label = `${Math.round(binStart / 100) * 100} to ${Math.round(binEnd / 100) * 100}`
+    const label = `${Math.round(binStart / roundTo) * roundTo} to ${Math.round(binEnd / roundTo) * roundTo}`
     returnHistogram.push({
       bin: label,
       count,
@@ -296,21 +301,22 @@ function runMonteCarlo(
   // Recovery factor = Average Return / Average Max Drawdown Absolute
   const recoveryFactor = avgRet / (avgDdAbs || 1)
 
-  // Trade Expectancy
-  let tradeExpectancy = 0
-  if (isBootstrap && historicalTradePnlPcts) {
-    tradeExpectancy = startingBalance * average(historicalTradePnlPcts)
-  } else {
-    const winProb = winRate / 100
-    const lossProb = 1 - winProb
-    const winAmt = startingBalance * (riskPct / 100) * avgRR
-    const lossAmt = -startingBalance * (riskPct / 100)
-    tradeExpectancy = (winProb * winAmt) + (lossProb * lossAmt)
-  }
+  // BUG #4 FIX: Trade expectancy is now derived from the actual simulation average return per trade.
+  // Previously it was anchored to startingBalance and only valid for trade #1 in a compounding sim.
+  const tradeExpectancy = numTrades > 0 ? avgRet / numTrades : 0
 
-  // Profit Factor
+  // BUG #13 FIX: Profit factor computed from actual $ P&L amounts, not % values.
+  // Using % values was wrong because each pct was divided by a different running balance.
   let profitFactor = 0
-  if (isBootstrap && historicalTradePnlPcts) {
+  if (isBootstrap && historicalTradePnlDollars && historicalTradePnlDollars.length > 0) {
+    // Use actual dollar P&Ls for accurate profit factor
+    const winDollars = historicalTradePnlDollars.filter((p) => p > 0)
+    const lossDollars = historicalTradePnlDollars.filter((p) => p < 0)
+    const sumWins = winDollars.reduce((sum, v) => sum + v, 0)
+    const sumLosses = Math.abs(lossDollars.reduce((sum, v) => sum + v, 0))
+    profitFactor = sumLosses > 0 ? sumWins / sumLosses : sumWins > 0 ? 99 : 0
+  } else if (isBootstrap && historicalTradePnlPcts) {
+    // Fallback: pct-based (less accurate but available)
     const wins = historicalTradePnlPcts.filter((p) => p > 0)
     const losses = historicalTradePnlPcts.filter((p) => p < 0)
     const sumWins = wins.reduce((sum, v) => sum + v, 0)
@@ -324,8 +330,10 @@ function runMonteCarlo(
     profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit
   }
 
-  // 40 trades = 1 month (assuming 2 trades/day * 20 trading days/month)
-  const averageMonthlyReturn = (avgRet / (numTrades / 40)) || 0
+  // BUG #6 FIX: Use actual trades-per-month from historical timestamps if available.
+  // Previously hardcoded to 40 trades/month (2/day × 20 days), which was wrong for most traders.
+  const tradesPerMonth = inputs.tradesPerMonth ?? 40
+  const averageMonthlyReturn = (avgRet / (numTrades / tradesPerMonth)) || 0
 
   const isNegativeEdge = tradeExpectancy <= 0 || profitFactor < 1
 
@@ -391,7 +399,8 @@ function runSingleRiskSimulation(
   const returns: number[] = []
   const drawdowns: number[] = []
 
-  const tradesPerDay = 2
+  // BUG #11 FIX: Use actual trades-per-day from inputs
+  const tradesPerDay = inputs.tradesPerDay ?? 2
 
   for (let s = 0; s < simCount; s++) {
     let balance = startingBalance
@@ -431,6 +440,11 @@ function runSingleRiskSimulation(
       currentDayPnl += pnl
       currentDayTrades++
 
+      // BUG #7 FIX: Intraday daily loss check
+      if (dailyLossLimit > 0 && currentDayPnl <= -dailyLossLimit) {
+        ruined = true
+      }
+
       if (balance > peakBalance) {
         peakBalance = balance
       }
@@ -438,26 +452,23 @@ function runSingleRiskSimulation(
       const drawdownP = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) * 100 : 0
       maxDrawdownP = Math.max(maxDrawdownP, drawdownP)
 
-      // Update drawdown floor dynamically based on drawdownType (trailing cap start balance)
+      // BUG #8 FIX: Remove Math.min(startingBalance, ...) cap — trailing floor rises with peak
       if (maxDrawdownLimit > 0) {
         if (drawdownType === "trailing" || drawdownType === "intraday") {
           const currentFloor = peakBalance - maxDrawdownLimit
-          drawdownFloor = Math.max(drawdownFloor, Math.min(startingBalance, currentFloor))
+          drawdownFloor = Math.max(drawdownFloor, currentFloor)
         }
       }
 
       if (currentDayTrades >= tradesPerDay || t === numTrades - 1) {
         tradingDaysCompleted++
         dailyPnls.push(currentDayPnl)
-        if (dailyLossLimit > 0 && currentDayPnl <= -dailyLossLimit) {
-          ruined = true
-        }
 
-        // Update EOD drawdown floor
+        // BUG #8 FIX (EOD): Remove Math.min cap
         if (maxDrawdownLimit > 0 && drawdownType === "eod") {
           const eodHigh = Math.max(lastDayBalance, balance)
           if (eodHigh > startingBalance) {
-            drawdownFloor = Math.max(drawdownFloor, Math.min(startingBalance, eodHigh - maxDrawdownLimit))
+            drawdownFloor = Math.max(drawdownFloor, eodHigh - maxDrawdownLimit)
           }
         }
 

@@ -63,12 +63,25 @@ export interface Violation {
   dataSource?: "REAL_TIMESTAMPS" | "ESTIMATED_TIMESTAMPS"
 }
 
-function groupByDay(trades: Trade[]): Map<number, Trade[]> {
-  const m = new Map<number, Trade[]>()
+/**
+ * Groups trades by their EST calendar date, derived from t.timestamp.
+ * We deliberately avoid using t.day because the NinjaTrader sync route
+ * defaults every imported trade to day:1 until reindexTradeDays corrects it.
+ * Grouping by timestamp makes the rule engine robust to stale t.day values.
+ */
+function groupByDay(trades: Trade[]): Map<string, Trade[]> {
+  const m = new Map<string, Trade[]>()
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
   for (const t of trades) {
-    const arr = m.get(t.day) ?? []
+    const dateStr = fmt.format(new Date(t.timestamp))
+    const arr = m.get(dateStr) ?? []
     arr.push(t)
-    m.set(t.day, arr)
+    m.set(dateStr, arr)
   }
   return m
 }
@@ -94,9 +107,9 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   let trailingFloor = start - rules.maxDrawdown
   let staticFloor = start - rules.maxDrawdown
 
-  // per-day accounting
+  // per-day accounting — keyed by EST date string for correctness
   const byDay = groupByDay(ordered)
-  const days = [...byDay.keys()].sort((a, b) => a - b)
+  const days = [...byDay.keys()].sort((a, b) => a.localeCompare(b))
 
   // Timeline event sweep for overlapping contracts
   const timelineEvents: { time: number; type: "entry" | "exit"; contracts: number; trade: Trade }[] = []
@@ -406,8 +419,8 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   const maxDD = rules.maxDrawdown || 1 // Avoid division by zero
   const drawdownUsedPct = clampPct(100 - (remainingDrawdown / maxDD) * 100)
 
-  // today's pnl = last day net
-  const lastDay = days.length ? days[days.length - 1] : 0
+  // today's pnl = last day net (days are EST date strings like "08/12/2026")
+  const lastDay = days.length ? days[days.length - 1] : null
   const dailyPnl = lastDay ? byDay.get(lastDay)!.reduce((s, t) => s + t.pnl, 0) : 0
   const remainingDailyLoss = rules.dailyLossLimit > 0 ? Math.max(0, rules.dailyLossLimit + Math.min(0, dailyPnl)) : 0
   const dailyLossLimitVal = rules.dailyLossLimit || 1 // Avoid division by zero

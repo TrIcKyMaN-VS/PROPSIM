@@ -281,6 +281,7 @@ export default function MonteCarloView() {
   const handleRunSimulation = async () => {
     let inputs: MonteCarloInputs
     let pnlPcts: number[] | undefined
+    let pnlDollars: number[] | undefined
 
     let drawdownType = "static"
     if (simType === "prop") {
@@ -315,6 +316,21 @@ export default function MonteCarloView() {
         bal += t.pnl
         return currentPnlPct
       })
+
+      // BUG #13 FIX: Collect actual dollar P&Ls for accurate profit factor calculation
+      pnlDollars = historicalTrades.map((t) => t.pnl)
+
+      // BUG #11 FIX: Compute actual trades-per-day from real trade timestamps
+      const tradeDatesSet = new Set(historicalTrades.map((t) => new Date(Number(t.timestamp)).toDateString()))
+      const uniqueTradingDays = tradeDatesSet.size
+      const computedTradesPerDay = Math.max(1, Math.round(historicalTrades.length / Math.max(uniqueTradingDays, 1)))
+
+      // BUG #6 FIX: Compute actual trades-per-month from real date range
+      const timestamps = historicalTrades.map((t) => Number(t.timestamp))
+      const dateRangeMs = Math.max(...timestamps) - Math.min(...timestamps)
+      // Use at least 1 day as minimum range to avoid division issues
+      const dateRangeMonths = Math.max(dateRangeMs / (30 * 24 * 60 * 60 * 1000), 1 / 30)
+      const computedTradesPerMonth = historicalTrades.length / dateRangeMonths
 
       // Load prop firm parameters if prop firm mode active
       let dailyLoss = 0
@@ -356,6 +372,8 @@ export default function MonteCarloView() {
         minTradingDays: minDays,
         consistencyPct: consistency,
         drawdownType,
+        tradesPerDay: computedTradesPerDay,
+        tradesPerMonth: computedTradesPerMonth,
       }
     }
 
@@ -394,7 +412,7 @@ export default function MonteCarloView() {
         toast.info("Monte Carlo simulations become significantly more reliable with 100+ historical trades. Still running...")
       }
 
-      const results = await monteCarloService.run(inputs, pnlPcts, (p) => {
+      const results = await monteCarloService.run(inputs, pnlPcts, pnlDollars, (p) => {
         setProgress(p)
       })
 

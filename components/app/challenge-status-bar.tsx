@@ -1,7 +1,7 @@
 "use client"
 
 import { usePropStore } from "@/lib/store"
-import { getFirm } from "@/lib/firms"
+import { evaluate } from "@/lib/rule-engine"
 import { Badge } from "@/components/ui/badge"
 
 export function ChallengeStatusBar() {
@@ -12,28 +12,19 @@ export function ChallengeStatusBar() {
   if (!activeId) return null
 
   const active = accounts.find((a) => a.id === activeId)
-  if (!active) return null
+  if (!active?.rules) return null
 
-  const firm = getFirm(active.firmId)
-  if (!firm) return null
+  const accTrades = trades.filter((t) => t.accountId === activeId)
 
-  const size = firm.sizes.find(s => s.label === active.sizeLabel)
-  if (!size) return null
+  // Use the same rule engine as the Compliance page for accurate, consistent values.
+  // This correctly handles trailing, static, EOD, and intraday drawdown types.
+  const status = evaluate(active.rules, accTrades)
 
-  const accTrades = trades.filter(t => t.accountId === activeId)
-  const pnl = accTrades.reduce((sum, t) => sum + t.pnl, 0)
-  
-  const currentBalance = size.rules.startingBalance + pnl
-  const targetBalance = size.rules.startingBalance + size.rules.profitTarget
-  
-  // Basic drawdown calc (assuming EOD or static for display purposes)
-  const minBalance = size.rules.startingBalance - size.rules.maxDrawdown
-  const ddLeft = Math.max(0, currentBalance - minBalance)
-  
-  const targetPct = Math.min(100, Math.max(0, (pnl / size.rules.profitTarget) * 100))
-  
-  // Unique trading days
-  const tradingDays = new Set(accTrades.map(t => new Date(Number(t.timestamp)).toISOString().split("T")[0])).size
+  const currentBalance = status.balance
+  // remainingDrawdown is the real headroom before breach — correctly computed per drawdown type
+  const ddLeft = status.remainingDrawdown
+  const tradingDays = status.tradingDays
+  const targetPct = status.profitTargetProgress // 0-100
 
   return (
     <div className="hidden lg:flex items-center gap-6 px-4 py-1.5 rounded-lg border bg-card text-sm">
@@ -41,7 +32,7 @@ export function ChallengeStatusBar() {
         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Balance</span>
         <span className="font-bold">${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
       </div>
-      
+
       <div className="flex flex-col w-32">
         <div className="flex justify-between items-center text-[10px] uppercase font-bold tracking-wider mb-1">
           <span className="text-muted-foreground">Target</span>
@@ -54,20 +45,38 @@ export function ChallengeStatusBar() {
 
       <div className="flex flex-col">
         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">DD Left</span>
-        <span className={`font-bold ${ddLeft < size.rules.maxDrawdown * 0.2 ? 'text-destructive' : ''}`}>
+        <span
+          className={`font-bold ${
+            active.rules.maxDrawdown > 0 && ddLeft < active.rules.maxDrawdown * 0.2
+              ? "text-destructive"
+              : ""
+          }`}
+        >
           ${ddLeft.toLocaleString(undefined, { minimumFractionDigits: 2 })}
         </span>
       </div>
 
       <div className="flex flex-col">
         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Days</span>
-        <span className="font-bold">{tradingDays} {size.rules.minTradingDays > 0 ? `/ ${size.rules.minTradingDays}` : ''}</span>
+        <span className="font-bold">
+          {tradingDays}
+          {active.rules.minTradingDays > 0 ? ` / ${active.rules.minTradingDays}` : ""}
+        </span>
       </div>
 
       <div className="flex flex-col">
         <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Status</span>
-        <Badge variant={active.status === "passed" ? "default" : active.status === "failed" ? "destructive" : "secondary"} className="h-5 px-1.5 text-[10px]">
-          {active.status.toUpperCase()}
+        <Badge
+          variant={
+            status.status === "passed"
+              ? "default"
+              : status.status === "failed"
+              ? "destructive"
+              : "secondary"
+          }
+          className="h-5 px-1.5 text-[10px]"
+        >
+          {status.status.toUpperCase()}
         </Badge>
       </div>
     </div>

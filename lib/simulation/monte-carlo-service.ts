@@ -7,6 +7,7 @@ export class MonteCarloService {
   run(
     inputs: MonteCarloInputs,
     historicalTradePnlPcts?: number[],
+    historicalTradePnlDollars?: number[],
     onProgress?: (progress: number) => void
   ): Promise<MonteCarloStats> {
     const cacheKey = JSON.stringify({ inputs, historicalTradePnlPcts })
@@ -53,6 +54,7 @@ export class MonteCarloService {
           type: "run",
           inputs,
           historicalTradePnlPcts,
+          historicalTradePnlDollars,
         })
       } catch (err) {
         // Fallback for environment constraints: Run synchronously on main thread

@@ -76,7 +76,7 @@ export function AnalyticsView() {
         <div className="rounded-xl border border-border bg-card p-5">
           <h3 className="font-medium">Funded readiness</h3>
           <div className="relative mx-auto mt-2 h-44 w-44">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <RadialBarChart
                 innerRadius="70%"
                 outerRadius="100%"
@@ -133,7 +133,7 @@ export function AnalyticsView() {
         <div className="rounded-xl border border-border bg-card p-5 lg:col-span-2">
           <h3 className="font-medium">P&amp;L by session</h3>
           <div className="mt-4 h-56">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={a.bySession} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <XAxis dataKey="session" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
                 <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => `$${v}`} />
@@ -157,7 +157,7 @@ export function AnalyticsView() {
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
         <h3 className="font-medium">P&amp;L by instrument</h3>
         <div className="mt-4 h-56">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
             <BarChart data={a.byInstrument} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
               <XAxis dataKey="instrument" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => `$${v}`} />
@@ -210,7 +210,7 @@ export function AnalyticsView() {
                 <h3 className="font-medium">P&amp;L by Day of Week</h3>
               </div>
               <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={byDay} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <XAxis dataKey="day" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => `$${v}`} />
@@ -240,7 +240,7 @@ export function AnalyticsView() {
                 </div>
               ) : (
                 <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                     <BarChart data={byHour} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                       <XAxis dataKey="hour" tick={{ fill: "var(--color-muted-foreground)", fontSize: 9 }} tickLine={false} axisLine={false} interval={Math.ceil(byHour.length / 8)} />
                       <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={52} tickFormatter={(v) => `$${v}`} />
@@ -298,7 +298,7 @@ export function AnalyticsView() {
               </div>
             ) : (
               <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                   <BarChart data={byTag} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                     <XAxis dataKey="tag" tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fill: "var(--color-muted-foreground)", fontSize: 11 }} tickLine={false} axisLine={false} width={56} tickFormatter={(v) => `$${v}`} />

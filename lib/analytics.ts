@@ -132,14 +132,18 @@ export function generateCoachInsights(trades: Trade[], a: Analytics): CoachInsig
     })
   }
   // overtrading: any day with > 8 trades
-  const perDay = new Map<number, number>()
-  trades.forEach((t) => perDay.set(t.day, (perDay.get(t.day) ?? 0) + 1))
+  const perDay = new Map<string, number>()
+  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York" })
+  trades.forEach((t) => {
+    const d = fmt.format(new Date(Number(t.timestamp)))
+    perDay.set(d, (perDay.get(d) ?? 0) + 1)
+  })
   const overtradeDay = [...perDay.entries()].find(([, c]) => c > 8)
   if (overtradeDay) {
     out.push({
       severity: "warning",
       title: "Overtrading detected",
-      detail: `Day ${overtradeDay[0]} had ${overtradeDay[1]} trades. High frequency often signals revenge trading — set a daily trade cap.`,
+      detail: `Date ${overtradeDay[0]} had ${overtradeDay[1]} trades. High frequency often signals revenge trading — set a daily trade cap.`,
     })
   }
   if (a.winRate >= 50 && a.profitFactor >= 1.3) {

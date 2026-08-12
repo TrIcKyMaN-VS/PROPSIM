@@ -138,6 +138,8 @@ export async function POST(req: Request) {
         }
         
         if (!isArray) {
+          // Reindex days so this trade's day number reflects its real calendar date
+          await reindexTradeDays(account.id)
           return NextResponse.json({ message: "Trade updated successfully", trade: safeTrade }, { status: 200 })
         }
         syncedTrades.push({ 
@@ -189,6 +191,8 @@ export async function POST(req: Request) {
       }
       
       if (!isArray) {
+        // Reindex days so this trade's day number reflects its real calendar date
+        await reindexTradeDays(account.id)
         return NextResponse.json({ message: "Trade synced successfully", trade: safeTrade }, { status: 200 })
       }
       
