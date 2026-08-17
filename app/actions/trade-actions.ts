@@ -9,6 +9,29 @@ import fs from "fs"
 import path from "path"
 import { createClient } from "@supabase/supabase-js"
 
+async function deleteStorageFile(url: string) {
+  if (!url) return
+  if (url.startsWith("/uploads/")) {
+    const filePath = path.join(process.cwd(), "public", url)
+    if (fs.existsSync(filePath)) {
+      try { fs.unlinkSync(filePath) } catch (err) { console.error("Failed to delete local file:", err) }
+    }
+  } else if (url.includes("/storage/v1/object/public/screenshots/") || url.includes("/storage/v1/object/")) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (supabaseUrl && supabaseKey) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        // Extract the file path after the bucket name
+        const parts = url.split("/screenshots/")
+        if (parts.length > 1) {
+          await supabase.storage.from("screenshots").remove([parts[1]])
+        }
+      } catch (err) { console.error("Failed to delete Supabase file:", err) }
+    }
+  }
+}
+
 export async function getTrades(accountId?: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
@@ -22,7 +45,8 @@ export async function getTrades(accountId?: string) {
     where: whereClause,
     orderBy: { timestamp: "asc" },
     include: {
-      screenshots: true
+      screenshots: true,
+      psychology: true
     }
   })
 
@@ -40,6 +64,30 @@ export async function getTrades(accountId?: string) {
     exitQualityScore: t.exitQualityScore ?? undefined,
     riskScore: t.riskScore ?? undefined,
     disciplineScore: t.disciplineScore ?? undefined,
+    confidenceScore: t.confidenceScore ?? undefined,
+    adverseExcursion: t.adverseExcursion ?? undefined,
+    favorableExcursion: t.favorableExcursion ?? undefined,
+    psychology: t.psychology ? {
+      preFeeling: t.psychology.preFeeling ?? undefined,
+      preNotes: t.psychology.preNotes ?? undefined,
+      checklistScore: t.psychology.checklistScore ?? undefined,
+      convictionScore: t.psychology.convictionScore ?? undefined,
+      riskAmount: t.psychology.riskAmount ?? undefined,
+      rewardAmount: t.psychology.rewardAmount ?? undefined,
+      expectedValue: t.psychology.expectedValue ?? undefined,
+      hesitated: t.psychology.hesitated,
+      movedStop: t.psychology.movedStop,
+      movedTarget: t.psychology.movedTarget,
+      addedSize: t.psychology.addedSize,
+      emotionAffected: t.psychology.emotionAffected,
+      brokeRules: t.psychology.brokeRules,
+      exitReason: t.psychology.exitReason ?? undefined,
+      executionGrade: t.psychology.executionGrade ?? undefined,
+      psychologyGrade: t.psychology.psychologyGrade ?? undefined,
+      riskGrade: t.psychology.riskGrade ?? undefined,
+      complianceGrade: t.psychology.complianceGrade ?? undefined,
+      decisionScore: t.psychology.decisionScore ?? undefined,
+    } : undefined,
     screenshots: t.screenshots || []
   })) as Trade[]
 }
@@ -98,7 +146,8 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       disciplineScore: scores.disciplineScore
     },
     include: {
-      screenshots: true
+      screenshots: true,
+      psychology: true
     }
   })
 
@@ -106,7 +155,7 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
 
   const finalTrade = await prisma.trade.findUnique({
     where: { id: created.id },
-    include: { screenshots: true }
+    include: { screenshots: true, psychology: true }
   })
 
   if (!finalTrade) throw new Error("Created trade not found")
@@ -124,6 +173,30 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
     exitQualityScore: finalTrade.exitQualityScore ?? undefined,
     riskScore: finalTrade.riskScore ?? undefined,
     disciplineScore: finalTrade.disciplineScore ?? undefined,
+    confidenceScore: finalTrade.confidenceScore ?? undefined,
+    adverseExcursion: finalTrade.adverseExcursion ?? undefined,
+    favorableExcursion: finalTrade.favorableExcursion ?? undefined,
+    psychology: finalTrade.psychology ? {
+      preFeeling: finalTrade.psychology.preFeeling ?? undefined,
+      preNotes: finalTrade.psychology.preNotes ?? undefined,
+      checklistScore: finalTrade.psychology.checklistScore ?? undefined,
+      convictionScore: finalTrade.psychology.convictionScore ?? undefined,
+      riskAmount: finalTrade.psychology.riskAmount ?? undefined,
+      rewardAmount: finalTrade.psychology.rewardAmount ?? undefined,
+      expectedValue: finalTrade.psychology.expectedValue ?? undefined,
+      hesitated: finalTrade.psychology.hesitated,
+      movedStop: finalTrade.psychology.movedStop,
+      movedTarget: finalTrade.psychology.movedTarget,
+      addedSize: finalTrade.psychology.addedSize,
+      emotionAffected: finalTrade.psychology.emotionAffected,
+      brokeRules: finalTrade.psychology.brokeRules,
+      exitReason: finalTrade.psychology.exitReason ?? undefined,
+      executionGrade: finalTrade.psychology.executionGrade ?? undefined,
+      psychologyGrade: finalTrade.psychology.psychologyGrade ?? undefined,
+      riskGrade: finalTrade.psychology.riskGrade ?? undefined,
+      complianceGrade: finalTrade.psychology.complianceGrade ?? undefined,
+      decisionScore: finalTrade.psychology.decisionScore ?? undefined,
+    } : undefined,
     screenshots: finalTrade.screenshots || []
   } as Trade
 }
@@ -137,6 +210,11 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
   delete data.accountId
   delete data.timestamp
   delete data.screenshots
+  delete data.psychology
+  // Extra fields not yet in older generated client — safe to keep, Prisma will ignore via try/catch below
+  // but strip any non-primitive nested objects that cause validation errors
+  delete data.account
+  delete data.playbook
 
   if (data.tags) data.tags = JSON.stringify(data.tags)
   if (data.playbookChecklist !== undefined) {
@@ -154,16 +232,32 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
   const scores = calculateTradeScores(mergedTrade, psy)
   Object.assign(data, scores)
 
-  const updated = await prisma.trade.update({
-    where: { 
-      id,
-      account: { userId: session.user.id }
-    },
-    data,
-    include: {
-      screenshots: true
-    }
-  })
+  let updated: any
+  try {
+    updated = await prisma.trade.update({
+      where: {
+        id,
+        account: { userId: session.user.id }
+      },
+      data,
+      include: { screenshots: true, psychology: true }
+    })
+  } catch (e: any) {
+    // If PrismaClientValidationError (stale generated client), strip new fields and retry
+    if (e?.name === "PrismaClientValidationError" || e?.message?.includes("Unknown argument")) {
+      const safeData = { ...data }
+      delete safeData.executionImprovement
+      delete safeData.resultVsExpectation
+      updated = await prisma.trade.update({
+        where: {
+          id,
+          account: { userId: session.user.id }
+        },
+        data: safeData,
+        include: { screenshots: true, psychology: true }
+      })
+    } else throw e
+  }
 
   return {
     ...updated,
@@ -178,6 +272,30 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
     exitQualityScore: updated.exitQualityScore ?? undefined,
     riskScore: updated.riskScore ?? undefined,
     disciplineScore: updated.disciplineScore ?? undefined,
+    confidenceScore: updated.confidenceScore ?? undefined,
+    adverseExcursion: updated.adverseExcursion ?? undefined,
+    favorableExcursion: updated.favorableExcursion ?? undefined,
+    psychology: updated.psychology ? {
+      preFeeling: updated.psychology.preFeeling ?? undefined,
+      preNotes: updated.psychology.preNotes ?? undefined,
+      checklistScore: updated.psychology.checklistScore ?? undefined,
+      convictionScore: updated.psychology.convictionScore ?? undefined,
+      riskAmount: updated.psychology.riskAmount ?? undefined,
+      rewardAmount: updated.psychology.rewardAmount ?? undefined,
+      expectedValue: updated.psychology.expectedValue ?? undefined,
+      hesitated: updated.psychology.hesitated,
+      movedStop: updated.psychology.movedStop,
+      movedTarget: updated.psychology.movedTarget,
+      addedSize: updated.psychology.addedSize,
+      emotionAffected: updated.psychology.emotionAffected,
+      brokeRules: updated.psychology.brokeRules,
+      exitReason: updated.psychology.exitReason ?? undefined,
+      executionGrade: updated.psychology.executionGrade ?? undefined,
+      psychologyGrade: updated.psychology.psychologyGrade ?? undefined,
+      riskGrade: updated.psychology.riskGrade ?? undefined,
+      complianceGrade: updated.psychology.complianceGrade ?? undefined,
+      decisionScore: updated.psychology.decisionScore ?? undefined,
+    } : undefined,
     screenshots: updated.screenshots || []
   } as Trade
 }
@@ -188,8 +306,15 @@ export async function deleteTrade(id: string) {
 
   const trade = await prisma.trade.findUnique({
     where: { id },
-    select: { accountId: true }
+    select: { accountId: true, screenshots: { select: { url: true } } }
   })
+
+  // Clean up screenshot files before deleting
+  if (trade?.screenshots) {
+    for (const sc of trade.screenshots) {
+      await deleteStorageFile(sc.url)
+    }
+  }
 
   await prisma.trade.deleteMany({
     where: { 
@@ -223,16 +348,7 @@ export async function addTradeScreenshot(tradeId: string, stage: string, url: st
 
   // Clean up physical local files if they exist
   for (const sc of existingScreenshots) {
-    if (sc.url.startsWith("/uploads/")) {
-      const oldPath = path.join(process.cwd(), "public", sc.url)
-      if (fs.existsSync(oldPath)) {
-        try {
-          fs.unlinkSync(oldPath)
-        } catch (err) {
-          console.error("Failed to delete local screenshot file:", err)
-        }
-      }
-    }
+    await deleteStorageFile(sc.url)
   }
 
   await prisma.tradeScreenshot.deleteMany({
@@ -314,17 +430,7 @@ export async function deleteTradeScreenshot(id: string) {
     throw new Error("Unauthorized")
   }
 
-  // Clean up local file if it exists
-  if (screenshot.url.startsWith("/uploads/")) {
-    const filePath = path.join(process.cwd(), "public", screenshot.url)
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath)
-      } catch (err) {
-        console.error("Failed to delete local screenshot file:", err)
-      }
-    }
-  }
+  await deleteStorageFile(screenshot.url)
 
   await prisma.tradeScreenshot.delete({
     where: { id }
@@ -386,7 +492,7 @@ export async function reindexTradeDays(accountId: string, forceRecalculate?: boo
   const trades = await prisma.trade.findMany({
     where: { accountId },
     orderBy: { timestamp: "asc" },
-    include: { screenshots: true }
+    include: { screenshots: true, psychology: true }
   })
 
   if (trades.length === 0) return
@@ -449,6 +555,30 @@ export async function reindexTradeDays(accountId: string, forceRecalculate?: boo
         exitQualityScore: t.exitQualityScore ?? undefined,
         riskScore: t.riskScore ?? undefined,
         disciplineScore: t.disciplineScore ?? undefined,
+        confidenceScore: t.confidenceScore ?? undefined,
+        adverseExcursion: t.adverseExcursion ?? undefined,
+        favorableExcursion: t.favorableExcursion ?? undefined,
+        psychology: t.psychology ? {
+          preFeeling: t.psychology.preFeeling ?? undefined,
+          preNotes: t.psychology.preNotes ?? undefined,
+          checklistScore: t.psychology.checklistScore ?? undefined,
+          convictionScore: t.psychology.convictionScore ?? undefined,
+          riskAmount: t.psychology.riskAmount ?? undefined,
+          rewardAmount: t.psychology.rewardAmount ?? undefined,
+          expectedValue: t.psychology.expectedValue ?? undefined,
+          hesitated: t.psychology.hesitated,
+          movedStop: t.psychology.movedStop,
+          movedTarget: t.psychology.movedTarget,
+          addedSize: t.psychology.addedSize,
+          emotionAffected: t.psychology.emotionAffected,
+          brokeRules: t.psychology.brokeRules,
+          exitReason: t.psychology.exitReason ?? undefined,
+          executionGrade: t.psychology.executionGrade ?? undefined,
+          psychologyGrade: t.psychology.psychologyGrade ?? undefined,
+          riskGrade: t.psychology.riskGrade ?? undefined,
+          complianceGrade: t.psychology.complianceGrade ?? undefined,
+          decisionScore: t.psychology.decisionScore ?? undefined,
+        } : undefined,
         screenshots: t.screenshots || []
       }
     }) as any[]

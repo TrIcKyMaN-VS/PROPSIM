@@ -1,0 +1,489 @@
+M E N T O R S H I P P R O G R A M · W O R K B O O K 0 1
+The Trading
+Journal System
+Daily · Weekly · Monthly
+A guided framework for turning your screen time into written evidence
+— and your written evidence into rules you can actually trade.
+01 	DAILY 	Capture the plan, the execution and the truth about both — while it is still fresh.
+02 	WEEKLY 	Convert repeated mistakes into written rules, then backtest the same week
+against them.
+03 	MONTHLY 	Audit wins, losses and behaviour — then compare against last month to prove
+improvement.
+hayeder.trades
+O R D E R F L O W · M A R K E T S T R U C T U R E · G E X
+
+-- 1 of 17 --
+
+S T A R T H E R E
+How this system works
+Most traders "journal" by screenshotting a win and moving on. That is a scrapbook, not a journal. This system is
+built as three connected layers, and each layer feeds the next one. If you skip a layer, the one above it has
+nothing to work with.
+L A Y E R 	W H E N 	W H A T I T P R O D U C E S
+Daily 	Before &
+after every
+session
+Raw data — your plan, your trades, your mistakes and your emotional state,
+recorded before memory rewrites them.
+Weekly 	Saturday or
+Sunday
+Rules — patterns pulled out of five days of raw data, written as testable "if / then"
+statements and backtested on that same week.
+Monthly 	Last day of
+the month
+A verdict — what is repeatable, what is leaking money, and the one or two changes
+you commit to next month.
+The six ground rules
+01 	Journal the same day, before you sleep. Memory decays within hours. The emotional truth — why you actually
+clicked — decays even faster.
+02 	Screenshot every trade. Mark your entry, your stop, your target and the level or footprint that justified it. No
+screenshot, no entry in the journal.
+03 	Write what you saw, not what you wish you saw. Nobody else has to read this. The moment you start writing
+for an audience, the journal stops being useful.
+04 	Separate process from outcome. A loss taken exactly by the model is a good trade. A win taken outside the
+model is a bad trade that got paid. Grade both honestly.
+05 	Never skip a red day. The days you least want to write about carry the most information. That is the entire
+point of the red-day checklist.
+06 	Reviews are not optional. The daily journal only collects evidence. The weekly and monthly reviews are where
+that evidence becomes an edge.
+How to use this workbook
+Sections 1–3 explain each layer and what a strong answer looks like. At the end of each section you will find a
+blank template you can copy into Notion, Obsidian, a spreadsheet or a paper notebook — whatever you will
+actually open every day. The tool does not matter. The consistency does.
+02	hayeder.trades — The Trading Journal System
+
+-- 2 of 17 --
+
+S E C T I O N 0 1 · D A I L Y J O U R N A L
+Part A — The pre-market plan
+Written before the session opens. This is the document your post-session notes will grade you against, so it has
+to be specific enough to be wrong.
+1. Higher-timeframe context
+Is price balanced or imbalanced? Where are we relative to yesterday's value area, the overnight range and the weekly open?
+What did the last session leave unfinished?
+2. Levels that matter today
+List them — and next to each one, write why it matters. A level without a reason is decoration.
+3. Scenarios, written as if / then
+Two or three at most. "If price opens inside balance and rejects the high → I look for a short
+on the retest, not the break." If you cannot write the scenario as a sentence, you do not have a plan — you have
+a bias.
+4. News & event risk
+Time-stamped. Decide now whether you trade through it, before it, or not at all.
+5. Risk parameters for the day
+Risk per trade, maximum trades, maximum daily loss, and the point at which you close the platform. Numbers, not feelings.
+6. State check — 1 to 10
+Sleep, stress, and whether you are carrying anything from yesterday's session. Below a 5, size down or sit out. This single line
+will explain more of your bad days than any chart ever will.
+The test of a good plan: if you handed it to another trader in the mentorship, could they trade your session
+without asking you a single question? If not, it is not finished.
+03	Section 01 · Daily journal
+
+-- 3 of 17 --
+
+S E C T I O N 0 1 · D A I L Y J O U R N A L
+Part B — Trade breakdown
+One block per trade, every trade — winners, losers and scratches. Repeat this block as many times as you
+traded.
+T R A D E 0 1 	Setup name: ______________________ Result: _______ R
+Insert the chart screenshot here — entry, stop, target and the level that justified them
+Reasoning & logic
+What was the setup, and what confirmed it? Context, level, order flow, effort vs result, and how it tied back to the pre-
+market plan. Be specific enough that you could recognise this exact condition again six months from now.
+Result vs expectation
+What actually happened, and did it behave the way the model says it should? A trade can hit target and still behave wrong —
+note that when it happens.
+Mistakes & improvement
+Entry timing, sizing, management, exit. Could this execution have been better, or was it clean? "No mistakes" is a valid
+answer — but only if it is true.
+Grade every trade on process, not P&L
+A — By the model, well executed.
+B — By the model, sloppy entry or exit.
+C — Marginal setup, forced.
+D — Outside the model entirely.
+Track the grade next to the R. When your A-grades are profitable and your C and D grades bleed, you no longer need
+convincing — you have proof.
+Daily scorecard
+T R A D E S 	W I N S 	L O S S E S 	N E T R 	R U L E B R E A K S 	G R A D E ( A – D ) 	S T A T E 1 – 1 0
+04	Section 01 · Daily journal
+
+-- 4 of 17 --
+
+S E C T I O N 0 1 · D A I L Y J O U R N A L
+Part C — The red-day checklist
+Complete this only on days you close negative. Four questions, answered honestly, will tell you whether you
+had a bad day or a bad process — and those two require completely different responses.
+[ ] 1. Am I losing more today than I made on my last profitable day?
+If yes, the problem is asymmetry, not accuracy. One red day should never erase several green ones. Check size and check
+how long you stayed in the seat.
+[ ] 2. Did I execute the setups following the model?
+If yes — this was a cost of doing business, and you owe yourself nothing. If no, name the exact deviation. "I was impatient" is
+not a deviation; "I entered on the break instead of waiting for the retest" is.
+[ ] 3. Can I blame myself for risk management?
+Did you oversize, add to a loser, move a stop, revenge trade, or take more trades than your plan allowed? This is the
+question that separates a drawdown from a blow-up.
+[ ] 4. Am I comfortable enough to go to sleep calm?
+If not, write down exactly what is keeping you up. Nine times out of ten it is not the money — it is a rule you know you broke.
+Name it here and it becomes next week's rule.
+The verdict — write one line
+Good process, bad outcome.
+Model followed, risk respected, market simply did not
+pay. No change required. Do not "fix" anything — that
+is how a clean strategy gets destroyed.
+Bad process.
+One or more rules broken. This day goes straight into
+the weekly review as raw material for a new rule.
+Write the specific trigger, not the emotion.
+Corrective action for tomorrow (one only): e.g. no trades in the first 10 minutes; maximum two setups; hard
+stop after −2R.
+05	Section 01 · Daily journal
+
+-- 5 of 17 --
+
+S E C T I O N 0 1 · D A I L Y J O U R N A L
+Part D — Post-session notes
+Written after the close, on every day — green, red or flat. This is where the day gets scored against the plan you
+wrote before it started.
+1. How accurate was my pre-market plan? ___ / 10
+Did the market do what you expected? Which scenario played out, and which one did you not even consider? Being wrong
+here is fine and useful. Being vague is not.
+2. How much of my plan did I actually follow? ___ / 10
+These two scores are the most important numbers in the whole journal. A high accuracy score with a low adherence score
+means you can read the market and cannot follow yourself — that is an execution problem, and it is fixable in weeks. The
+reverse is a strategy problem, and it takes longer.
+3. Overall thought process after the session
+Free writing. What the session felt like, where you hesitated, where you were sharp, what you noticed about the market that
+is not in your model yet. Three to five honest sentences beat a page of tidy ones.
+4. Add / remove / consider for tomorrow
+One thing to add, one thing to remove, one thing to watch. Keep it to three — anything longer is a wish list, not an
+adjustment.
+M E T R I C 	T O D A Y 	N O T E
+Plan accuracy (1–10)
+Plan adherence (1–10)
+Net R for the day
+Rules broken
+Best decision of the day
+Worst decision of the day
+Track adherence, not P&L. Your daily profit is largely outside your control. Your adherence score is entirely
+inside it. Chart the adherence score across a month — that curve is the one that predicts the equity curve.
+06	Section 01 · Daily journal
+
+-- 6 of 17 --
+
+S E C T I O N 0 1 · C O P Y T H I S
+Daily journal — blank template
+Copy this structure into whatever tool you use. Repeat the trade block for each trade taken.
+DATE: ____________ 	SESSION: NY 	INSTRUMENT: ____________
+— PRE-MARKET PLAN —
+HTF context (balanced / imbalanced, prior value, overnight): ..............
+Key levels + why they matter: ..............
+Scenario A — IF .............. THEN ..............
+Scenario B — IF .............. THEN ..............
+News / event risk + time: ..............
+Risk today: ____ per trade 	| 	max trades ____ 	| 	max daily loss ____
+State check (1–10): ____ 	Notes: ..............
+— TRADE [ N ] : [ SETUP NAME ] —
+[ chart screenshot ]
+Reasoning / logic / confirmation: ..............
+Result vs expectation: ..............
+Mistakes + how execution could improve: ..............
+R: ______ 	| 	Process grade: A / B / C / D
+— RED-DAY CHECKLIST (negative days only) —
+[ ] Am I losing more than my last profitable day? ..............
+[ ] Did I execute the setups following the model? ..............
+[ ] Can I blame myself for risk management? ..............
+[ ] Am I able to sleep calm? ..............
+Verdict: good process / bad process 	Corrective action: ..............
+— POST-SESSION NOTES —
+Plan accuracy (1–10): ____ 	Why: ..............
+Plan adherence (1–10): ____ 	Why: ..............
+Overall thought process: ..............
+Tomorrow — ADD: .......... 	REMOVE: .......... 	CONSIDER: ..........
+Net R: ______ 	| 	Rules broken: ______
+07	Section 01 · Daily journal
+
+-- 7 of 17 --
+
+S E C T I O N 0 2 · W E E K L Y R E V I E W
+From mistakes to rules
+At the end of every week, reread all five daily journals in one sitting. You are not looking at P&L. You are looking
+for repetition — the same mistake appearing on Tuesday and Thursday, or the same condition showing up
+before your best entries.
+01 	Read the week end to end. Highlight every repeated mistake and every repeated win condition. Once is noise.
+Twice is a pattern. Three times is a rule waiting to be written.
+02 	Turn each pattern into a rule. A rule must be written as a condition plus an action, and it must be specific
+enough that someone else could apply it to your charts and get the same answer.
+03 	Backtest the same week using those rules. Same days, same charts, replayed — but this time your new rules
+are in force.
+04 	Compare the backtested week against what you actually did. The gap between the two is the exact cost of
+your undisciplined behaviour, in R, in writing.
+05 	Keep, adjust or retire. A rule stays in "testing" until it has survived three separate weeks. Only then does it join
+the model.
+What a good rule looks like
+Structure rule
+When price is balanced, prefer entries on the breakout and retest — trade the transition
+from balance into imbalance, not the middle of the range.
+Order-flow rule
+Before executing, when aggressive large trades show on the 1-minute, check effort vs
+result across more than one 1-minute candle before accepting that one side is truly in
+control.
+Your rules will not look like these. These are examples from my own review, born out of my own mistakes.
+Yours have to come from your daily journals — and they will not all be setup rules. A rule can be a time window
+("no entries in the first 10 minutes of the session"), a risk protocol ("stop for the day after two consecutive
+losses"), or a behavioural rule ("no trade without a written scenario"). If a mistake cost you money twice this
+week, it has earned a rule.
+08	Section 02 · Weekly review
+
+-- 8 of 17 --
+
+S E C T I O N 0 2 · W E E K L Y R E V I E W
+Backtest & compare
+Replay the same week with your new rules applied, then put the two versions side by side. This is the step
+almost everyone skips, and the one that makes rules stick — because you stop being told discipline pays and
+start seeing the number.
+Rule log
+# 	R U L E ( C O N D I T I O N → A C T I O N ) B O R N F R O M W H I C H
+M I S T A K E S T A T U S
+1
+2
+3
+Status: Testing (week 1–3) · Active (survived three weeks) · Retired (cost more than it saved).
+Actual week vs rule-based backtest
+M E T R I C 	A C T U A L W E E K 	W I T H R U L E S A P P L I E D 	D I F F E R E N C E
+Number of trades
+Win rate
+Net R
+Largest single loss
+Worst drawdown in the week
+Trades that broke a rule
+Three questions to close the week
+• Which rule would have saved the most R this week?
+• Did any rule filter out a trade that was actually good? (A rule that removes your best trades is a bad rule — adjust it rather
+than defending it.)
+• Which single rule am I committing to for next week, above all others?
+Careful: backtesting your own week is easy to fake, because you already know how the session ended. Replay
+bar by bar, and if you are unsure whether you would really have taken an entry — you would not have. Count it
+as skipped.
+09	Section 02 · Weekly review
+
+-- 9 of 17 --
+
+S E C T I O N 0 2 · C O P Y T H I S
+Weekly review — blank template
+WEEK OF: ____________ 	DAYS TRADED: ____ 	NET R: ______
+— 1. PATTERNS FROM THE DAILY JOURNALS —
+Repeated mistakes: ..............
+Repeated conditions behind my best trades: ..............
+Emotional / timing patterns I noticed: ..............
+— 2. RULES BUILT FROM THIS WEEK —
+Rule 1 — WHEN .............. THEN .............. (from: ..............)
+Rule 2 — WHEN .............. THEN .............. (from: ..............)
+Rule 3 — WHEN .............. THEN .............. (from: ..............)
+— 3. BACKTEST OF THIS SAME WEEK WITH RULES APPLIED —
+Trades taken: ____ 	| 	Trades skipped by rules: ____
+Win rate: ____ 	| 	Net R: ______ 	| 	Largest loss: ______
+Notes on the replay: ..............
+— 4. COMPARISON —
+Actual net R: ______ 	vs 	Rule-based net R: ______ 	Difference: ______
+What the difference tells me: ..............
+Rule that would have saved the most: ..............
+Rule that filtered out a good trade (needs adjusting): ..............
+— 5. COMMITMENT FOR NEXT WEEK —
+The one rule I will not break: ..............
+Rule status updates — testing / active / retired: ..............
+Keep a running rule book. Do not rewrite your rules each week from scratch. Maintain one master list, dated,
+with the status of each rule. After three months you will have something no course can sell you: a model built
+entirely out of your own documented mistakes.
+10	Section 02 · Weekly review
+
+-- 10 of 17 --
+
+S E C T I O N 0 3 · M O N T H L Y R E C A P
+Winning trades
+Once you have a full month of daily journals and four weekly reviews, sit down and audit the month in three
+blocks: what won, what lost, and how you behaved. Start with the winners — not to celebrate them, but to find
+out which part of your edge is actually repeatable.
+Which setups made the most impact this month — and are they repeatable?
+Rank your setups by net R contribution, not by hit rate. Then ask the harder question of each one: could I define its
+conditions clearly enough to trade it again next month, or did it depend on a market state that has already passed?
+Did I maximise my winning days over my losing days?
+Compare total R made on green days against total R lost on red days. Your green days should be meaningfully larger. If they
+are not, you are cutting winners early, holding losers long, or sizing up on exactly the wrong days.
+What did my best trades have in common?
+Time of session, market state, level type, order-flow confirmation, how long you waited before entering, your state score
+that morning. Whatever repeats across your top five trades is the core of your edge — and it belongs in your rule book.
+How did these wins affect my confidence and my process?
+Did a good run make you sharper, or did it make you sloppy and oversized two days later? Winning streaks damage more
+accounts than losing streaks do, because nobody inspects them.
+T O P S E T U P S T H I S M O N T H 	T R A D E S 	W I N R A T E 	N E T R 	R E P E A T A B L E ?
+11	Section 03 · Monthly recap
+
+-- 11 of 17 --
+
+S E C T I O N 0 3 · M O N T H L Y R E C A P
+Losing trades
+Losses are only expensive if you fail to extract anything from them. This block decides whether this month's
+losses were tuition or waste.
+Were my losses within planned risk?
+Go through every red trade and check the size against the plan. Did you oversize on any of them? Did you overtrade on
+specific days? Mark the dates — overtrading almost always clusters around the same triggers.
+Did I follow my rules on losing trades?
+Split the losses into two piles: rule-following losses and rule-breaking losses. Add up the R in each. The first pile is the cost of
+your edge. The second pile is the money you paid for nothing.
+What patterns show up in my losing trades?
+A particular time of the session? A particular day of the week? After a win, or after a loss? On days your state score was
+below 5? After watching someone else's trade? Find the trigger, because the trigger is what you can control — the loss itself
+is not.
+Did I learn from my losses, or did I repeat the same mistakes?
+Compare against last month's recap. If the same mistake appears in both, the problem is no longer knowledge — it is a
+missing rule or a missing constraint. Build the constraint into your environment, not your willpower.
+L O S S C A T E G O R Y 	T R A D E S 	T O T A L R L O S T 	T R I G G E R / P A T T E R N
+Rule-following losses
+Rule-breaking losses
+Oversized / overtraded
+The number that matters: total R lost on rule-breaking trades. That figure is your discipline tax for the month.
+Write it at the top of next month's plan and try to make it smaller. Nothing else in this recap moves an equity
+curve faster.
+12	Section 03 · Monthly recap
+
+-- 12 of 17 --
+
+S E C T I O N 0 3 · M O N T H L Y R E C A P
+Overall — behaviour & progress
+The last block is not about trades at all. It is about the trader. Answer these against last month, not against
+some imaginary standard.
+Did my discipline, consistency and mindset improve compared to last month?
+Point to evidence, not feeling. Fewer rule breaks, fewer revenge trades, higher average adherence score, fewer days below a
+5 on the state check.
+Did I follow my rules more this month than last month?
+Count the rule breaks in both months and compare directly. This is the single cleanest measure of progress in the entire
+workbook, because it is immune to whether the market happened to suit you.
+Was I consistent with journaling and weekly reviews — and did I act on them?
+How many days did you journal out of the days you traded? How many weekly reviews did you complete? And did any rule
+you wrote actually change your behaviour, or did it just sit in a document?
+What one or two changes will I commit to next month?
+Two maximum. Specific, measurable, and checkable in thirty days. "Be more patient" fails all three tests. "No entries before
+9:45, no more than three trades per session" passes all three.
+Month-over-month scoreboard
+M E T R I C 	L A S T M O N T H 	T H I S M O N T H 	D I R E C T I O N
+Net R
+Win rate
+Avg R on green days vs red days
+Rule breaks
+R lost to rule breaks
+Avg plan adherence (1–10)
+Days journaled / days traded
+13	Section 03 · Monthly recap
+
+-- 13 of 17 --
+
+S E C T I O N 0 3 · M O N T H L Y R E C A P
+Compare this month against last month
+Once you have two months of recaps written, put them side by side and compare your answers to the same
+questions. This is where improvement stops being a feeling and becomes visible. Use an AI assistant for this step
+— it will spot repetition across two documents faster than you will, and it has no reason to flatter you.
+P R O M P T — C O P Y A N D P A S T E
+You are my trading performance coach. Below are my monthly journal recaps for [MONTH A]
+and [MONTH B], answering the same set of questions.
+Compare them and tell me:
+1. What measurably improved, with the numbers.
+2. What stayed the same or got worse.
+3. Which mistakes appear in both months — quote my own words back to me.
+4. Which rules I said I would follow but the answers suggest I did not.
+5. Whether my stated commitments from [MONTH A] actually showed up in [MONTH B].
+6. The one or two highest-leverage changes for next month, ranked.
+Be blunt and specific. Do not encourage me for the sake of it. If the evidence says I did
+not improve, say so plainly.
+--- MONTH A RECAP ---
+[ paste ]
+--- MONTH B RECAP ---
+[ paste ]
+What to do with the output
+01 	Do not accept it at face value. The AI only sees what you wrote. If your journals are vague, the comparison will
+be vague. Garbage in, encouragement out.
+02 	Look for the repeated mistake first. Anything appearing in both months is your single highest-priority fix for
+next month. Everything else waits.
+03 	Convert the findings into rules, using the same condition → action format from the weekly review. A finding
+that does not become a rule changes nothing.
+04 	Save the comparison. Three of these back to back is the clearest record of development you will ever own as a
+trader.
+Commitments carried into next month
+14	Section 03 · Monthly recap
+
+-- 14 of 17 --
+
+S E C T I O N 0 3 · C O P Y T H I S
+Monthly recap — blank template
+MONTH: ____________ 	| 	DAYS TRADED: ____ 	| 	NET R: ______
+— WINNING TRADES —
+Which setups made the most impact? Are they repeatable? ..............
+Did I maximise winning days over losing days? (R made on green days vs R lost on red days)
+..............
+What did my best trades have in common? ..............
+How did these wins affect my confidence and process? ..............
+— LOSING TRADES —
+Were my losses within planned risk? Did I oversize or overtrade on certain days?
+..............
+Did I follow my rules on losing trades? (rule-following R vs rule-breaking R)
+..............
+What patterns show up in my losing trades? (time, day, emotional trigger) ..............
+Did I learn from my losses, or repeat the same mistakes? ..............
+— OVERALL —
+Did my discipline, consistency and mindset improve vs last month? ..............
+Did I follow my rules more than last month? (rule breaks: ____ vs ____) ..............
+Was I consistent with journaling and weekly reviews? ____ / ____ days
+What 1–2 changes will I commit to next month? ..............
+— MONTH VS MONTH —
+Run the comparison prompt on last month's recap and this one.
+Repeated mistakes found: ..............
+Commitments from last month I actually kept: ..............
+Highest-leverage change for next month: ..............
+15	Section 03 · Monthly recap
+
+-- 15 of 17 --
+
+R E F E R E N C E
+The rhythm & the numbers
+Your journaling rhythm
+W H E N 	T I M E N E E D E D 	W H A T Y O U D O
+Before the open 	10–15 min 	Write the pre-market plan. Context, levels, scenarios, risk, state check.
+After each trade 	2 min 	Screenshot and one line of reasoning while it is still fresh. Fill in the rest
+after the close.
+After the close 	15–20 min 	Trade breakdowns, red-day checklist if negative, post-session notes and
+scores.
+Weekend 	60–90 min 	Read the week, build rules, backtest the week with them, compare and
+commit.
+End of month 	90 min 	Full recap, month-over-month comparison, one or two commitments.
+Metrics worth tracking
+M E T R I C 	W H A T I T T E L L S Y O U
+R multiple 	Result of a trade expressed in units of the risk you took. Reporting in R rather than
+currency keeps the analysis honest across different account sizes.
+Expectancy 	Average R per trade over a sample. The only number that answers "is this model actually
+worth trading?"
+Profit factor 	Gross R won divided by gross R lost. Below 1.0 you are paying the market for the
+privilege.
+Adherence score 	How much of your written plan you actually followed. Fully within your control — and it
+usually leads the equity curve.
+Discipline tax 	Total R lost specifically on rule-breaking trades. The fastest single number to improve.
+Green vs red day ratio 	Average R on winning days against average R on losing days. Tells you whether your
+asymmetry is right way round.
+Thirty days from now, the value of this workbook will not be in any single entry. It will be in the pattern that
+appears when you read a month of them in one sitting — the same mistake, the same hour, the same trigger,
+in your own handwriting. That is the moment the journal starts paying you back.
+16	Reference
+
+-- 16 of 17 --
+
+C O M M I T M E N T
+Consistency beats intensity.
+Journal every session you trade, review every week you trade, and
+recap every month you trade. Do that for ninety days and you will
+know more about your own edge than any indicator, course or signal
+group could ever tell you.
+My commitment
+I will journal every session, complete a weekly review every weekend, and recap every month before starting the next.
+Name 	Start date
+hayeder.trades
+M E N T O R S H I P P R O G R A M · T H E T R A D I N G J O U R N A L S Y S T E M
+
+-- 17 of 17 --
+

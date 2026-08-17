@@ -1,0 +1,126 @@
+
+model DailyJournal {
+  id                  String   @id @default(cuid())
+  userId              String
+  date                String
+  session             String   @default("NY")
+  instrument          String?
+
+  // Pre-Market Plan
+  htfContext          String?
+  keyLevels           String?
+  scenarioA           String?
+  scenarioB           String?
+  newsEventRisk       String?
+  riskPerTrade        String?
+  maxTrades           Int?
+  maxDailyLoss        String?
+  stateCheck          Int?
+  stateCheckNotes     String?
+
+  // Red-Day Checklist
+  isRedDay            Boolean  @default(false)
+  redQ1LosingMore     String?
+  redQ2FollowedModel  String?
+  redQ3BlameRisk      String?
+  redQ4SleepCalm      String?
+  redVerdict          String?
+  redCorrectiveAction String?
+
+  // Post-Session Notes
+  planAccuracy        Int?
+  planAccuracyWhy     String?
+  planAdherence       Int?
+  planAdherenceWhy    String?
+  overallThoughtProcess String?
+  tomorrowAdd         String?
+  tomorrowRemove      String?
+  tomorrowConsider    String?
+  netR                String?
+  rulesBroken         String?
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model WeeklyReview {
+  id                      String   @id @default(cuid())
+  userId                  String
+  weekOf                  String
+  daysTradedCount         Int?
+  netR                    String?
+
+  // 1. Patterns
+  repeatedMistakes        String?
+  repeatedWinConditions   String?
+  emotionalTimingPatterns String?
+
+  // 2. Rules Built (JSON: [{ when, then, from }])
+  rulesBuilt              String?
+
+  // 3. Backtest
+  backtestTradesTaken     Int?
+  backtestTradesSkipped   Int?
+  backtestWinRate         String?
+  backtestNetR            String?
+  backtestLargestLoss     String?
+  backtestNotes           String?
+
+  // 4. Comparison
+  actualNetR              String?
+  ruleBasedNetR           String?
+  comparisonDifference    String?
+  whatDifferenceTellsMe   String?
+  ruleSavedMost           String?
+  ruleFilteredGoodTrade   String?
+
+  // 5. Commitment
+  oneRuleNotBreak         String?
+  ruleStatusUpdates       String?
+
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekOf])
+}
+
+model MonthlyRecap {
+  id                           String   @id @default(cuid())
+  userId                       String
+  month                        String
+  daysTradedCount              Int?
+  netR                         String?
+
+  // Winning Trades
+  winsImpactfulSetups          String?
+  winsMaximisedDays            String?
+  winsBestTradesCommon         String?
+  winsAffectedConfidence       String?
+
+  // Losing Trades
+  lossesWithinRisk             String?
+  lossesFollowedRules          String?
+  lossesPatterns               String?
+  lossesLearnedOrRepeated      String?
+
+  // Overall
+  overallDisciplineImproved    String?
+  overallFollowedRulesMore     String?
+  overallConsistentJournaling  String?
+  overallCommitNextMonth       String?
+
+  // Month vs Month
+  monthVsMonthRepeatedMistakes  String?
+  monthVsMonthCommitmentsKept   String?
+  monthVsMonthHighestLeverage   String?
+
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
+  user                         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+}

@@ -73,9 +73,11 @@ export interface Trade {
   tradeIdea?: string
   marketBias?: string
   reasonForEntry?: string
+  resultVsExpectation?: string
   expectedRR?: string
   outcome?: string
   mistakes?: string
+  executionImprovement?: string
   lessonsLearned?: string
   psychologyNotes?: string
   setupQualityScore?: number
@@ -83,6 +85,30 @@ export interface Trade {
   exitQualityScore?: number
   riskScore?: number
   disciplineScore?: number
+  confidenceScore?: number
+  adverseExcursion?: number
+  favorableExcursion?: number
+  psychology?: {
+    preFeeling?: string
+    preNotes?: string
+    checklistScore?: number
+    convictionScore?: number
+    riskAmount?: number
+    rewardAmount?: number
+    expectedValue?: number
+    hesitated?: boolean
+    movedStop?: boolean
+    movedTarget?: boolean
+    addedSize?: boolean
+    emotionAffected?: boolean
+    brokeRules?: boolean
+    exitReason?: string
+    executionGrade?: string
+    psychologyGrade?: string
+    riskGrade?: string
+    complianceGrade?: string
+    decisionScore?: number
+  }
   screenshots?: any[]
 }
 

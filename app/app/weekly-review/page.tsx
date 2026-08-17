@@ -1,197 +1,530 @@
-"use client"
+"use client";
 
-import { usePropStore } from "@/lib/store"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { BrainCircuit, Target, TrendingUp, AlertTriangle } from "lucide-react"
-import { toast } from "sonner"
-import { useState, useEffect } from "react"
+import { useState, useEffect } from "react";
+import {
+  getWeeklyReview,
+  saveWeeklyReview,
+} from "@/app/actions/journal-actions";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Plus, Trash, Save, Loader2 } from "lucide-react";
+
+const getCurrentWeekKey = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const oneJan = new Date(year, 0, 1);
+  const numberOfDays = Math.floor(
+    (d.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  const week = Math.ceil((d.getDay() + 1 + numberOfDays) / 7);
+  return `${year}-W${week.toString().padStart(2, "0")}`;
+};
 
 export default function WeeklyReviewPage() {
-  const activeAccountId = usePropStore(s => s.activeAccountId)
-  const trades = usePropStore(s => s.trades).filter(t => t.accountId === activeAccountId)
-  const psychology = usePropStore(s => s.tradePsychology)
-  const [loading, setLoading] = useState(false)
-  const [analysis, setAnalysis] = useState<any>(null)
+  const [weekOf, setWeekOf] = useState(getCurrentWeekKey());
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Naive week key calculation (e.g. "2026-W23")
-  const getWeekKey = () => {
-    const d = new Date()
-    const year = d.getFullYear()
-    const oneJan = new Date(year, 0, 1)
-    const numberOfDays = Math.floor((d.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000))
-    const week = Math.ceil((d.getDay() + 1 + numberOfDays) / 7)
-    return `${year}-W${week}`
-  }
+  // Header state
+  const [daysTradedCount, setDaysTradedCount] = useState<number | "">("");
+  const [netR, setNetR] = useState("");
 
-  // Filter trades by the current week (past 7 days)
-  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-  const weeklyTrades = trades.filter(t => Number(t.timestamp) >= oneWeekAgo)
-  
-  const pnl = weeklyTrades.reduce((s, t) => s + t.pnl, 0)
-  const wins = weeklyTrades.filter(t => t.pnl > 0)
-  const winRate = weeklyTrades.length > 0 ? (wins.length / weeklyTrades.length) * 100 : 0
-  
-  const grossWin = wins.reduce((s, t) => s + t.pnl, 0)
-  const grossLoss = Math.abs(weeklyTrades.filter(t => t.pnl <= 0).reduce((s, t) => s + t.pnl, 0))
-  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? 99 : 0)
+  // 1. Patterns
+  const [repeatedMistakes, setRepeatedMistakes] = useState("");
+  const [repeatedWinConditions, setRepeatedWinConditions] = useState("");
+  const [emotionalTimingPatterns, setEmotionalTimingPatterns] = useState("");
 
-  const bestTrade = [...weeklyTrades].sort((a, b) => b.pnl - a.pnl)[0]
-  const worstTrade = [...weeklyTrades].sort((a, b) => a.pnl - b.pnl)[0]
+  // 2. Rules Built
+  const [rulesBuilt, setRulesBuilt] = useState<
+    { when: string; then: string; from: string }[]
+  >([]);
 
-  // Count rule breaks
-  const ruleBreaks = weeklyTrades.map(t => psychology.find(p => p.tradeId === t.id)?.brokeRules).filter(Boolean).length
+  // 3. Backtest
+  const [backtestTradesTaken, setBacktestTradesTaken] = useState<number | "">(
+    "",
+  );
+  const [backtestTradesSkipped, setBacktestTradesSkipped] = useState<
+    number | ""
+  >("");
+  const [backtestWinRate, setBacktestWinRate] = useState("");
+  const [backtestNetR, setBacktestNetR] = useState("");
+  const [backtestLargestLoss, setBacktestLargestLoss] = useState("");
+  const [backtestNotes, setBacktestNotes] = useState("");
+
+  // 4. Comparison
+  const [actualNetR, setActualNetR] = useState("");
+  const [ruleBasedNetR, setRuleBasedNetR] = useState("");
+  const [comparisonDifference, setComparisonDifference] = useState("");
+  const [whatDifferenceTellsMe, setWhatDifferenceTellsMe] = useState("");
+  const [ruleSavedMost, setRuleSavedMost] = useState("");
+  const [ruleFilteredGoodTrade, setRuleFilteredGoodTrade] = useState("");
+
+  // 5. Commitment
+  const [oneRuleNotBreak, setOneRuleNotBreak] = useState("");
+  const [ruleStatusUpdates, setRuleStatusUpdates] = useState("");
 
   useEffect(() => {
-    async function loadCached() {
+    async function loadData() {
+      if (!weekOf) return;
+      setLoading(true);
       try {
-        const { getAiReviewAction } = await import("@/app/actions/ai-actions")
-        const review = await getAiReviewAction("WEEKLY", getWeekKey())
-        if (review) {
-          setAnalysis(JSON.parse(review.summary))
+        const data = await getWeeklyReview(weekOf);
+        if (data) {
+          setDaysTradedCount(data.daysTradedCount ?? "");
+          setNetR(data.netR ?? "");
+          setRepeatedMistakes(data.repeatedMistakes ?? "");
+          setRepeatedWinConditions(data.repeatedWinConditions ?? "");
+          setEmotionalTimingPatterns(data.emotionalTimingPatterns ?? "");
+
+          if (data.rulesBuilt) {
+            try {
+              setRulesBuilt(JSON.parse(data.rulesBuilt));
+            } catch (e) {
+              setRulesBuilt([]);
+            }
+          } else {
+            setRulesBuilt([]);
+          }
+
+          setBacktestTradesTaken(data.backtestTradesTaken ?? "");
+          setBacktestTradesSkipped(data.backtestTradesSkipped ?? "");
+          setBacktestWinRate(data.backtestWinRate ?? "");
+          setBacktestNetR(data.backtestNetR ?? "");
+          setBacktestLargestLoss(data.backtestLargestLoss ?? "");
+          setBacktestNotes(data.backtestNotes ?? "");
+
+          setActualNetR(data.actualNetR ?? "");
+          setRuleBasedNetR(data.ruleBasedNetR ?? "");
+          setComparisonDifference(data.comparisonDifference ?? "");
+          setWhatDifferenceTellsMe(data.whatDifferenceTellsMe ?? "");
+          setRuleSavedMost(data.ruleSavedMost ?? "");
+          setRuleFilteredGoodTrade(data.ruleFilteredGoodTrade ?? "");
+
+          setOneRuleNotBreak(data.oneRuleNotBreak ?? "");
+          setRuleStatusUpdates(data.ruleStatusUpdates ?? "");
+        } else {
+          // Reset form
+          setDaysTradedCount("");
+          setNetR("");
+          setRepeatedMistakes("");
+          setRepeatedWinConditions("");
+          setEmotionalTimingPatterns("");
+          setRulesBuilt([]);
+          setBacktestTradesTaken("");
+          setBacktestTradesSkipped("");
+          setBacktestWinRate("");
+          setBacktestNetR("");
+          setBacktestLargestLoss("");
+          setBacktestNotes("");
+          setActualNetR("");
+          setRuleBasedNetR("");
+          setComparisonDifference("");
+          setWhatDifferenceTellsMe("");
+          setRuleSavedMost("");
+          setRuleFilteredGoodTrade("");
+          setOneRuleNotBreak("");
+          setRuleStatusUpdates("");
         }
       } catch (err) {
-        console.error(err)
+        toast.error("Failed to load weekly review");
+      } finally {
+        setLoading(false);
       }
     }
-    loadCached()
-  }, [])
+    loadData();
+  }, [weekOf]);
 
-  const handleTalkToTherapist = async () => {
-    if (weeklyTrades.length === 0) {
-      toast.error("You need at least one trade this week to generate an analysis.")
-      return
+  const handleSave = async () => {
+    if (!weekOf) {
+      toast.error("Week is required");
+      return;
     }
-    setLoading(true)
+    setSaving(true);
     try {
-      const { generateWeeklyReviewAction } = await import("@/app/actions/ai-actions")
-      const payloadTrades = weeklyTrades.map(t => ({
-        id: t.id,
-        instrument: t.instrument,
-        pnl: t.pnl,
-        direction: t.direction,
-        session: t.session
-      }))
-      const payloadPsychology = psychology.filter(p => weeklyTrades.some(t => t.id === p.tradeId))
-      
-      const res = await generateWeeklyReviewAction(payloadTrades, payloadPsychology, getWeekKey())
-      setAnalysis(res)
-      toast.success("AI Therapist analysis complete!")
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate analysis.")
+      const payload = {
+        daysTradedCount:
+          daysTradedCount === "" ? null : Number(daysTradedCount),
+        netR: netR || null,
+        repeatedMistakes: repeatedMistakes || null,
+        repeatedWinConditions: repeatedWinConditions || null,
+        emotionalTimingPatterns: emotionalTimingPatterns || null,
+        rulesBuilt: rulesBuilt.length > 0 ? JSON.stringify(rulesBuilt) : null,
+        backtestTradesTaken:
+          backtestTradesTaken === "" ? null : Number(backtestTradesTaken),
+        backtestTradesSkipped:
+          backtestTradesSkipped === "" ? null : Number(backtestTradesSkipped),
+        backtestWinRate: backtestWinRate || null,
+        backtestNetR: backtestNetR || null,
+        backtestLargestLoss: backtestLargestLoss || null,
+        backtestNotes: backtestNotes || null,
+        actualNetR: actualNetR || null,
+        ruleBasedNetR: ruleBasedNetR || null,
+        comparisonDifference: comparisonDifference || null,
+        whatDifferenceTellsMe: whatDifferenceTellsMe || null,
+        ruleSavedMost: ruleSavedMost || null,
+        ruleFilteredGoodTrade: ruleFilteredGoodTrade || null,
+        oneRuleNotBreak: oneRuleNotBreak || null,
+        ruleStatusUpdates: ruleStatusUpdates || null,
+      };
+
+      await saveWeeklyReview(weekOf, payload);
+      toast.success("Weekly review saved successfully!");
+    } catch (err) {
+      toast.error("Failed to save weekly review");
     } finally {
-      setLoading(false)
+      setSaving(false);
     }
-  }
+  };
+
+  const handleAddRule = () => {
+    setRulesBuilt([...rulesBuilt, { when: "", then: "", from: "" }]);
+  };
+
+  const updateRule = (
+    index: number,
+    field: keyof (typeof rulesBuilt)[0],
+    value: string,
+  ) => {
+    const updated = [...rulesBuilt];
+    updated[index][field] = value;
+    setRulesBuilt(updated);
+  };
+
+  const removeRule = (index: number) => {
+    const updated = [...rulesBuilt];
+    updated.splice(index, 1);
+    setRulesBuilt(updated);
+  };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Weekly Review Center</h1>
-          <p className="text-muted-foreground">End of week performance and psychological reflection.</p>
-        </div>
-        <Button onClick={handleTalkToTherapist} disabled={loading}>
-          <BrainCircuit className="w-4 h-4 mr-2" /> 
-          {loading ? "AI Therapist is analyzing..." : "Talk to AI Therapist"}
-        </Button>
-      </div>
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      {/* HEADER */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-4">
+          <div className="space-y-1">
+            <CardTitle className="text-2xl font-bold">Weekly Review</CardTitle>
+            <CardDescription>
+              End of week performance and reflection
+            </CardDescription>
+          </div>
+          <Button onClick={handleSave} disabled={saving || loading}>
+            {saving ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-2" />
+            )}
+            Save Review
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <Label>Week Of</Label>
+              <Input
+                type="week"
+                value={weekOf}
+                onChange={(e) => setWeekOf(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Days Traded</Label>
+              <Input
+                type="number"
+                value={daysTradedCount}
+                onChange={(e) =>
+                  setDaysTradedCount(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+                placeholder="e.g. 5"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Net R (Actual)</Label>
+              <Input
+                value={netR}
+                onChange={(e) => setNetR(e.target.value)}
+                placeholder="e.g. 2.5R"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Weekly P&L</CardTitle></CardHeader>
-          <CardContent><div className={`text-3xl font-bold ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>${pnl.toFixed(2)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Win Rate</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{winRate.toFixed(0)}%</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Profit Factor</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{profitFactor.toFixed(2)}</div></CardContent>
-        </Card>
-        <Card className="bg-destructive/10 border-destructive/30">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-destructive">Rule Violations</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-destructive">{ruleBreaks}</div></CardContent>
-        </Card>
-      </div>
+      {/* 1. PATTERNS */}
+      <Card>
+        <CardHeader>
+          <CardTitle>1. Patterns From The Daily Journals</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Repeated mistakes</Label>
+            <Textarea
+              value={repeatedMistakes}
+              onChange={(e) => setRepeatedMistakes(e.target.value)}
+              placeholder="What mistakes kept showing up this week?"
+              className="min-h-[80px]"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Repeated conditions behind my best trades</Label>
+            <Textarea
+              value={repeatedWinConditions}
+              onChange={(e) => setRepeatedWinConditions(e.target.value)}
+              placeholder="What did your winners have in common?"
+              className="min-h-[80px]"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Emotional / timing patterns I noticed</Label>
+            <Textarea
+              value={emotionalTimingPatterns}
+              onChange={(e) => setEmotionalTimingPatterns(e.target.value)}
+              placeholder="e.g. FOMO during NY open, bored in afternoon..."
+              className="min-h-[80px]"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Target className="w-5 h-5 text-primary" /> Best Trade</CardTitle></CardHeader>
-          <CardContent>
-            {bestTrade ? (
-              <div className="space-y-2">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>{bestTrade.instrument}</span>
-                  <span className="text-success">+${bestTrade.pnl.toFixed(2)}</span>
-                </div>
-                <div className="text-sm text-muted-foreground">Session: {bestTrade.session}</div>
-              </div>
-            ) : <span className="text-muted-foreground">No trades this week.</span>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-destructive" /> Worst Trade</CardTitle></CardHeader>
-          <CardContent>
-            {worstTrade ? (
-              <div className="space-y-2">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>{worstTrade.instrument}</span>
-                  <span className="text-destructive">-${Math.abs(worstTrade.pnl).toFixed(2)}</span>
-                </div>
-                <div className="text-sm text-muted-foreground">Session: {worstTrade.session}</div>
-              </div>
-            ) : <span className="text-muted-foreground">No trades this week.</span>}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardHeader><CardTitle>AI Therapist Weekly Summary</CardTitle></CardHeader>
-        <CardContent className="space-y-6">
-          {analysis ? (
-            <>
-              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap italic">
-                "{analysis.summary}"
-              </p>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
-                <div>
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Execution Score</span>
-                  <div className="text-xl font-bold text-primary">{analysis.executionScore} / 100</div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Psychology Score</span>
-                  <div className="text-xl font-bold text-primary">{analysis.psychologyScore} / 100</div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Common Emotion</span>
-                  <div className="text-lg font-bold text-foreground capitalize">{analysis.mostCommonEmotion || "N/A"}</div>
-                </div>
-                <div>
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Common Mistake</span>
-                  <div className="text-lg font-bold text-destructive capitalize">{analysis.mostCommonMistake || "None"}</div>
-                </div>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-4 pt-4 border-t">
-                <div className="p-3 rounded border bg-card">
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Profitable Behavior</span>
-                  <p className="text-sm text-success font-medium mt-1">{analysis.mostProfitableBehavior || "N/A"}</p>
-                </div>
-                <div className="p-3 rounded border bg-card">
-                  <span className="text-xs font-bold uppercase text-muted-foreground text-[10px]">Actionable Focus Goal</span>
-                  <p className="text-sm text-warning font-medium mt-1">{analysis.recommendedFocus || "N/A"}</p>
-                </div>
-              </div>
-            </>
+      {/* 2. RULES BUILT */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>2. Rules Built From This Week</CardTitle>
+          <Button variant="outline" size="sm" onClick={handleAddRule}>
+            <Plus className="w-4 h-4 mr-2" /> Add Rule
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {rulesBuilt.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-6 border rounded-md border-dashed">
+              No rules built this week. Click 'Add Rule' to create one.
+            </div>
           ) : (
-            <p className="text-muted-foreground italic mb-4">"Click 'Talk to AI Therapist' to generate your personalized weekly breakdown."</p>
+            rulesBuilt.map((rule, idx) => (
+              <div
+                key={idx}
+                className="flex flex-col md:flex-row gap-4 items-start md:items-end border p-4 rounded-md bg-muted/20"
+              >
+                <div className="flex-1 space-y-2 w-full">
+                  <Label>WHEN</Label>
+                  <Input
+                    value={rule.when}
+                    onChange={(e) => updateRule(idx, "when", e.target.value)}
+                    placeholder="e.g. I feel FOMO"
+                  />
+                </div>
+                <div className="flex-1 space-y-2 w-full">
+                  <Label>THEN</Label>
+                  <Input
+                    value={rule.then}
+                    onChange={(e) => updateRule(idx, "then", e.target.value)}
+                    placeholder="e.g. I will step away for 10 mins"
+                  />
+                </div>
+                <div className="flex-1 space-y-2 w-full">
+                  <Label>From</Label>
+                  <Input
+                    value={rule.from}
+                    onChange={(e) => updateRule(idx, "from", e.target.value)}
+                    placeholder="e.g. Wednesday's tilt"
+                  />
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => removeRule(idx)}
+                  className="text-destructive mt-2 md:mt-0"
+                >
+                  <Trash className="w-4 h-4" />
+                </Button>
+              </div>
+            ))
           )}
         </CardContent>
       </Card>
+
+      {/* 3. BACKTEST */}
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            3. Backtest Of This Same Week With Rules Applied
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="space-y-2">
+              <Label>Trades Taken</Label>
+              <Input
+                type="number"
+                value={backtestTradesTaken}
+                onChange={(e) =>
+                  setBacktestTradesTaken(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Trades Skipped</Label>
+              <Input
+                type="number"
+                value={backtestTradesSkipped}
+                onChange={(e) =>
+                  setBacktestTradesSkipped(
+                    e.target.value === "" ? "" : Number(e.target.value),
+                  )
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Win Rate</Label>
+              <Input
+                value={backtestWinRate}
+                onChange={(e) => setBacktestWinRate(e.target.value)}
+                placeholder="e.g. 55%"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Net R</Label>
+              <Input
+                value={backtestNetR}
+                onChange={(e) => setBacktestNetR(e.target.value)}
+                placeholder="e.g. +4R"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Largest Loss</Label>
+              <Input
+                value={backtestLargestLoss}
+                onChange={(e) => setBacktestLargestLoss(e.target.value)}
+                placeholder="e.g. -1R"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Notes on the replay</Label>
+            <Textarea
+              value={backtestNotes}
+              onChange={(e) => setBacktestNotes(e.target.value)}
+              placeholder="Observations from replaying the week with strict rules..."
+              className="min-h-[80px]"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 4. COMPARISON */}
+      <Card>
+        <CardHeader>
+          <CardTitle>4. Comparison</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="space-y-2">
+              <Label>Actual Net R</Label>
+              <Input
+                value={actualNetR}
+                onChange={(e) => setActualNetR(e.target.value)}
+                placeholder="e.g. -2R"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Rule-Based Net R</Label>
+              <Input
+                value={ruleBasedNetR}
+                onChange={(e) => setRuleBasedNetR(e.target.value)}
+                placeholder="e.g. +4R"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Difference</Label>
+              <Input
+                value={comparisonDifference}
+                onChange={(e) => setComparisonDifference(e.target.value)}
+                placeholder="e.g. 6R missed"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>What the difference tells me</Label>
+            <Textarea
+              value={whatDifferenceTellsMe}
+              onChange={(e) => setWhatDifferenceTellsMe(e.target.value)}
+              placeholder="e.g. My strategy is fine, my execution is the issue."
+              className="min-h-[80px]"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label>Rule that would have saved the most</Label>
+              <Input
+                value={ruleSavedMost}
+                onChange={(e) => setRuleSavedMost(e.target.value)}
+                placeholder="e.g. Stop trading after 2 losses"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>
+                Rule that filtered out a good trade (needs adjusting)
+              </Label>
+              <Input
+                value={ruleFilteredGoodTrade}
+                onChange={(e) => setRuleFilteredGoodTrade(e.target.value)}
+                placeholder="e.g. Too tight trailing stop"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 5. COMMITMENT */}
+      <Card>
+        <CardHeader>
+          <CardTitle>5. Commitment For Next Week</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>The ONE rule I will not break</Label>
+            <Input
+              value={oneRuleNotBreak}
+              onChange={(e) => setOneRuleNotBreak(e.target.value)}
+              placeholder="e.g. I will wait for a 5min candle close before entry"
+              className="font-semibold text-primary"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>Rule status updates (Testing / Active / Retired)</Label>
+            <Textarea
+              value={ruleStatusUpdates}
+              onChange={(e) => setRuleStatusUpdates(e.target.value)}
+              placeholder="e.g. Active: No PM trading. Retired: Old moving average cross."
+              className="min-h-[100px]"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end pt-2">
+        <Button size="lg" onClick={handleSave} disabled={saving || loading}>
+          {saving ? (
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          ) : (
+            <Save className="w-5 h-5 mr-2" />
+          )}
+          Save Weekly Review
+        </Button>
+      </div>
     </div>
-  )
+  );
 }

@@ -1,22 +1,51 @@
+export interface AccountInputs {
+  accountSizeUsd: number
+  currentPhase: "p1" | "p2" | "funded"
+  currentNetPctInPhase: number
+  tradingDaysLeftThisYear: number
+  numberOfAccounts: 1 | 2
+}
+
+export interface ChallengeRulesInputs {
+  phase1TargetPct: number
+  phase2TargetPct: number
+  maxOverallLossPct: number
+  dailyLossLimitPct: number
+  payoutSplitToTrader: number
+}
+
+export interface RiskPerTradeInputs {
+  phase1: number
+  phase2: number
+  funded: number
+}
+
+export interface DayMixInputs {
+  goodDayTargetR: number
+  dailyStopR: number
+  probabilityGoodDay: number
+  probabilityFlatDay: number
+  probabilityBadDay: number
+  bankGoodDays: boolean
+}
+
+export interface WithinDayInputs {
+  winRate: number
+  rewardRisk: number
+  dailyCeilingR: number
+  dailyFloorR: number
+  bankGoodDays: boolean
+}
+
 export interface MonteCarloInputs {
-  startingBalance: number
-  winRate: number // 0 to 100
-  avgRR: number
-  riskPct: number // 0 to 10
-  numTrades: number
-  simCount: number
-  // Optional / Prop Firm Rules
-  dailyLossLimit?: number
-  maxDrawdownLimit?: number
-  profitTarget?: number
-  commission?: number
-  slippage?: number
-  minTradingDays?: number
-  consistencyPct?: number
-  drawdownType?: string
-  // Derived from historical trade timestamps (Bug #6, #11 fixes)
-  tradesPerDay?: number    // actual trades per day from history (used for daily loss limit grouping)
-  tradesPerMonth?: number  // actual trades per month from history (used for monthly return scaling)
+  account: AccountInputs
+  challengeRules: ChallengeRulesInputs
+  riskPerTradePctOfAccount: RiskPerTradeInputs
+  dayModel: "dayMix" | "withinDay"
+  dayMix: DayMixInputs
+  withinDay: WithinDayInputs
+  // Internals for the worker
+  simulations: number
 }
 
 export interface SavedSimulation {
@@ -28,40 +57,23 @@ export interface SavedSimulation {
   stats: MonteCarloStats
 }
 
-export interface MonteCarloStats {
-  expectedReturn: number
-  medianReturn: number
-  averageReturn: number
-  bestCaseReturn: number
-  worstCaseReturn: number
-  expectedDrawdown: number
-  maxDrawdown: number
-  averageDrawdown: number
-  probProfit: number
-  probLoss: number
-  probPassing: number
-  probFailure: number
-  probRuin: number
-  longestLosingStreak: number
-  longestWinningStreak: number
-  averageMonthlyReturn: number
-  recoveryFactor: number
-  profitFactor: number
-  expectedEquityCurve: number[] // median curve
-  confidenceInterval95Lower: number[] // 5th percentile
-  confidenceInterval95Upper: number[] // 95th percentile
-  tradeExpectancy: number
-  riskOfRuin: number
-  drawdownCurve: number[] // median drawdown curve
-  returnHistogram: { bin: string; count: number; countPct: number }[]
-  winningStreakDistribution: { length: number; probability: number }[]
-  losingStreakDistribution: { length: number; probability: number }[]
-  riskRecommendations?: {
-    riskPct: number
-    survivalProb: number
-    expectedReturn: number
-    expectedDrawdown: number
-    passProb: number
-  }[]
-  isNegativeEdge?: boolean
+export interface TakeHomeUsd {
+  p25: number
+  median: number
+  p75: number
+  note: string
 }
+
+export interface MonteCarloStats {
+  simulations: number
+  passPhase1Pct: number
+  getFundedPerAccountPct: number
+  blowUpRiskPct: number
+  avgTradingDaysToFunded: number
+  edgePerDayR: number
+  edgePerDayUsdPhase1: number
+  medianDeepestDrawdownR: number
+  takeHomeByDec31Usd: TakeHomeUsd
+  breakevenGoodDayFractionPct: number
+}
+

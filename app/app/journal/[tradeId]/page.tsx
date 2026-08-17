@@ -11,9 +11,23 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, Upload, Clipboard, Trash2, ImageIcon } from "lucide-react"
+import { ArrowLeft, Upload, Clipboard, Trash2, ImageIcon, Maximize2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+
+function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
+  return (
+    <Textarea 
+      {...props} 
+      onInput={(e) => {
+        e.currentTarget.style.height = 'auto'
+        e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'
+        if (props.onInput) props.onInput(e)
+      }}
+      className={cn("resize-none overflow-hidden min-h-[40px]", props.className)}
+    />
+  )
+}
 
 // ─── helpers ───────────────────────────────────────────────────────────────
 
@@ -26,15 +40,13 @@ function formatHoldDuration(ms: number): string {
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`
 }
 
-const GRADES = ["A+", "A", "B", "C", "D", "F"] as const
+const GRADES = ["A", "B", "C", "D"] as const
 
 const GRADE_COLORS: Record<string, string> = {
-  "A+": "bg-success text-success-foreground border-success",
-  "A":  "bg-success/70 text-success-foreground border-success/70",
-  "B":  "bg-primary/70 text-primary-foreground border-primary/70",
-  "C":  "bg-warning/70 text-warning-foreground border-warning/70",
-  "D":  "bg-destructive/60 text-destructive-foreground border-destructive/60",
-  "F":  "bg-destructive text-destructive-foreground border-destructive",
+  "A": "bg-success text-success-foreground border-success",
+  "B": "bg-primary/70 text-primary-foreground border-primary/70",
+  "C": "bg-warning/70 text-warning-foreground border-warning/70",
+  "D": "bg-destructive text-destructive-foreground border-destructive",
 }
 
 // Conviction score → label
@@ -76,17 +88,10 @@ export default function TradeDetailsPage() {
   const [execForm, setExecForm] = useState({ entry: "", exit: "", contracts: "", pnl: "" })
   const [riskForm, setRiskForm] = useState({ stopLoss: "", takeProfit: "", riskAmount: "" })
   const [stratForm, setStratForm] = useState({
-    marketBias: "Neutral", tradeIdea: "", reasonForEntry: "",
-    expectedRR: "", executionGrade: "", preNotes: "",
-  })
-  const [psychForm, setPsychForm] = useState({
-    preFeeling: "", convictionScore: 5,
-    hesitated: false, movedStop: false, movedTarget: false,
-    addedSize: false, brokeRules: false,
-    exitReason: "", decisionScore: 50, preNotes: "", psychologyGrade: "",
+    reasonForEntry: "", resultVsExpectation: "", expectedRR: "", executionGrade: ""
   })
   const [journalForm, setJournalForm] = useState({
-    outcome: "", mistakes: "", lessonsLearned: "", psychologyNotes: "", notes: "",
+    mistakes: "", executionImprovement: ""
   })
 
   // ── init from store ───────────────────────────────────────────────────────
@@ -105,32 +110,14 @@ export default function TradeDetailsPage() {
       riskAmount: trade.riskAmount?.toString() ?? "",
     })
     setStratForm({
-      marketBias:     trade.marketBias      ?? "Neutral",
-      tradeIdea:      trade.tradeIdea       ?? "",
-      reasonForEntry: trade.reasonForEntry  ?? "",
-      expectedRR:     trade.expectedRR      ?? "",
-      executionGrade: psyc.executionGrade   ?? "",
-      preNotes:       (trade as any).preNotes ?? "",
-    })
-    setPsychForm({
-      preFeeling:      psyc.preFeeling      ?? "",
-      convictionScore: psyc.convictionScore ?? 5,
-      hesitated:       psyc.hesitated       ?? false,
-      movedStop:       psyc.movedStop       ?? false,
-      movedTarget:     psyc.movedTarget     ?? false,
-      addedSize:       psyc.addedSize       ?? false,
-      brokeRules:      psyc.brokeRules      ?? false,
-      exitReason:      psyc.exitReason      ?? "",
-      decisionScore:   psyc.decisionScore   ?? 50,
-      preNotes:        psyc.preNotes        ?? "",
-      psychologyGrade: psyc.psychologyGrade ?? "",
+      reasonForEntry:      trade.reasonForEntry  ?? "",
+      resultVsExpectation: (trade as any).resultVsExpectation ?? "",
+      expectedRR:          trade.expectedRR      ?? "",
+      executionGrade:      psyc.executionGrade   ?? "",
     })
     setJournalForm({
-      outcome:         trade.outcome          ?? "",
-      mistakes:        trade.mistakes         ?? "",
-      lessonsLearned:  trade.lessonsLearned   ?? "",
-      psychologyNotes: trade.psychologyNotes  ?? "",
-      notes:           trade.notes            ?? "",
+      mistakes:             trade.mistakes             ?? "",
+      executionImprovement: (trade as any).executionImprovement ?? "",
     })
     setCheckedItems(trade.playbookChecklist ?? {})
   }, [trade?.id]) // eslint-disable-line
@@ -143,27 +130,25 @@ export default function TradeDetailsPage() {
       const items = e.clipboardData?.items
       if (!items) return
       for (const item of Array.from(items)) {
-        if (item.type.startsWith("image/")) {
+        if (item.type.indexOf("image") !== -1) {
           const file = item.getAsFile()
           if (!file) continue
           const reader = new FileReader()
           reader.onloadend = async () => {
-            await addScreenshot(trade.id, "gallery", reader.result as string)
+            await addScreenshot(trade.id, "clipboard", reader.result as string)
             toast.success("Screenshot pasted!")
           }
           reader.readAsDataURL(file)
-          e.preventDefault()
-          break
         }
       }
     }
     window.addEventListener("paste", handlePaste)
     return () => window.removeEventListener("paste", handlePaste)
-  }, [trade?.id, addScreenshot])
+  }, [trade?.id]) // eslint-disable-line
 
   // ── handlers ──────────────────────────────────────────────────────────────
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !trade) return
     const reader = new FileReader()
@@ -185,7 +170,6 @@ export default function TradeDetailsPage() {
     if (!trade) return
     await saveTradePsychology({
       tradeId: trade.id,
-      ...psychForm,
       executionGrade: stratForm.executionGrade,
     })
     await updateTrade(trade.id, {
@@ -196,15 +180,11 @@ export default function TradeDetailsPage() {
       stopLoss:       parseFloat(riskForm.stopLoss)  || undefined,
       takeProfit:     parseFloat(riskForm.takeProfit)|| undefined,
       riskAmount:     parseFloat(riskForm.riskAmount)|| undefined,
-      marketBias:     stratForm.marketBias,
-      tradeIdea:      stratForm.tradeIdea,
       reasonForEntry: stratForm.reasonForEntry,
+      resultVsExpectation: stratForm.resultVsExpectation,
       expectedRR:     stratForm.expectedRR,
-      outcome:        journalForm.outcome,
-      mistakes:       journalForm.mistakes,
-      lessonsLearned: journalForm.lessonsLearned,
-      psychologyNotes:journalForm.psychologyNotes,
-      notes:          journalForm.notes,
+      mistakes:             journalForm.mistakes,
+      executionImprovement: journalForm.executionImprovement,
       playbookChecklist: checkedItems,
     } as any)
     toast.success("Trade saved!")
@@ -243,6 +223,22 @@ export default function TradeDetailsPage() {
 
   return (
     <div className="max-w-[1600px] mx-auto pb-24">
+      <Dialog open={!!expandedImage} onOpenChange={o => { if (!o) { setExpandedImage(null); setIsZoomed(false) } }}>
+        <DialogContent className="max-w-[95vw] w-fit max-h-[95vh] bg-background/95 backdrop-blur-sm border-border p-1 overflow-auto flex items-center justify-center">
+          {expandedImage && (
+            <div 
+              className={cn("transition-all duration-300 cursor-zoom-in", isZoomed ? "cursor-zoom-out" : "")}
+              onClick={() => setIsZoomed(!isZoomed)}
+            >
+              <img 
+                src={expandedImage} 
+                alt="Chart full view" 
+                className={cn("rounded object-contain transition-all duration-300", isZoomed ? "max-h-none w-auto min-w-[150vw]" : "max-h-[90vh] w-auto")} 
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────────────
           ① STICKY HEADER
@@ -425,274 +421,99 @@ export default function TradeDetailsPage() {
             </CardContent>
           </Card>
         </div>
-
         {/* ─────────────────────────────────────────────────────────────────────
-            ④ STRATEGY | PSYCHOLOGY  (2-col)
+            ④ JOURNAL (PDF FIELDS)
         ───────────────────────────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-border/60" />
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground px-1">Journal</span>
+            <div className="h-px flex-1 bg-border/60" />
+          </div>
 
-          {/* ── Strategy ─────────────────────────────────────────────────── */}
-          <Card>
-            <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Strategy</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-5 space-y-4">
-              {/* Market Bias */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">MARKET BIAS</Label>
-                <select
-                  className="flex h-8 mt-1 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={stratForm.marketBias}
-                  onChange={e => setStratForm(f => ({ ...f, marketBias: e.target.value }))}
-                >
-                  {["Bullish", "Bearish", "Neutral"].map(b => <option key={b}>{b}</option>)}
-                </select>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+              <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reasoning / logic / confirmation</span>
               </div>
-              {/* Trade Idea */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TRADE IDEA</Label>
-                <Textarea value={stratForm.tradeIdea}
-                  onChange={e => setStratForm(f => ({ ...f, tradeIdea: e.target.value }))}
-                  placeholder="Describe setup, key levels, structure..." className="mt-1 min-h-[80px] text-sm" />
-              </div>
-              {/* Reason for Entry */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">REASON FOR ENTRY</Label>
-                <Textarea value={stratForm.reasonForEntry}
+              <div className="p-3">
+                <AutoTextarea value={stratForm.reasonForEntry}
                   onChange={e => setStratForm(f => ({ ...f, reasonForEntry: e.target.value }))}
-                  placeholder="What triggered you to enter?" className="mt-1 min-h-[80px] text-sm" />
+                  placeholder="Why did you take this trade?"
+                  className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 resize-none min-h-[100px] text-sm placeholder:text-muted-foreground/40" />
               </div>
-              {/* Expected RR */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">EXPECTED RR</Label>
-                <Input value={stratForm.expectedRR}
-                  onChange={e => setStratForm(f => ({ ...f, expectedRR: e.target.value }))}
-                  placeholder="e.g. 2.5 or 1:3" className="h-8 mt-1 text-sm" />
-              </div>
-              {/* Execution Grade */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-2">EXECUTION GRADE</Label>
-                <div className="flex gap-1.5">
-                  {GRADES.map(g => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setStratForm(f => ({ ...f, executionGrade: f.executionGrade === g ? "" : g }))}
-                      className={cn(
-                        "h-8 w-10 rounded-md text-xs font-bold border transition-all",
-                        stratForm.executionGrade === g
-                          ? GRADE_COLORS[g]
-                          : "bg-muted/30 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                      )}
-                    >{g}</button>
-                  ))}
-                </div>
-              </div>
-              {/* Pre-Trade Notes */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PRE-TRADE NOTES</Label>
-                <Textarea value={stratForm.preNotes}
-                  onChange={e => setStratForm(f => ({ ...f, preNotes: e.target.value }))}
-                  placeholder="What were you thinking before entering?" className="mt-1 min-h-[80px] text-sm" />
-              </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* ── Psychology ───────────────────────────────────────────────── */}
-          <Card>
-            <CardHeader className="pb-3 border-b border-border/60">
-              <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Psychology</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-5 space-y-4">
-              {/* Pre-Feeling */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PRE-FEELING</Label>
-                <select
-                  className="flex h-8 mt-1 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={psychForm.preFeeling}
-                  onChange={e => setPsychForm(f => ({ ...f, preFeeling: e.target.value }))}
-                >
-                  <option value="">Select Emotion</option>
-                  {["Calm", "Confident", "Focused", "Neutral", "Anxious", "Fearful", "Frustrated", "Greedy"].map(e => (
-                    <option key={e}>{e}</option>
-                  ))}
-                </select>
+            <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
+              <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-400 shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Result vs expectation</span>
               </div>
-              {/* Conviction */}
-              <div>
-                <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">CONVICTION</Label>
-                  <span className="text-xs font-bold text-foreground">
-                    {convictionLabel(psychForm.convictionScore)} · {psychForm.convictionScore}/10
-                  </span>
-                </div>
-                <input
-                  type="range" min="1" max="10"
-                  value={psychForm.convictionScore}
-                  onChange={e => setPsychForm(f => ({ ...f, convictionScore: parseInt(e.target.value) }))}
-                  className="w-full mt-2 accent-primary"
-                />
+              <div className="p-3">
+                <AutoTextarea value={stratForm.resultVsExpectation}
+                  onChange={e => setStratForm(f => ({ ...f, resultVsExpectation: e.target.value }))}
+                  placeholder="What actually happened vs what you expected?"
+                  className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 resize-none min-h-[100px] text-sm placeholder:text-muted-foreground/40" />
               </div>
-              {/* Execution Flags */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-2">EXECUTION FLAGS</Label>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    { key: "hesitated",   label: "Hesitated" },
-                    { key: "movedStop",   label: "Moved Stop" },
-                    { key: "movedTarget", label: "Moved Target" },
-                    { key: "addedSize",   label: "Added to Loser" },
-                    { key: "brokeRules",  label: "Broke Rules" },
-                  ] as const).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setPsychForm(f => ({ ...f, [key]: !f[key] }))}
-                      className={cn(
-                        "text-xs px-3 py-1 rounded-full border font-medium transition-all",
-                        psychForm[key]
-                          ? "bg-destructive/20 border-destructive/50 text-destructive"
-                          : "bg-muted/30 border-border text-muted-foreground hover:border-muted-foreground/50"
-                      )}
-                    >{label}</button>
-                  ))}
-                </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-destructive/30 bg-card overflow-hidden">
+              <div className="px-4 py-2.5 bg-destructive/5 border-b border-destructive/20 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-destructive/70">Mistakes</span>
               </div>
-              {/* Exit Reason */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">EXIT REASON</Label>
-                <select
-                  className="flex h-8 mt-1 w-full rounded-md border border-input bg-background px-3 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  value={psychForm.exitReason}
-                  onChange={e => setPsychForm(f => ({ ...f, exitReason: e.target.value }))}
-                >
-                  <option value="">Select Reason</option>
-                  {["Target Hit", "Stop Hit", "Manual Exit", "Fear Exit (Early)", "Greed Exit (Late)", "Rule Violation"].map(r => (
-                    <option key={r}>{r}</option>
-                  ))}
-                </select>
+              <div className="p-3">
+                <AutoTextarea value={journalForm.mistakes}
+                  onChange={e => setJournalForm(f => ({ ...f, mistakes: e.target.value }))}
+                  placeholder="What did you do wrong?"
+                  className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 resize-none min-h-[100px] text-sm placeholder:text-muted-foreground/40" />
               </div>
-              {/* Decision Score */}
-              <div>
-                <div className="flex justify-between items-center">
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DECISION SCORE</Label>
-                  <span className="text-xs font-bold text-foreground">{psychForm.decisionScore}/100</span>
-                </div>
-                <input
-                  type="range" min="0" max="100"
-                  value={psychForm.decisionScore}
-                  onChange={e => setPsychForm(f => ({ ...f, decisionScore: parseInt(e.target.value) }))}
-                  className="w-full mt-2 accent-primary"
-                />
+            </div>
+
+            <div className="rounded-xl border border-warning/30 bg-card overflow-hidden">
+              <div className="px-4 py-2.5 bg-warning/5 border-b border-warning/20 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-warning shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-warning/70">How execution could improve</span>
               </div>
-              {/* Psychology Grade */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-2">PSYCHOLOGY GRADE</Label>
-                <div className="flex gap-1.5">
-                  {GRADES.map(g => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setPsychForm(f => ({ ...f, psychologyGrade: f.psychologyGrade === g ? "" : g }))}
-                      className={cn(
-                        "h-8 w-10 rounded-md text-xs font-bold border transition-all",
-                        psychForm.psychologyGrade === g
-                          ? GRADE_COLORS[g]
-                          : "bg-muted/30 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                      )}
-                    >{g}</button>
-                  ))}
-                </div>
+              <div className="p-3">
+                <AutoTextarea value={journalForm.executionImprovement}
+                  onChange={e => setJournalForm(f => ({ ...f, executionImprovement: e.target.value }))}
+                  placeholder="How could you execute better next time?"
+                  className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 resize-none min-h-[100px] text-sm placeholder:text-muted-foreground/40" />
               </div>
-              {/* Pre-trade Thoughts */}
-              <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PRE-TRADE THOUGHTS</Label>
-                <Textarea value={psychForm.preNotes}
-                  onChange={e => setPsychForm(f => ({ ...f, preNotes: e.target.value }))}
-                  placeholder="What were you feeling entering this trade?" className="mt-1 min-h-[80px] text-sm" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-xl border border-border/60 bg-card overflow-hidden p-4 flex flex-col justify-center">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">R</Label>
+              <Input value={stratForm.expectedRR}
+                onChange={e => setStratForm(f => ({ ...f, expectedRR: e.target.value }))}
+                placeholder="e.g. 2.5 or 1:3" className="text-sm font-bold" />
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card overflow-hidden p-4 flex flex-col justify-center">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Process Grade</Label>
+              <div className="flex gap-2">
+                {GRADES.map(g => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setStratForm(f => ({ ...f, executionGrade: f.executionGrade === g ? "" : g }))}
+                    className={cn(
+                      "h-10 w-12 rounded-lg text-sm font-bold border transition-all",
+                      stratForm.executionGrade === g
+                        ? GRADE_COLORS[g]
+                        : "bg-muted/30 border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >{g}</button>
+                ))}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
-
-        {/* ─────────────────────────────────────────────────────────────────────
-            ⑤ PLAYBOOK CHECKLIST (conditional)
-        ───────────────────────────────────────────────────────────────────── */}
-        {playbook && playbook.checklist && playbook.checklist.length > 0 && (
-          <Card className="border-primary/25">
-            <CardHeader className="pb-3 border-b border-border/60">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Playbook — {playbook.name}
-                </CardTitle>
-                <Badge variant="outline" className="font-mono text-xs">
-                  {Math.round(
-                    (Object.values(checkedItems).filter(Boolean).length / playbook.checklist.length) * 100
-                  )}% Compliance
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {playbook.checklist.map((item: any, idx: number) => {
-                  const text = typeof item === "string" ? item : item.text
-                  const id   = item.id || idx.toString()
-                  return (
-                    <label key={idx} className="flex items-center gap-3 cursor-pointer group p-2.5 rounded-lg hover:bg-muted/40 transition-colors">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 accent-primary rounded shrink-0"
-                        checked={!!checkedItems[id]}
-                        onChange={e => setCheckedItems(prev => ({ ...prev, [id]: e.target.checked }))}
-                      />
-                      <span className={cn("text-sm leading-tight",
-                        checkedItems[id] ? "line-through text-muted-foreground" : "font-medium"
-                      )}>{text}</span>
-                    </label>
-                  )
-                })}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ─────────────────────────────────────────────────────────────────────
-            ⑥ JOURNAL
-        ───────────────────────────────────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-3 border-b border-border/60">
-            <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">Journal</CardTitle>
-          </CardHeader>
-          <CardContent className="pt-5 space-y-5">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {([
-                { label: "OUTCOME",           key: "outcome",         placeholder: "How did the trade play out?" },
-                { label: "MISTAKES MADE",      key: "mistakes",        placeholder: "What did you do wrong?" },
-                { label: "LESSONS LEARNED",    key: "lessonsLearned",  placeholder: "What will you do differently next time?" },
-                { label: "PSYCHOLOGY NOTES",   key: "psychologyNotes", placeholder: "Cognitive biases or emotional responses?" },
-              ] as const).map(({ label, key, placeholder }) => (
-                <div key={key}>
-                  <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</Label>
-                  <Textarea
-                    value={journalForm[key]}
-                    onChange={e => setJournalForm(f => ({ ...f, [key]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="mt-1 min-h-[110px] text-sm"
-                  />
-                </div>
-              ))}
-            </div>
-            <div>
-              <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">GENERAL NOTES</Label>
-              <Textarea
-                value={journalForm.notes}
-                onChange={e => setJournalForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Anything else you want to remember about this trade..."
-                className="mt-1 min-h-[150px] text-sm"
-              />
-            </div>
-          </CardContent>
-        </Card>
 
         {/* ─────────────────────────────────────────────────────────────────────
             ⑦ SCREENSHOTS

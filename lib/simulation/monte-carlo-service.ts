@@ -6,11 +6,9 @@ export class MonteCarloService {
 
   run(
     inputs: MonteCarloInputs,
-    historicalTradePnlPcts?: number[],
-    historicalTradePnlDollars?: number[],
     onProgress?: (progress: number) => void
   ): Promise<MonteCarloStats> {
-    const cacheKey = JSON.stringify({ inputs, historicalTradePnlPcts })
+    const cacheKey = JSON.stringify({ inputs })
     if (this.cache.has(cacheKey)) {
       return Promise.resolve(this.cache.get(cacheKey)!)
     }
@@ -52,9 +50,7 @@ export class MonteCarloService {
 
         this.worker.postMessage({
           type: "run",
-          inputs,
-          historicalTradePnlPcts,
-          historicalTradePnlDollars,
+          inputs
         })
       } catch (err) {
         // Fallback for environment constraints: Run synchronously on main thread

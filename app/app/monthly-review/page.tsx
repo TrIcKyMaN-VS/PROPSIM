@@ -1,226 +1,238 @@
 "use client"
 
-import { usePropStore } from "@/lib/store"
+import { useState, useEffect } from "react"
+import { getMonthlyRecap, saveMonthlyRecap } from "@/app/actions/journal-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { FileText, Download, Calendar } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
+import { Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts"
-import { useRef, useState, useEffect } from "react"
-import html2canvas from "html2canvas"
-import jsPDF from "jspdf"
 
-export default function MonthlyReviewPage() {
-  const activeAccountId = usePropStore(s => s.activeAccountId)
-  const trades = usePropStore(s => s.trades).filter(t => t.accountId === activeAccountId)
-  const psychology = usePropStore(s => s.tradePsychology)
-  const reportRef = useRef<HTMLDivElement>(null)
-  const [isExporting, setIsExporting] = useState(false)
-  const [summary, setSummary] = useState<string>("")
+const currentMonth = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+const textCls = "min-h-[90px] text-sm mt-1"
+const inputCls = "h-9 text-sm mt-1"
+const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+
+export default function MonthlyRecapPage() {
+  const [month, setMonth] = useState(currentMonth())
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const monthName = new Date().toLocaleString("default", { month: "long" })
-  
-  const getMonthKey = () => {
-    const d = new Date()
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-  }
+  // Header
+  const [daysTradedCount, setDaysTradedCount] = useState("")
+  const [netR, setNetR] = useState("")
 
-  const pnl = trades.reduce((s, t) => s + t.pnl, 0)
-  const wins = trades.filter(t => t.pnl > 0)
-  const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0
-  
-  const grossWin = wins.reduce((s, t) => s + t.pnl, 0)
-  const grossLoss = Math.abs(trades.filter(t => t.pnl <= 0).reduce((s, t) => s + t.pnl, 0))
-  const profitFactor = grossLoss > 0 ? grossWin / grossLoss : (grossWin > 0 ? 99 : 0)
+  // Winning Trades
+  const [winsImpactfulSetups, setWinsImpactfulSetups] = useState("")
+  const [winsMaximisedDays, setWinsMaximisedDays] = useState("")
+  const [winsBestTradesCommon, setWinsBestTradesCommon] = useState("")
+  const [winsAffectedConfidence, setWinsAffectedConfidence] = useState("")
 
-  // Determine scores based on data
-  const ruleBreaks = trades.map(t => psychology.find(p => p.tradeId === t.id)?.brokeRules).filter(Boolean).length
-  const ruleComplianceScore = Math.max(0, 100 - (ruleBreaks * 5))
-  
-  const playbooks = usePropStore(s => s.playbooks)
+  // Losing Trades
+  const [lossesWithinRisk, setLossesWithinRisk] = useState("")
+  const [lossesFollowedRules, setLossesFollowedRules] = useState("")
+  const [lossesPatterns, setLossesPatterns] = useState("")
+  const [lossesLearnedOrRepeated, setLossesLearnedOrRepeated] = useState("")
 
-  // Aggregate by playbook
-  const playbookPnls: Record<string, number> = {}
-  trades.forEach(t => {
-    if (t.playbookId) {
-      playbookPnls[t.playbookId] = (playbookPnls[t.playbookId] || 0) + t.pnl
-    }
-  })
+  // Overall
+  const [overallDisciplineImproved, setOverallDisciplineImproved] = useState("")
+  const [overallFollowedRulesMore, setOverallFollowedRulesMore] = useState("")
+  const [overallConsistentJournaling, setOverallConsistentJournaling] = useState("")
+  const [overallCommitNextMonth, setOverallCommitNextMonth] = useState("")
 
-  let bestSetup = "N/A"
-  let worstSetup = "N/A"
-  
-  if (Object.keys(playbookPnls).length > 0) {
-    const sorted = Object.entries(playbookPnls).sort((a, b) => b[1] - a[1])
-    const bestPlaybook = playbooks.find(p => p.id === sorted[0][0])
-    const worstPlaybook = playbooks.find(p => p.id === sorted[sorted.length - 1][0])
-    
-    if (bestPlaybook && sorted[0][1] > 0) bestSetup = `${bestPlaybook.name} (+$${sorted[0][1].toFixed(0)})`
-    else if (sorted[0][1] > 0) bestSetup = `Unnamed Playbook (+$${sorted[0][1].toFixed(0)})`
-    
-    if (worstPlaybook && sorted[sorted.length - 1][1] < 0) worstSetup = `${worstPlaybook.name} (-$${Math.abs(sorted[sorted.length - 1][1]).toFixed(0)})`
-    else if (sorted[sorted.length - 1][1] < 0) worstSetup = `Unnamed Playbook (-$${Math.abs(sorted[sorted.length - 1][1]).toFixed(0)})`
-  }
-
-  // Aggregate by week
-  const weeklyData = [
-    { name: "Week 1", pnl: trades.slice(0, 5).reduce((s, t) => s + t.pnl, 0) },
-    { name: "Week 2", pnl: trades.slice(5, 10).reduce((s, t) => s + t.pnl, 0) },
-    { name: "Week 3", pnl: trades.slice(10, 15).reduce((s, t) => s + t.pnl, 0) },
-    { name: "Week 4", pnl: trades.slice(15, 20).reduce((s, t) => s + t.pnl, 0) }
-  ]
+  // Month vs Month
+  const [monthVsMonthRepeatedMistakes, setMonthVsMonthRepeatedMistakes] = useState("")
+  const [monthVsMonthCommitmentsKept, setMonthVsMonthCommitmentsKept] = useState("")
+  const [monthVsMonthHighestLeverage, setMonthVsMonthHighestLeverage] = useState("")
 
   useEffect(() => {
-    async function loadCached() {
-      try {
-        const { getAiReviewAction } = await import("@/app/actions/ai-actions")
-        const review = await getAiReviewAction("MONTHLY", getMonthKey())
-        if (review) {
-          const data = JSON.parse(review.summary)
-          setSummary(data.summary)
-        }
-      } catch (err) {
-        console.error(err)
-      }
-    }
-    loadCached()
-  }, [])
-
-  const handleGenerateSummary = async () => {
-    if (trades.length === 0) {
-      toast.error("You need at least one trade to generate a summary.")
-      return
-    }
     setLoading(true)
-    try {
-      const { generateMonthlySummaryAction } = await import("@/app/actions/ai-actions")
-      const payloadTrades = trades.map(t => ({
-        instrument: t.instrument,
-        pnl: t.pnl,
-        direction: t.direction,
-        session: t.session,
-        notes: t.notes || "",
-        tags: t.tags || []
-      }))
-      const res = await generateMonthlySummaryAction(payloadTrades, getMonthKey())
-      setSummary(res.summary)
-      toast.success("Monthly AI Summary generated!")
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate summary.")
-    } finally {
-      setLoading(false)
-    }
-  }
+    getMonthlyRecap(month).then(data => {
+      if (data) {
+        setDaysTradedCount(data.daysTradedCount?.toString() ?? "")
+        setNetR(data.netR ?? "")
+        setWinsImpactfulSetups(data.winsImpactfulSetups ?? "")
+        setWinsMaximisedDays(data.winsMaximisedDays ?? "")
+        setWinsBestTradesCommon(data.winsBestTradesCommon ?? "")
+        setWinsAffectedConfidence(data.winsAffectedConfidence ?? "")
+        setLossesWithinRisk(data.lossesWithinRisk ?? "")
+        setLossesFollowedRules(data.lossesFollowedRules ?? "")
+        setLossesPatterns(data.lossesPatterns ?? "")
+        setLossesLearnedOrRepeated(data.lossesLearnedOrRepeated ?? "")
+        setOverallDisciplineImproved(data.overallDisciplineImproved ?? "")
+        setOverallFollowedRulesMore(data.overallFollowedRulesMore ?? "")
+        setOverallConsistentJournaling(data.overallConsistentJournaling ?? "")
+        setOverallCommitNextMonth(data.overallCommitNextMonth ?? "")
+        setMonthVsMonthRepeatedMistakes(data.monthVsMonthRepeatedMistakes ?? "")
+        setMonthVsMonthCommitmentsKept(data.monthVsMonthCommitmentsKept ?? "")
+        setMonthVsMonthHighestLeverage(data.monthVsMonthHighestLeverage ?? "")
+      } else {
+        setDaysTradedCount(""); setNetR("")
+        setWinsImpactfulSetups(""); setWinsMaximisedDays(""); setWinsBestTradesCommon(""); setWinsAffectedConfidence("")
+        setLossesWithinRisk(""); setLossesFollowedRules(""); setLossesPatterns(""); setLossesLearnedOrRepeated("")
+        setOverallDisciplineImproved(""); setOverallFollowedRulesMore(""); setOverallConsistentJournaling(""); setOverallCommitNextMonth("")
+        setMonthVsMonthRepeatedMistakes(""); setMonthVsMonthCommitmentsKept(""); setMonthVsMonthHighestLeverage("")
+      }
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [month])
 
-  const exportPDF = async () => {
-    if (!reportRef.current) return
-    setIsExporting(true)
+  const handleSave = async () => {
+    setSaving(true)
     try {
-      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true, logging: false })
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF('p', 'mm', 'a4')
-      const pdfWidth = pdf.internal.pageSize.getWidth()
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-      pdf.save(`Monthly-Review-${monthName}.pdf`)
-      toast.success("PDF Downloaded successfully")
-    } catch (err) {
-      console.error(err)
-      toast.error("Failed to generate PDF")
+      await saveMonthlyRecap(month, {
+        daysTradedCount: daysTradedCount ? parseInt(daysTradedCount) : null,
+        netR,
+        winsImpactfulSetups, winsMaximisedDays, winsBestTradesCommon, winsAffectedConfidence,
+        lossesWithinRisk, lossesFollowedRules, lossesPatterns, lossesLearnedOrRepeated,
+        overallDisciplineImproved, overallFollowedRulesMore, overallConsistentJournaling, overallCommitNextMonth,
+        monthVsMonthRepeatedMistakes, monthVsMonthCommitmentsKept, monthVsMonthHighestLeverage,
+      })
+      toast.success("Monthly recap saved!")
+    } catch {
+      toast.error("Failed to save")
     } finally {
-      setIsExporting(false)
+      setSaving(false)
     }
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-4xl mx-auto space-y-6 pb-16">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{monthName} Review</h1>
-          <p className="text-muted-foreground">Comprehensive monthly breakdown and PDF exports.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Monthly Recap</h1>
+          <p className="text-muted-foreground text-sm">End-of-month performance review</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={handleGenerateSummary} disabled={loading}>
-            <FileText className="w-4 h-4 mr-2" /> 
-            {loading ? "Generating Summary..." : "AI Summary"}
+        <div className="flex items-center gap-3 flex-wrap">
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value)}
+            className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <Input
+            className="h-9 text-sm w-28"
+            type="number"
+            placeholder="Days traded"
+            value={daysTradedCount}
+            onChange={e => setDaysTradedCount(e.target.value)}
+          />
+          <Input
+            className="h-9 text-sm w-28"
+            placeholder="Net R"
+            value={netR}
+            onChange={e => setNetR(e.target.value)}
+          />
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Save
           </Button>
-          <Button onClick={exportPDF} disabled={isExporting}>
-            <Download className="w-4 h-4 mr-2" /> {isExporting ? "Generating..." : "Export PDF"}
-          </Button>
         </div>
       </div>
 
-      <div ref={reportRef} className="space-y-6 bg-background p-4 rounded-xl">
+      {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
 
-      <div className="grid grid-cols-6 gap-4">
-        <Card className="col-span-2 bg-card border-primary/20">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Monthly P&L</CardTitle></CardHeader>
-          <CardContent><div className={`text-4xl font-bold ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>${pnl.toFixed(2)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Win Rate</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{winRate.toFixed(0)}%</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Profit Factor</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{profitFactor.toFixed(2)}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Compliance</CardTitle></CardHeader>
-          <CardContent><div className={`text-2xl font-bold ${ruleComplianceScore > 80 ? 'text-success' : 'text-warning'}`}>{ruleComplianceScore}/100</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Trades</CardTitle></CardHeader>
-          <CardContent><div className="text-2xl font-bold">{trades.length}</div></CardContent>
-        </Card>
-      </div>
+      {/* ── WINNING TRADES ───────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border/60">
+          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Winning Trades —</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5 space-y-5">
+          <div>
+            <Label className={labelCls}>Which setups made the most impact? Are they repeatable?</Label>
+            <Textarea className={textCls} value={winsImpactfulSetups} onChange={e => setWinsImpactfulSetups(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Did I maximise winning days over losing days?</Label>
+            <Textarea className={textCls} value={winsMaximisedDays} onChange={e => setWinsMaximisedDays(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>What did my best trades have in common?</Label>
+            <Textarea className={textCls} value={winsBestTradesCommon} onChange={e => setWinsBestTradesCommon(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>How did these wins affect my confidence and process?</Label>
+            <Textarea className={textCls} value={winsAffectedConfidence} onChange={e => setWinsAffectedConfidence(e.target.value)} placeholder="…" />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2">
-          <CardHeader><CardTitle>Weekly P&L Distribution</CardTitle></CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-                <Tooltip cursor={{ fill: "var(--color-muted)" }} contentStyle={{ borderRadius: 8 }} />
-                <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
-                  {weeklyData.map((d, i) => (
-                    <Cell key={i} fill={d.pnl >= 0 ? "var(--color-success)" : "var(--color-destructive)"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
+      {/* ── LOSING TRADES ────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border/60">
+          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Losing Trades —</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5 space-y-5">
+          <div>
+            <Label className={labelCls}>Were my losses within planned risk? Did I oversize or overtrade?</Label>
+            <Textarea className={textCls} value={lossesWithinRisk} onChange={e => setLossesWithinRisk(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Did I follow my rules on losing trades?</Label>
+            <Textarea className={textCls} value={lossesFollowedRules} onChange={e => setLossesFollowedRules(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>What patterns show up in my losing trades?</Label>
+            <Textarea className={textCls} value={lossesPatterns} onChange={e => setLossesPatterns(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Did I learn from my losses, or repeat the same mistakes?</Label>
+            <Textarea className={textCls} value={lossesLearnedOrRepeated} onChange={e => setLossesLearnedOrRepeated(e.target.value)} placeholder="…" />
+          </div>
+        </CardContent>
+      </Card>
 
-        <div className="space-y-4">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Best Setup</CardTitle></CardHeader>
-            <CardContent><div className="text-xl font-bold text-success">{bestSetup}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Worst Setup</CardTitle></CardHeader>
-            <CardContent><div className="text-xl font-bold text-destructive">{worstSetup}</div></CardContent>
-          </Card>
-          <Card className="bg-primary/5">
-            <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" /> Month AI Summary</CardTitle></CardHeader>
-            <CardContent>
-              {summary ? (
-                <p className="text-sm text-muted-foreground leading-relaxed italic">
-                  "{summary}"
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground leading-relaxed italic">
-                  Click "AI Summary" above to generate your monthly trading insights.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-      </div>
+      {/* ── OVERALL ──────────────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border/60">
+          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Overall —</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5 space-y-5">
+          <div>
+            <Label className={labelCls}>Did my discipline, consistency and mindset improve vs last month?</Label>
+            <Textarea className={textCls} value={overallDisciplineImproved} onChange={e => setOverallDisciplineImproved(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Did I follow my rules more than last month? (rule breaks: X vs Y)</Label>
+            <Textarea className={textCls} value={overallFollowedRulesMore} onChange={e => setOverallFollowedRulesMore(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Was I consistent with journaling and weekly reviews?</Label>
+            <Input className={inputCls} value={overallConsistentJournaling} onChange={e => setOverallConsistentJournaling(e.target.value)} placeholder="Yes / No / Partially" />
+          </div>
+          <div>
+            <Label className={labelCls}>What 1–2 changes will I commit to next month?</Label>
+            <Textarea className={textCls} value={overallCommitNextMonth} onChange={e => setOverallCommitNextMonth(e.target.value)} placeholder="…" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── MONTH VS MONTH ───────────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3 border-b border-border/60">
+          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Month vs Month —</CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5 space-y-5">
+          <div>
+            <Label className={labelCls}>Repeated mistakes found vs previous month</Label>
+            <Textarea className={textCls} value={monthVsMonthRepeatedMistakes} onChange={e => setMonthVsMonthRepeatedMistakes(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Commitments from last month I actually kept</Label>
+            <Textarea className={textCls} value={monthVsMonthCommitmentsKept} onChange={e => setMonthVsMonthCommitmentsKept(e.target.value)} placeholder="…" />
+          </div>
+          <div>
+            <Label className={labelCls}>Highest-leverage change for next month</Label>
+            <Textarea className={textCls} value={monthVsMonthHighestLeverage} onChange={e => setMonthVsMonthHighestLeverage(e.target.value)} placeholder="…" />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

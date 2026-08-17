@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen,
   Brain, Plus, Home, BookOpen, CheckSquare, CalendarDays, CalendarClock,
   PieChart, Download, ShieldCheck, Plug, Archive, Dices, Calculator,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Microscope, Target, Activity
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -15,14 +15,15 @@ const nav = [
   { href: "/app",                       label: "Dashboard",      icon: LayoutDashboard },
   { href: "/app/history",               label: "History",        icon: Archive },
   { href: "/app/calendar",              label: "Calendar",       icon: CalendarDays },
-  { href: "/app/daily",                 label: "Daily Routine",  icon: CheckSquare },
+  { href: "/app/daily",                 label: "Daily Journal",  icon: CheckSquare },
   { href: "/app/playbooks",             label: "Playbooks",      icon: BookOpen },
   { href: "/app/journal",               label: "Journal",        icon: NotebookPen },
   { href: "/app/notebook",              label: "Notebook",       icon: BookOpen },
-  { href: "/app/pnl-calc",              label: "P&L Calculator", icon: Calculator },
-  { href: "/app/weekly-review",         label: "Weekly Review",  icon: CalendarClock },
-  { href: "/app/monthly-review",        label: "Monthly Review", icon: PieChart },
+  { href: "/app/calculator",            label: "P&L Calculator", icon: Calculator },
+  { href: "/app/weekly-review",         label: "Weekly Review",  icon: Target },
+  { href: "/app/monthly-review",        label: "Monthly Recap",  icon: Activity },
   { href: "/app/analytics",             label: "Analytics",      icon: BarChart3 },
+  { href: "/app/analysis",              label: "Deep Analysis",  icon: Microscope },
   { href: "/app/compliance",            label: "Compliance",     icon: ShieldCheck },
   { href: "/app/coach",                 label: "AI Coach",       icon: Brain },
   { href: "/app/monte-carlo",           label: "Monte Carlo",    icon: Dices },
