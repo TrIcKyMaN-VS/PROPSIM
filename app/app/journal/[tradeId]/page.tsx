@@ -125,10 +125,16 @@ export default function TradeDetailsPage() {
   // ── clipboard paste ───────────────────────────────────────────────────────
 
   useEffect(() => {
-    const handlePaste = async (e: ClipboardEvent) => {
+        const handlePaste = async (e: ClipboardEvent) => {
       if (!trade) return
       const items = e.clipboardData?.items
       if (!items) return
+      let hasImage = false
+      for (const item of Array.from(items)) {
+        if (item.type.indexOf("image") !== -1) hasImage = true
+      }
+      if (hasImage) e.preventDefault()
+      
       for (const item of Array.from(items)) {
         if (item.type.indexOf("image") !== -1) {
           const file = item.getAsFile()
@@ -139,7 +145,6 @@ export default function TradeDetailsPage() {
             toast.success("Screenshot pasted!")
           }
           reader.readAsDataURL(file)
-          e.preventDefault()
         }
       }
     }
@@ -644,6 +649,7 @@ export default function TradeDetailsPage() {
     </div>
   )
 }
+
 
 
 

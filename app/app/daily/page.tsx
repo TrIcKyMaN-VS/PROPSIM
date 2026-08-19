@@ -16,9 +16,25 @@ import { Trade } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
+  const [val, setVal] = useState(props.value || '')
+  
+  useEffect(() => {
+    setVal(props.value || '')
+  }, [props.value])
+
   return (
     <Textarea 
       {...props} 
+      value={val}
+      onChange={(e) => {
+        setVal(e.target.value)
+      }}
+      onBlur={(e) => {
+        if (props.onChange) {
+          props.onChange(e as any)
+        }
+        if (props.onBlur) props.onBlur(e)
+      }}
       onInput={(e) => {
         e.currentTarget.style.height = 'auto'
         e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'

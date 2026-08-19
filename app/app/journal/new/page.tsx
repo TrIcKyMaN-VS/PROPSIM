@@ -14,7 +14,7 @@ import type { TradeDirection } from "@/lib/types"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   return (
-    <Textarea 
+    <DebouncedTextarea 
       {...props} 
       onInput={(e) => {
         e.currentTarget.style.height = 'auto'
@@ -27,6 +27,21 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   )
 }
 
+function DebouncedTextarea(props: React.ComponentProps<typeof Textarea>) {
+  const [val, setVal] = useState(props.value || '')
+  useEffect(() => { setVal(props.value || '') }, [props.value])
+  return (
+    <DebouncedTextarea 
+      {...props} 
+      value={val}
+      onChange={e => setVal(e.target.value)}
+      onBlur={e => {
+        if (props.onChange) props.onChange(e as any)
+        if (props.onBlur) props.onBlur(e)
+      }}
+    />
+  )
+}
 export default function NewManualTradePage() {
   const router = useRouter()
   const activeAccountId = usePropStore(s => s.activeAccountId)
@@ -58,9 +73,15 @@ export default function NewManualTradePage() {
   const [screenshot, setScreenshot] = useState<string | null>(null)
   
   useEffect(() => {
-    const handlePaste = (e: ClipboardEvent) => {
+        const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items
       if (!items) return
+      let hasImage = false
+      for (const item of Array.from(items)) {
+        if (item.type.indexOf("image") !== -1) hasImage = true
+      }
+      if (hasImage) e.preventDefault()
+      
       for (const item of Array.from(items)) {
         if (item.type.indexOf("image") !== -1) {
           const file = item.getAsFile()
@@ -71,7 +92,6 @@ export default function NewManualTradePage() {
             toast.success("Screenshot pasted!")
           }
           reader.readAsDataURL(file)
-          e.preventDefault()
         }
       }
     }
@@ -85,6 +105,7 @@ export default function NewManualTradePage() {
     const reader = new FileReader()
     reader.onloadend = () => setScreenshot(reader.result as string)
     reader.readAsDataURL(file)
+          e.preventDefault()
     e.target.value = ""
   }
 
@@ -321,5 +342,9 @@ export default function NewManualTradePage() {
     </div>
   )
 }
+
+
+
+
 
 
