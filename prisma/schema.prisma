@@ -10,6 +10,7 @@ datasource db {
 
 model User {
   id                  String               @id @default(cuid())
+  ruleBooks           RuleBook[]
   name                String?
   email               String?              @unique
   emailVerified       DateTime?
@@ -201,6 +202,7 @@ model Trade {
   exit              Float
   contracts         Float
   pnl               Float
+  netR              Float?
   day               Int
   timestamp         BigInt
   exitTime          BigInt?
@@ -551,4 +553,17 @@ model DailyJournal {
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+}
+
+
+model RuleBook {
+  id        String   @id @default(cuid())
+  userId    String
+  condition String
+  action    String
+  fromMistake String?
+  status    String   @default("testing") // testing, active, retired
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

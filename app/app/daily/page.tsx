@@ -492,16 +492,16 @@ export default function DailyJournalPage() {
         </div>
       </div>
 
-      {loading && <p className="text-muted-foreground text-sm">Loading�</p>}
+      {loading && <p className="text-muted-foreground text-sm">Loading...</p>}
 
       <SectionHeader title="Pre-Market Plan" />
       <div className="space-y-4">
         <JournalField title="HTF Context (balanced / imbalanced, prior value, overnight)" colorClass="bg-blue-400">
-          <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={htfContext} onChange={e => setHtfContext(e.target.value)} placeholder="Describe higher-timeframe context�" />
+          <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={htfContext} onChange={e => setHtfContext(e.target.value)} placeholder="Describe higher-timeframe context..." />
         </JournalField>
         
         <JournalField title="Key Levels + Why They Matter" colorClass="bg-purple-400">
-          <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={keyLevels} onChange={e => setKeyLevels(e.target.value)} placeholder="List key levels and their significance�" />
+          <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={keyLevels} onChange={e => setKeyLevels(e.target.value)} placeholder="List key levels and their significance..." />
         </JournalField>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -509,12 +509,12 @@ export default function DailyJournalPage() {
             <div className="space-y-3">
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">IF</Label>
-                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioAIf} onChange={e => setScenarioAIf(e.target.value)} placeholder="price does X�" />
+                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioAIf} onChange={e => setScenarioAIf(e.target.value)} placeholder="price does X..." />
               </div>
               <div className="h-px bg-border/40" />
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">THEN</Label>
-                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioAThen} onChange={e => setScenarioAThen(e.target.value)} placeholder="I will look for Y�" />
+                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioAThen} onChange={e => setScenarioAThen(e.target.value)} placeholder="I will look for Y..." />
               </div>
             </div>
           </JournalField>
@@ -523,12 +523,12 @@ export default function DailyJournalPage() {
             <div className="space-y-3">
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">IF</Label>
-                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioBIf} onChange={e => setScenarioBIf(e.target.value)} placeholder="price does X�" />
+                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioBIf} onChange={e => setScenarioBIf(e.target.value)} placeholder="price does X..." />
               </div>
               <div className="h-px bg-border/40" />
               <div>
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">THEN</Label>
-                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioBThen} onChange={e => setScenarioBThen(e.target.value)} placeholder="I will look for Y�" />
+                <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm mt-1" value={scenarioBThen} onChange={e => setScenarioBThen(e.target.value)} placeholder="I will look for Y..." />
               </div>
             </div>
           </JournalField>
@@ -621,14 +621,14 @@ export default function DailyJournalPage() {
       <SectionHeader title="Post-Session Notes" />
       <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <JournalField title="Plan Accuracy (1 � 10)">
+          <JournalField title="Plan Accuracy (1 ... 10)">
             <div className="flex items-start gap-4 h-full">
               <Input type="number" min={1} max={10} className="w-16 border-0 bg-transparent focus-visible:ring-0 text-2xl font-bold font-mono h-auto" value={planAccuracy} onChange={e => setPlanAccuracy(e.target.value)} placeholder="-" />
               <div className="w-px self-stretch bg-border/40" />
               <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm flex-1" placeholder="Why?" value={planAccuracyWhy} onChange={e => setPlanAccuracyWhy(e.target.value)} />
             </div>
           </JournalField>
-          <JournalField title="Plan Adherence (1 � 10)">
+          <JournalField title="Plan Adherence (1 ... 10)">
             <div className="flex items-start gap-4 h-full">
               <Input type="number" min={1} max={10} className="w-16 border-0 bg-transparent focus-visible:ring-0 text-2xl font-bold font-mono h-auto" value={planAdherence} onChange={e => setPlanAdherence(e.target.value)} placeholder="-" />
               <div className="w-px self-stretch bg-border/40" />
@@ -643,12 +643,12 @@ export default function DailyJournalPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { label: "Tomorrow � ADD", val: tomorrowAdd, set: setTomorrowAdd, color: "bg-green-400" },
-            { label: "Tomorrow � REMOVE", val: tomorrowRemove, set: setTomorrowRemove, color: "bg-destructive" },
-            { label: "Tomorrow � CONSIDER", val: tomorrowConsider, set: setTomorrowConsider, color: "bg-amber-400" },
+            { label: "Tomorrow ... ADD", val: tomorrowAdd, set: setTomorrowAdd, color: "bg-green-400" },
+            { label: "Tomorrow ... REMOVE", val: tomorrowRemove, set: setTomorrowRemove, color: "bg-destructive" },
+            { label: "Tomorrow ... CONSIDER", val: tomorrowConsider, set: setTomorrowConsider, color: "bg-amber-400" },
           ].map(({ label, val, set, color }) => (
             <JournalField key={label} title={label} colorClass={color}>
-              <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={val} onChange={e => set(e.target.value)} placeholder="�" />
+              <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={val} onChange={e => set(e.target.value)} placeholder="..." />
             </JournalField>
           ))}
         </div>

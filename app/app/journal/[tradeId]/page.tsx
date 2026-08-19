@@ -135,10 +135,11 @@ export default function TradeDetailsPage() {
           if (!file) continue
           const reader = new FileReader()
           reader.onloadend = async () => {
-            await addScreenshot(trade.id, "clipboard", reader.result as string)
+            await addScreenshot(trade.id, `gallery-${Date.now()}`, reader.result as string)
             toast.success("Screenshot pasted!")
           }
           reader.readAsDataURL(file)
+          e.preventDefault()
         }
       }
     }
@@ -153,10 +154,11 @@ export default function TradeDetailsPage() {
     if (!file || !trade) return
     const reader = new FileReader()
     reader.onloadend = async () => {
-      await addScreenshot(trade.id, "gallery", reader.result as string)
+      await addScreenshot(trade.id, `gallery-${Date.now()}`, reader.result as string)
       toast.success("Screenshot uploaded!")
     }
     reader.readAsDataURL(file)
+          e.preventDefault()
     e.target.value = ""
   }
 
@@ -247,7 +249,7 @@ export default function TradeDetailsPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 max-w-[1600px] mx-auto">
           {/* Left: back + chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <Button variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => router.back()}>
+            <Button type="button" variant="ghost" size="icon" className="shrink-0 -ml-2" onClick={() => router.back()}>
               <ArrowLeft className="w-4 h-4" />
             </Button>
             <span className="text-lg font-bold tracking-tight">{trade.instrument}</span>
@@ -642,3 +644,7 @@ export default function TradeDetailsPage() {
     </div>
   )
 }
+
+
+
+

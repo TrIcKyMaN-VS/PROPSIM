@@ -17,6 +17,7 @@ const nav = [
   { href: "/app/calendar",              label: "Calendar",       icon: CalendarDays },
   { href: "/app/daily",                 label: "Daily Journal",  icon: CheckSquare },
   { href: "/app/playbooks",             label: "Playbooks",      icon: BookOpen },
+  { href: "/app/rule-book",             label: "Rule Book",      icon: Target },
   { href: "/app/journal",               label: "Journal",        icon: NotebookPen },
   { href: "/app/notebook",              label: "Notebook",       icon: BookOpen },
   { href: "/app/calculator",            label: "P&L Calculator", icon: Calculator },
@@ -202,3 +203,5 @@ export function AppSidebar() {
     </aside>
   )
 }
+
+

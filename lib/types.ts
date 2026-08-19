@@ -58,6 +58,7 @@ export interface Trade {
   riskAmount?: number
   contracts: number
   pnl: number
+  netR?: number | null
   calculatedPnl?: number | null
   pnlMode?: string
   day: number // trading day index (1-based)
@@ -131,3 +132,4 @@ export interface ChallengeAccount {
   failureSnapshot?: string | null
   archivedAt?: number | string | Date | null
 }
+
