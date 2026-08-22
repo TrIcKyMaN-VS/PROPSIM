@@ -6,6 +6,7 @@ import { getDailyJournal, saveDailyJournal } from "@/app/actions/journal-actions
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
@@ -492,8 +493,7 @@ export default function DailyJournalPage() {
           <p className="text-muted-foreground text-sm">Pre-market plan + post-session review</p>
         </div>
         <div className="flex items-center gap-3">
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          <DatePicker value={date} onChange={setDate} className="w-[180px] bg-background" />
           <select value={session} onChange={e => setSession(e.target.value)}
             className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring">
             <option>NY</option>

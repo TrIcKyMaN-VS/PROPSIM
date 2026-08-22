@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2 } from "lucide-react"
@@ -289,7 +290,7 @@ export default function NewManualTradePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Date *</Label>
-              <Input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="bg-muted/20" />
+              <DatePicker value={form.date} onChange={(date) => setForm({ ...form, date })} />
             </div>
             <div className="space-y-2">
               <Label>Time *</Label>

@@ -11,6 +11,7 @@ import { generateApiToken, getApiTokens, revokeApiToken } from "@/app/actions/in
 import { getAccounts, updateAccountMapping, getDiscoveredAccounts, renameAccount } from "@/app/actions/account-actions"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 
 export default function IntegrationsPage() {
   const [tokens, setTokens] = useState<any[]>([])
@@ -297,19 +298,11 @@ export default function IntegrationsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground">Start Date</label>
-                <Input
-                  type="date"
-                  value={syncStartDate}
-                  onChange={e => setSyncStartDate(e.target.value)}
-                />
+                <DatePicker value={syncStartDate} onChange={setSyncStartDate} />
               </div>
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-muted-foreground">End Date</label>
-                <Input
-                  type="date"
-                  value={syncEndDate}
-                  onChange={e => setSyncEndDate(e.target.value)}
-                />
+                <DatePicker value={syncEndDate} onChange={setSyncEndDate} />
               </div>
             </div>
             <Button

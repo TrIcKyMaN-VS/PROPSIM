@@ -5,6 +5,7 @@ import Papa from "papaparse"
 import * as XLSX from "xlsx"
 import { usePropStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -245,21 +246,11 @@ export function ImportDialog() {
                 <div className="grid grid-cols-2 gap-4 pt-2">
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-muted-foreground">Start Date</Label>
-                    <input
-                      type="date"
-                      value={importStartDate}
-                      onChange={(e) => setImportStartDate(e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
+                    <DatePicker value={importStartDate} onChange={setImportStartDate} />
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-muted-foreground">End Date</Label>
-                    <input
-                      type="date"
-                      value={importEndDate}
-                      onChange={(e) => setImportEndDate(e.target.value)}
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
+                    <DatePicker value={importEndDate} onChange={setImportEndDate} />
                   </div>
                 </div>
               )}

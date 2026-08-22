@@ -5,6 +5,7 @@ import {
   getWeeklyReview,
   saveWeeklyReview,
 } from "@/app/actions/journal-actions";
+import { generateWeeklyPatterns } from "@/app/actions/weekly-review-ai-actions";
 import {
   Card,
   CardContent,
@@ -14,10 +15,11 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { WeekPicker } from "@/components/ui/week-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Plus, Trash, Save, Loader2 } from "lucide-react";
+import { Plus, Trash, Save, Loader2, Sparkles } from "lucide-react";
 
 const getCurrentWeekKey = () => {
   const d = new Date();
@@ -30,10 +32,42 @@ const getCurrentWeekKey = () => {
   return `${year}-W${week.toString().padStart(2, "0")}`;
 };
 
+
+function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
+  const [val, setVal] = useState(props.value || '')
+  
+  useEffect(() => {
+    setVal(props.value || '')
+  }, [props.value])
+
+  return (
+    <Textarea 
+      {...props} 
+      value={val}
+      onChange={(e) => {
+        setVal(e.target.value)
+      }}
+      onBlur={(e) => {
+        if (props.onChange) {
+          props.onChange(e as any)
+        }
+        if (props.onBlur) props.onBlur(e)
+      }}
+      onInput={(e) => {
+        e.currentTarget.style.height = 'auto'
+        e.currentTarget.style.height = e.currentTarget.scrollHeight + 'px'
+        if (props.onInput) props.onInput(e)
+      }}
+      className={props.className + " resize-none overflow-hidden min-h-[40px]"}
+    />
+  )
+}
+
 export default function WeeklyReviewPage() {
   const [weekOf, setWeekOf] = useState(getCurrentWeekKey());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Header state
   const [daysTradedCount, setDaysTradedCount] = useState<number | "">("");
@@ -73,7 +107,24 @@ export default function WeeklyReviewPage() {
   const [oneRuleNotBreak, setOneRuleNotBreak] = useState("");
   const [ruleStatusUpdates, setRuleStatusUpdates] = useState("");
 
+  
+  const handleAutoFillPatterns = async () => {
+    try {
+      setIsGenerating(true)
+      const res = await generateWeeklyPatterns(weekOf)
+      setRepeatedMistakes(res.repeatedMistakes || "")
+      setRepeatedWinConditions(res.repeatedWinConditions || "")
+      setEmotionalTimingPatterns(res.emotionalTimingPatterns || "")
+      toast.success("Successfully summarized daily journals!")
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate patterns")
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+  
   useEffect(() => {
+
     async function loadData() {
       if (!weekOf) return;
       setLoading(true);
@@ -230,11 +281,7 @@ export default function WeeklyReviewPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label>Week Of</Label>
-              <Input
-                type="week"
-                value={weekOf}
-                onChange={(e) => setWeekOf(e.target.value)}
-              />
+              <WeekPicker value={weekOf} onChange={setWeekOf} />
             </div>
             <div className="space-y-2">
               <Label>Days Traded</Label>
@@ -264,12 +311,18 @@ export default function WeeklyReviewPage() {
       {/* 1. PATTERNS */}
       <Card>
         <CardHeader>
-          <CardTitle>1. Patterns From The Daily Journals</CardTitle>
+          <div className="flex flex-row items-center justify-between w-full">
+            <CardTitle>1. Patterns From The Daily Journals</CardTitle>
+            <Button variant="outline" size="sm" onClick={handleAutoFillPatterns} disabled={isGenerating}>
+              {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-amber-500" />}
+              Auto-Fill from Journals
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Repeated mistakes</Label>
-            <Textarea
+            <AutoTextarea
               value={repeatedMistakes}
               onChange={(e) => setRepeatedMistakes(e.target.value)}
               placeholder="What mistakes kept showing up this week?"
@@ -278,7 +331,7 @@ export default function WeeklyReviewPage() {
           </div>
           <div className="space-y-2">
             <Label>Repeated conditions behind my best trades</Label>
-            <Textarea
+            <AutoTextarea
               value={repeatedWinConditions}
               onChange={(e) => setRepeatedWinConditions(e.target.value)}
               placeholder="What did your winners have in common?"
@@ -287,7 +340,7 @@ export default function WeeklyReviewPage() {
           </div>
           <div className="space-y-2">
             <Label>Emotional / timing patterns I noticed</Label>
-            <Textarea
+            <AutoTextarea
               value={emotionalTimingPatterns}
               onChange={(e) => setEmotionalTimingPatterns(e.target.value)}
               placeholder="e.g. FOMO during NY open, bored in afternoon..."
@@ -318,24 +371,21 @@ export default function WeeklyReviewPage() {
               >
                 <div className="flex-1 space-y-2 w-full">
                   <Label>WHEN</Label>
-                  <Input
-                    value={rule.when}
+                  <AutoTextarea value={rule.when}
                     onChange={(e) => updateRule(idx, "when", e.target.value)}
                     placeholder="e.g. I feel FOMO"
                   />
                 </div>
                 <div className="flex-1 space-y-2 w-full">
                   <Label>THEN</Label>
-                  <Input
-                    value={rule.then}
+                  <AutoTextarea value={rule.then}
                     onChange={(e) => updateRule(idx, "then", e.target.value)}
                     placeholder="e.g. I will step away for 10 mins"
                   />
                 </div>
                 <div className="flex-1 space-y-2 w-full">
                   <Label>From</Label>
-                  <Input
-                    value={rule.from}
+                  <AutoTextarea value={rule.from}
                     onChange={(e) => updateRule(idx, "from", e.target.value)}
                     placeholder="e.g. Wednesday's tilt"
                   />
@@ -414,7 +464,7 @@ export default function WeeklyReviewPage() {
           </div>
           <div className="space-y-2">
             <Label>Notes on the replay</Label>
-            <Textarea
+            <AutoTextarea
               value={backtestNotes}
               onChange={(e) => setBacktestNotes(e.target.value)}
               placeholder="Observations from replaying the week with strict rules..."
@@ -458,7 +508,7 @@ export default function WeeklyReviewPage() {
           </div>
           <div className="space-y-2">
             <Label>What the difference tells me</Label>
-            <Textarea
+            <AutoTextarea
               value={whatDifferenceTellsMe}
               onChange={(e) => setWhatDifferenceTellsMe(e.target.value)}
               placeholder="e.g. My strategy is fine, my execution is the issue."
@@ -468,8 +518,7 @@ export default function WeeklyReviewPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label>Rule that would have saved the most</Label>
-              <Input
-                value={ruleSavedMost}
+              <AutoTextarea value={ruleSavedMost}
                 onChange={(e) => setRuleSavedMost(e.target.value)}
                 placeholder="e.g. Stop trading after 2 losses"
               />
@@ -478,8 +527,7 @@ export default function WeeklyReviewPage() {
               <Label>
                 Rule that filtered out a good trade (needs adjusting)
               </Label>
-              <Input
-                value={ruleFilteredGoodTrade}
+              <AutoTextarea value={ruleFilteredGoodTrade}
                 onChange={(e) => setRuleFilteredGoodTrade(e.target.value)}
                 placeholder="e.g. Too tight trailing stop"
               />
@@ -496,8 +544,7 @@ export default function WeeklyReviewPage() {
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>The ONE rule I will not break</Label>
-            <Input
-              value={oneRuleNotBreak}
+            <AutoTextarea value={oneRuleNotBreak}
               onChange={(e) => setOneRuleNotBreak(e.target.value)}
               placeholder="e.g. I will wait for a 5min candle close before entry"
               className="font-semibold text-primary"
@@ -505,7 +552,7 @@ export default function WeeklyReviewPage() {
           </div>
           <div className="space-y-2">
             <Label>Rule status updates (Testing / Active / Retired)</Label>
-            <Textarea
+            <AutoTextarea
               value={ruleStatusUpdates}
               onChange={(e) => setRuleStatusUpdates(e.target.value)}
               placeholder="e.g. Active: No PM trading. Retired: Old moving average cross."
