@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ['recharts', 'react-is', 'react-smooth'],
   typescript: {
     ignoreBuildErrors: true,
   },
