@@ -177,4 +177,46 @@ export async function saveMonthlyRecap(month: string, data: any) {
   })
 }
 
+// Upload images for weekly review missed trades (reuses the same Supabase bucket)
+export async function uploadMissedTradeImages(base64Images: string[], weekOf: string): Promise<string[]> {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  return processBase64Images(base64Images, `mt_${session.user.id}_${weekOf}`)
+}
 
+// Upload image via FormData to bypass Next.js base64 server action limits
+export async function uploadImageFormData(formData: FormData): Promise<string> {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const file = formData.get("file") as File
+  if (!file) throw new Error("No file")
+
+  const prefix = formData.get("prefix") as string || "img"
+  
+  const arrayBuffer = await file.arrayBuffer()
+  const buffer = Buffer.from(arrayBuffer)
+  
+  const mimeType = file.type || "image/png"
+  const fileExt = mimeType.split("/")[1] || "png"
+  const fileName = `${prefix}_${session.user.id}_${Date.now()}.${fileExt}`
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (supabaseUrl && supabaseServiceKey) {
+    try {
+      const supabase = createClient(supabaseUrl, supabaseServiceKey)
+      const { data, error } = await supabase.storage
+        .from('screenshots')
+        .upload(fileName, buffer, { contentType: mimeType, upsert: true })
+      if (error) throw error
+      return `${supabaseUrl}/storage/v1/object/public/screenshots/${fileName}`
+    } catch (error: any) {
+      console.error("Failed to upload to Supabase:", error)
+      return saveLocalFile(fileName, buffer)
+    }
+  } else {
+    return saveLocalFile(fileName, buffer)
+  }
+}

@@ -141,7 +141,7 @@ export default function TradeDetailsPage() {
           if (!file) continue
           const reader = new FileReader()
           reader.onloadend = async () => {
-            await addScreenshot(trade.id, `gallery-${Date.now()}`, reader.result as string)
+            await addScreenshot(trade.id, `gallery-${Date.now()}-paste`, reader.result as string)
             toast.success("Screenshot pasted!")
           }
           reader.readAsDataURL(file)
@@ -168,6 +168,7 @@ export default function TradeDetailsPage() {
   }
 
   const handleDeleteScreenshot = async (id: string) => {
+    if (!window.confirm("Are you sure you want to remove this screenshot?")) return;
     if (!trade) return
     await deleteScreenshot(trade.id, id)
     toast.success("Screenshot deleted")
@@ -548,7 +549,7 @@ export default function TradeDetailsPage() {
                     <span><Upload className="w-3.5 h-3.5 mr-1.5" />Upload</span>
                   </Button>
                 </label>
-                <input id="sc-upload" type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                <input id="sc-upload" type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
               </div>
             </div>
           </CardHeader>
@@ -612,7 +613,7 @@ export default function TradeDetailsPage() {
                 >
                   <Upload className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
                   <span className="text-[10px] text-muted-foreground/50 font-medium group-hover:text-muted-foreground transition-colors">Add more</span>
-                  <input id="sc-upload-more" type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+                  <input id="sc-upload-more" type="file" accept="image/*" multiple className="hidden" onChange={handleFileUpload} />
                 </label>
               </div>
             )}

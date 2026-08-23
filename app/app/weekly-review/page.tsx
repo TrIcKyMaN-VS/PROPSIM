@@ -5,7 +5,9 @@ import {
   getWeeklyReview,
   saveWeeklyReview,
   getPreviousWeeklyReview,
+  uploadImageFormData,
 } from "@/app/actions/journal-actions";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { generateWeeklyPatterns } from "@/app/actions/weekly-review-ai-actions";
 import {
   Card,
@@ -21,7 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen } from "lucide-react";
+import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil } from "lucide-react";
 import {
   getRuleBookEntries,
   createRuleBookEntry,
@@ -46,6 +48,8 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   useEffect(() => {
     setVal(props.value || '')
   }, [props.value])
+
+
 
   return (
     <Textarea 
@@ -140,28 +144,211 @@ export default function WeeklyReviewPage() {
     whyMissed: string;          // free text — user types whatever reason
     realtimeValidity: "yes_100" | "maybe" | "honest_no";
     ruleHelped?: boolean;       // true if rule correctly blocked a losing trade
+    screenshotUrl?: string;     // legacy single uploaded chart screenshot
+    screenshots?: string[];     // multiple uploaded chart screenshots
   };
   const [missedTrades, setMissedTrades] = useState<MissedTrade[]>([]);
   const [showMissedForm, setShowMissedForm] = useState(false);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [uploadingImg, setUploadingImg] = useState(false);
   const emptyMissed = (): MissedTrade => ({
-    id: Math.random().toString(36).slice(2),
-    instrument: "",
-    direction: "long",
-    date: "",
-    setupDescription: "",
-    estimatedR: "",
-    outcome: "win",
-    whyMissed: "",
-    realtimeValidity: "yes_100",
-    ruleHelped: false,
+    id: "", instrument: "", direction: "long", date: new Date().toISOString().split("T")[0],
+    setupDescription: "", estimatedR: "", outcome: "win", whyMissed: "", realtimeValidity: "yes_100", ruleHelped: false, screenshots: []
   });
   const [missedDraft, setMissedDraft] = useState<MissedTrade>(emptyMissed());
+  const [expandedMissed, setExpandedMissed] = useState<Record<string, boolean>>({});
+  const toggleMissed = (id: string) => setExpandedMissed(p => ({ ...p, [id]: !p[id] }));
+  const [deleteMissedId, setDeleteMissedId] = useState<string | null>(null);
+  const renderMissedForm = () => (
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Instrument</Label>
+                    <Input
+                      placeholder="NQ, ES..."
+                      value={missedDraft.instrument}
+                      onChange={e => setMissedDraft(d => ({ ...d, instrument: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Direction</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      value={missedDraft.direction}
+                      onChange={e => setMissedDraft(d => ({ ...d, direction: e.target.value as "long" | "short" }))}
+                    >
+                      <option value="long">Long</option>
+                      <option value="short">Short</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Outcome</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      value={missedDraft.outcome}
+                      onChange={e => setMissedDraft(d => ({ ...d, outcome: e.target.value as "win" | "loss" | "breakeven" }))}
+                    >
+                      <option value="win">Win</option>
+                      <option value="loss">Loss</option>
+                      <option value="breakeven">Breakeven</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Estimated R</Label>
+                    <Input
+                      placeholder="+2R, -1R..."
+                      value={missedDraft.estimatedR}
+                      onChange={e => setMissedDraft(d => ({ ...d, estimatedR: e.target.value }))}
+                    />
+                  </div>
+                </div>
 
-  const addMissedTrade = () => {
-    if (!missedDraft.instrument || !missedDraft.whyMissed) return;
-    setMissedTrades(prev => [...prev, { ...missedDraft, id: Math.random().toString(36).slice(2) }]);
-    setMissedDraft(emptyMissed());
+                <div className="space-y-1">
+                  <Label className="text-xs">Why did you miss it? <span className="text-muted-foreground">(free text &mdash; be honest)</span></Label>
+                  <AutoTextarea
+                    placeholder="e.g. Wasn't watching, was in a revenge trade, fear after 2 losses, rule blocked it, order didn't fill..."
+                    value={missedDraft.whyMissed}
+                    onChange={e => setMissedDraft(d => ({ ...d, whyMissed: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Setup description <span className="text-muted-foreground">(optional)</span></Label>
+                  <AutoTextarea
+                    placeholder="e.g. Clean breakout retest at previous day HOD with delta confirmation..."
+                    value={missedDraft.setupDescription}
+                    onChange={e => setMissedDraft(d => ({ ...d, setupDescription: e.target.value }))}
+                  />
+                </div>
+
+                {/* Hindsight reality check */}
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                  <Label className="text-xs font-semibold text-amber-500">&#x26A0;&#xFE0F; Hindsight Reality Check</Label>
+                  <p className="text-xs text-muted-foreground">"Would you have taken this trade IN REAL TIME, with only the info available then?"</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(["yes_100", "maybe", "honest_no"] as const).map(v => (
+                      <label key={v} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="realtimeValidity"
+                          value={v}
+                          checked={missedDraft.realtimeValidity === v}
+                          onChange={() => setMissedDraft(d => ({ ...d, realtimeValidity: v }))}
+                          className="accent-primary"
+                        />
+                        <span className="text-sm">
+                          {v === "yes_100" && <><span className="text-success font-medium">Yes, 100%</span> &mdash; I had a clear plan for this level</>}
+                          {v === "maybe" && <><span className="text-amber-500 font-medium">Maybe</span> &mdash; not sure I'd have seen it live</>}
+                          {v === "honest_no" && <><span className="text-destructive font-medium">Honest no</span> &mdash; only obvious in hindsight</>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!missedDraft.ruleHelped}
+                      onChange={e => setMissedDraft(d => ({ ...d, ruleHelped: e.target.checked }))}
+                      className="accent-success"
+                    />
+                    A rule correctly prevented this (it would have been a bad trade)
+                  </label>
+                </div>
+
+                {/* Chart screenshot upload */}
+                <div className="space-y-1">
+                  <Label className="text-xs">Chart Screenshots <span className="text-muted-foreground">(optional)</span></Label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {missedDraft.screenshots?.map((url, idx) => (
+                      <div key={idx} className="relative group w-full aspect-video rounded-lg overflow-hidden border border-border bg-muted/20 cursor-pointer"
+                        onClick={() => { setViewImage(url); setIsZoomed(false); }}
+                      >
+                        <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+                        <button
+                          onClick={e => {
+                            e.stopPropagation();
+                            if (window.confirm("Are you sure you want to remove this screenshot?")) {
+                              setMissedDraft(d => ({ ...d, screenshots: d.screenshots?.filter((_, i) => i !== idx) }));
+                            }
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-all z-10"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-border/40 rounded-xl py-6 text-center cursor-pointer hover:bg-muted/20 transition-colors group aspect-video">
+                      {uploadingImg ? (
+                        <><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /><span className="text-xs text-muted-foreground">Uploading...</span></>
+                      ) : (
+                        <><Upload className="w-5 h-5 text-muted-foreground/50 group-hover:text-primary/60 transition-colors" /><span className="text-xs text-muted-foreground">Click to upload images</span></>
+                      )}
+                      <input type="file" accept="image/*" multiple className="hidden" onChange={handleMissedImageUpload} disabled={uploadingImg} />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={cancelMissedForm}>Cancel</Button>
+                  <Button size="sm" onClick={saveMissedTrade} disabled={!missedDraft.instrument || !missedDraft.whyMissed || uploadingImg}>
+                    {uploadingImg ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Uploading...</> : editingMissedId ? "Save Changes" : "Add Missed Trade"}
+                  </Button>
+                </div>
+              </div>
+  );
+  const [editingMissedId, setEditingMissedId] = useState<string | null>(null);
+
+  const startEditMissed = (t: MissedTrade, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMissedDraft(t);
+    setEditingMissedId(t.id);
+    setShowMissedForm(true);
+    // Auto-expand the draft form into view by scrolling or just opening it
+  };
+
+  const cancelMissedForm = () => {
     setShowMissedForm(false);
+    setMissedDraft(emptyMissed());
+    setEditingMissedId(null);
+  };
+
+  const handleMissedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setUploadingImg(true);
+    try {
+      const newUrls: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData();
+        formData.append("file", files[i]);
+        formData.append("prefix", "mt_" + weekOf);
+        const url = await uploadImageFormData(formData);
+        newUrls.push(url);
+      }
+      setMissedDraft(d => {
+        const existing = [...(d.screenshots || []), ...(d.screenshotUrl ? [d.screenshotUrl] : [])];
+        return { ...d, screenshots: [...existing, ...newUrls], screenshotUrl: undefined };
+      });
+    } catch {
+      toast.error("Image upload failed");
+    } finally {
+      setUploadingImg(false);
+    }
+    e.target.value = "";
+  };
+
+  const saveMissedTrade = () => {
+    if (!missedDraft.instrument || !missedDraft.whyMissed) return;
+    if (editingMissedId) {
+      setMissedTrades(prev => prev.map(t => t.id === editingMissedId ? missedDraft : t));
+    } else {
+      setMissedTrades(prev => [...prev, { ...missedDraft, id: Math.random().toString(36).slice(2) }]);
+    }
+    cancelMissedForm();
   };
   const removeMissedTrade = (id: string) => setMissedTrades(prev => prev.filter(t => t.id !== id));
 
@@ -296,7 +483,11 @@ export default function WeeklyReviewPage() {
           // Load missed trades
           if ((data as any).missedTrades) {
             try {
-              setMissedTrades(JSON.parse((data as any).missedTrades));
+              const parsed = JSON.parse((data as any).missedTrades) as MissedTrade[];
+              setMissedTrades(parsed.map(t => ({
+                ...t,
+                screenshots: t.screenshots || (t.screenshotUrl ? [t.screenshotUrl] : [])
+              })));
             } catch { setMissedTrades([]); }
           } else {
             setMissedTrades([]);
@@ -444,6 +635,21 @@ export default function WeeklyReviewPage() {
   };
 
   return (
+    <>
+      {/* Image Zoom Lightbox */}
+      <Dialog open={!!viewImage} onOpenChange={(o) => { if (!o) { setIsZoomed(false); setViewImage(null); } }}>
+        <DialogContent className="max-w-[95vw] w-fit p-1 bg-black/90 border-0 flex items-center justify-center z-[100]">
+          {viewImage && (
+            <img
+              src={viewImage}
+              alt="Chart screenshot"
+              className={isZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
+              onClick={e => { e.stopPropagation(); setIsZoomed(!isZoomed); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
     <div className="max-w-5xl mx-auto space-y-6 pb-20">
       {/* HEADER */}
       <Card>
@@ -557,9 +763,9 @@ export default function WeeklyReviewPage() {
                 {/* Rule summary */}
                 <div className="space-y-0.5">
                   <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">When</div>
-                  <div className="text-sm text-foreground">{ev.when || <span className="italic text-muted-foreground">—</span>}</div>
+                  <div className="text-sm text-foreground">{ev.when || <span className="italic text-muted-foreground">&mdash;</span>}</div>
                   <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-2">Then</div>
-                  <div className="text-sm text-foreground">{ev.then || <span className="italic text-muted-foreground">—</span>}</div>
+                  <div className="text-sm text-foreground">{ev.then || <span className="italic text-muted-foreground">&mdash;</span>}</div>
                   {ev.from && (
                     <div className="text-xs text-muted-foreground mt-1">From: {ev.from}</div>
                   )}
@@ -588,7 +794,7 @@ export default function WeeklyReviewPage() {
                   </div>
                 </div>
 
-                {/* Help Status — only if followed */}
+                {/* Help Status \u2014 only if followed */}
                 {ev.followStatus === "followed" && (
                   <div className="space-y-2">
                     <Label className="text-xs uppercase tracking-widest font-bold">Did following it help?</Label>
@@ -636,7 +842,7 @@ export default function WeeklyReviewPage() {
                   </div>
                 </div>
 
-                {/* Adjustment note — only if verdict is adjust */}
+                {/* Adjustment note \u2014 only if verdict is adjust */}
                 {ev.verdict === "adjust" && (
                   <div className="space-y-2">
                     <Label className="text-xs uppercase tracking-widest font-bold">How should this rule change?</Label>
@@ -794,7 +1000,7 @@ export default function WeeklyReviewPage() {
             />
           </div>
 
-          {/* ── MISSED TRADES ── */}
+          {/* ━━━ MISSED TRADES ━━━ */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -804,120 +1010,22 @@ export default function WeeklyReviewPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowMissedForm(v => !v)}
+                onClick={() => {
+                  if (showMissedForm && !editingMissedId) {
+                    cancelMissedForm();
+                  } else {
+                    cancelMissedForm();
+                    setShowMissedForm(true);
+                  }
+                }}
               >
-                {showMissedForm ? "Cancel" : "+ Add Missed Setup"}
+                {showMissedForm && !editingMissedId ? "Cancel" : "+ Add Missed Setup"}
               </Button>
             </div>
 
-            {/* Add form */}
-            {showMissedForm && (
-              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Instrument</Label>
-                    <Input
-                      placeholder="NQ, ES..."
-                      value={missedDraft.instrument}
-                      onChange={e => setMissedDraft(d => ({ ...d, instrument: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Direction</Label>
-                    <select
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                      value={missedDraft.direction}
-                      onChange={e => setMissedDraft(d => ({ ...d, direction: e.target.value as "long" | "short" }))}
-                    >
-                      <option value="long">Long</option>
-                      <option value="short">Short</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Outcome</Label>
-                    <select
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
-                      value={missedDraft.outcome}
-                      onChange={e => setMissedDraft(d => ({ ...d, outcome: e.target.value as "win" | "loss" | "breakeven" }))}
-                    >
-                      <option value="win">Win</option>
-                      <option value="loss">Loss</option>
-                      <option value="breakeven">Breakeven</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Estimated R</Label>
-                    <Input
-                      placeholder="+2R, -1R..."
-                      value={missedDraft.estimatedR}
-                      onChange={e => setMissedDraft(d => ({ ...d, estimatedR: e.target.value }))}
-                    />
-                  </div>
-                </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs">Why did you miss it? <span className="text-muted-foreground">(free text — be honest)</span></Label>
-                  <AutoTextarea
-                    placeholder="e.g. Wasn't watching, was in a revenge trade, fear after 2 losses, rule blocked it, order didn't fill..."
-                    value={missedDraft.whyMissed}
-                    onChange={e => setMissedDraft(d => ({ ...d, whyMissed: e.target.value }))}
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <Label className="text-xs">Setup description <span className="text-muted-foreground">(optional)</span></Label>
-                  <AutoTextarea
-                    placeholder="e.g. Clean breakout retest at previous day HOD with delta confirmation..."
-                    value={missedDraft.setupDescription}
-                    onChange={e => setMissedDraft(d => ({ ...d, setupDescription: e.target.value }))}
-                  />
-                </div>
-
-                {/* Hindsight reality check */}
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                  <Label className="text-xs font-semibold text-amber-500">⚠ Hindsight Reality Check</Label>
-                  <p className="text-xs text-muted-foreground">"Would you have taken this trade IN REAL TIME, with only the info available then?"</p>
-                  <div className="flex flex-col gap-1.5">
-                    {(["yes_100", "maybe", "honest_no"] as const).map(v => (
-                      <label key={v} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="realtimeValidity"
-                          value={v}
-                          checked={missedDraft.realtimeValidity === v}
-                          onChange={() => setMissedDraft(d => ({ ...d, realtimeValidity: v }))}
-                          className="accent-primary"
-                        />
-                        <span className="text-sm">
-                          {v === "yes_100" && <><span className="text-success font-medium">Yes, 100%</span> — I had a clear plan for this level</>}
-                          {v === "maybe" && <><span className="text-amber-500 font-medium">Maybe</span> — not sure I'd have seen it live</>}
-                          {v === "honest_no" && <><span className="text-destructive font-medium">Honest no</span> — only obvious in hindsight</>}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input
-                      type="checkbox"
-                      checked={!!missedDraft.ruleHelped}
-                      onChange={e => setMissedDraft(d => ({ ...d, ruleHelped: e.target.checked }))}
-                      className="accent-success"
-                    />
-                    A rule correctly prevented this (it would have been a bad trade)
-                  </label>
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => { setShowMissedForm(false); setMissedDraft(emptyMissed()); }}>Cancel</Button>
-                  <Button size="sm" onClick={addMissedTrade} disabled={!missedDraft.instrument || !missedDraft.whyMissed}>
-                    Add Missed Trade
-                  </Button>
-                </div>
-              </div>
-            )}
+            {/* Add new form at top */}
+            {showMissedForm && !editingMissedId && renderMissedForm()}
 
             {/* Logged missed trades list */}
             {missedTrades.length > 0 && (
@@ -925,10 +1033,16 @@ export default function WeeklyReviewPage() {
                 {missedTrades.map(t => {
                   const isConfirmed = t.realtimeValidity === "yes_100"
                   const isMaybe = t.realtimeValidity === "maybe"
+                  const expanded = expandedMissed[t.id]
+
+                  if (t.id === editingMissedId) {
+                    return <div key={t.id} className="my-2">{renderMissedForm()}</div>;
+                  }
+
                   return (
                     <div
                       key={t.id}
-                      className={`rounded-lg border p-3 text-sm relative group ${
+                      className={`rounded-lg border text-sm relative transition-all ${
                         t.ruleHelped
                           ? "border-success/30 bg-success/5"
                           : isConfirmed
@@ -936,33 +1050,69 @@ export default function WeeklyReviewPage() {
                           : "border-border bg-muted/10 opacity-70"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <div 
+                        className="flex items-center justify-between gap-2 p-3 cursor-pointer group"
+                        onClick={() => toggleMissed(t.id)}
+                      >
+                        <div className="flex items-center gap-2 flex-wrap flex-1">
+                          {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground mr-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground mr-1" />}
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.direction === "long" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
                             {t.direction.toUpperCase()}
                           </span>
                           <span className="font-semibold">{t.instrument}</span>
                           {t.estimatedR && (
                             <span className={`text-xs font-mono font-bold ${t.outcome === "win" ? "text-success" : t.outcome === "loss" ? "text-destructive" : "text-muted-foreground"}`}>
-                              {t.estimatedR} • {t.outcome.toUpperCase()}
+                              {t.estimatedR} &bull; {t.outcome.toUpperCase()}
                             </span>
                           )}
-                          {t.ruleHelped && <span className="text-xs text-success font-medium">✓ Rule saved you</span>}
+                          {t.ruleHelped && <span className="text-xs text-success font-medium">&#x2713; Rule saved you</span>}
                           {!isConfirmed && (
                             <span className="text-xs text-muted-foreground italic">
-                              {isMaybe ? "(maybe — unconfirmed)" : "(hindsight only)"}
+                              {isMaybe ? "(maybe &mdash; unconfirmed)" : "(hindsight only)"}
                             </span>
                           )}
                         </div>
-                        <button
-                          onClick={() => removeMissedTrade(t.id)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1 rounded"
-                        >
-                          ✕
-                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => startEditMissed(t, e)}
+                            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteMissedId(t.id);
+                            }}
+                            className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
+                          >
+                            <Trash className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-muted-foreground mt-1.5 text-xs"><span className="font-medium text-foreground">Missed:</span> {t.whyMissed}</p>
-                      {t.setupDescription && <p className="text-muted-foreground mt-1 text-xs italic">{t.setupDescription}</p>}
+                      
+                      {expanded && (
+                        <div className="px-3 pb-4 pt-1 border-t border-border/40 mt-1">
+                          <p className="text-muted-foreground text-xs"><span className="font-medium text-foreground">Missed:</span> {t.whyMissed}</p>
+                          {t.setupDescription && <p className="text-muted-foreground mt-2 text-xs italic"><span className="font-medium text-foreground not-italic">Plan:</span> {t.setupDescription}</p>}
+                          {t.screenshots && t.screenshots.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-3">
+                              {t.screenshots.map((url, idx) => (
+                                <div
+                                  key={idx}
+                                  className="group/img relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/30 cursor-pointer w-64 max-w-full"
+                                  onClick={(e) => { e.stopPropagation(); setViewImage(url); setIsZoomed(false); }}
+                                >
+                                  <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover transition-transform duration-200 group-hover/img:scale-[1.03]" />
+                                  <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors flex items-center justify-center">
+                                    <span className="opacity-0 group-hover/img:opacity-100 text-white text-xs font-medium bg-black/50 px-2 py-1 rounded transition-opacity">Click to zoom</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )
                 })}
@@ -978,13 +1128,13 @@ export default function WeeklyReviewPage() {
                       <div>
                         <p className="text-muted-foreground">Confirmed opportunity cost</p>
                         <p className={`font-bold text-sm mt-0.5 ${confirmedWinR > 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          {confirmedWinR > 0 ? `+${confirmedWinR.toFixed(1)}R missed` : "—"}
+                          {confirmedWinR > 0 ? `+${confirmedWinR.toFixed(1)}R missed` : "\u2014"}
                         </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Rule protection saved</p>
                         <p className={`font-bold text-sm mt-0.5 ${ruleSavedR > 0 ? "text-success" : "text-muted-foreground"}`}>
-                          {ruleSavedR > 0 ? `${ruleSavedR.toFixed(1)}R protected` : "—"}
+                          {ruleSavedR > 0 ? `${ruleSavedR.toFixed(1)}R protected` : "\u2014"}
                         </p>
                       </div>
                       <div>
@@ -1099,5 +1249,31 @@ export default function WeeklyReviewPage() {
         </Button>
       </div>
     </div>
+
+    {/* Delete Missed Trade Confirmation */}
+    <Dialog open={!!deleteMissedId} onOpenChange={(o) => !o && setDeleteMissedId(null)}>
+      <DialogContent className="sm:max-w-md">
+        <div className="flex flex-col items-center justify-center gap-4 py-4 text-center">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+            <AlertCircle className="w-6 h-6 text-destructive" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">Delete Missed Setup</h3>
+            <p className="text-sm text-muted-foreground mt-1">Are you sure you want to remove this logged setup? This action cannot be undone.</p>
+          </div>
+          <div className="flex justify-center gap-3 mt-2 w-full">
+            <Button variant="outline" className="flex-1" onClick={() => setDeleteMissedId(null)}>Cancel</Button>
+            <Button variant="destructive" className="flex-1" onClick={() => {
+              if (deleteMissedId) removeMissedTrade(deleteMissedId);
+              setDeleteMissedId(null);
+            }}>
+              Yes, delete it
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    </>
   );
 }
