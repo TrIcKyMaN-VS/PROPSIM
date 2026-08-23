@@ -7,7 +7,8 @@ import { getFirm } from "@/lib/firms"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 
 import { Label } from "@/components/ui/label"
-import { EquityChart } from "@/components/app/equity-chart"
+import dynamic from 'next/dynamic'
+const EquityChart = dynamic(() => import("@/components/app/equity-chart").then(m => m.EquityChart), { ssr: false })
 import { fmtCurrency, fmtPct } from "@/lib/format"
 import { Beaker, TrendingUp, TrendingDown } from "lucide-react"
 

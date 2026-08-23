@@ -7,7 +7,8 @@ import { evaluate, equityCurve } from "@/lib/rule-engine"
 import { fmtCurrency, fmtPct, fmtPnl, formatDisplayTime, formatDisplayDateTime } from "@/lib/format"
 import { StatCard } from "./stat-card"
 import { RuleMeter } from "./rule-meter"
-import { EquityChart } from "./equity-chart"
+import dynamic from 'next/dynamic'
+const EquityChart = dynamic(() => import("./equity-chart").then(m => m.EquityChart), { ssr: false })
 import { QuickTrade } from "./quick-trade"
 import { Button } from "@/components/ui/button"
 import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield, Flame, TrendingDown, Zap } from "lucide-react"

@@ -1,5 +1,4 @@
 "use client"
-import dynamic from "next/dynamic"
 
 import { usePropStore } from "@/lib/store"
 import { FIRMS, getFirm } from "@/lib/firms"
@@ -21,7 +20,7 @@ import { equityCurve } from "@/lib/rule-engine"
 
 const COLORS = ["#6366f1", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6"]
 
-function CompareViewInner() {
+export function CompareView() {
   const compareFirmIds = usePropStore((s) => s.compareFirmIds)
   const toggleCompare = usePropStore((s) => s.toggleCompare)
   const accounts = usePropStore((s) => s.accounts)
@@ -238,4 +237,3 @@ function size50(f: NonNullable<ReturnType<typeof getFirm>>) {
   return f.sizes.find((s) => s.label === "50K") ?? f.sizes[0]
 }
 
-export const CompareView = dynamic(() => Promise.resolve(CompareViewInner), { ssr: false });

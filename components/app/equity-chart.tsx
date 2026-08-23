@@ -1,5 +1,4 @@
 "use client"
-import dynamic from "next/dynamic"
 
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts"
 import { fmtCurrency } from "@/lib/format"
@@ -11,7 +10,7 @@ interface Point {
   label: string
 }
 
-function EquityChartInner({ data, target }: { data: Point[]; target: number }) {
+export function EquityChart({ data, target }: { data: Point[]; target: number }) {
   return (
     <div className="h-72 w-full">
       <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
@@ -50,4 +49,3 @@ function EquityChartInner({ data, target }: { data: Point[]; target: number }) {
   )
 }
 
-export const EquityChart = dynamic(() => Promise.resolve(EquityChartInner), { ssr: false });

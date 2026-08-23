@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
 import { Play, Pause, SkipForward, SkipBack, RotateCcw } from "lucide-react"
-import { EquityChart } from "@/components/app/equity-chart"
+import dynamic from 'next/dynamic'
+const EquityChart = dynamic(() => import("@/components/app/equity-chart").then(m => m.EquityChart), { ssr: false })
 import { equityCurve } from "@/lib/rule-engine"
 
 export default function ReplayPage() {

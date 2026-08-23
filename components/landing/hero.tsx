@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { motion } from "framer-motion"
 import { ArrowRight, ShieldCheck } from "lucide-react"
-import { HeroPreview } from "./hero-preview"
+import dynamic from 'next/dynamic'
+const HeroPreview = dynamic(() => import("./hero-preview").then(m => m.HeroPreview), { ssr: false })
 
 export function Hero() {
   return (
