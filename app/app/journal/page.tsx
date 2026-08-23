@@ -53,6 +53,8 @@ export default function JournalPage() {
   const [ntConnected, setNtConnected] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [deleteTradeId, setDeleteTradeId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const perPage = 50
 
   // Check NT connection and auto-sync
   useEffect(() => {
@@ -416,6 +418,36 @@ export default function JournalPage() {
               })}
             </TableBody>
           </Table>
+
+          {/* Pagination */}
+          {filteredTrades.length > perPage && (
+            <div className="flex items-center justify-between mt-4 px-1">
+              <p className="text-sm text-muted-foreground">
+                Showing {(page - 1) * perPage + 1}–{Math.min(page * perPage, filteredTrades.length)} of {filteredTrades.length} trades
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {page} of {Math.ceil(filteredTrades.length / perPage)}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page * perPage >= filteredTrades.length}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

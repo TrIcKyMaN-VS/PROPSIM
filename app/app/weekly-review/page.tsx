@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { WeekPicker } from "@/components/ui/week-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen } from "lucide-react";
 import {

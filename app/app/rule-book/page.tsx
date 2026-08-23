@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
-import { Plus, Save, Trash2, ChevronDown, ChevronRight, History } from "lucide-react"
+import { Plus, Save, Trash2, ChevronDown, ChevronRight, History, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   getRuleBookEntries,
@@ -183,7 +184,7 @@ export default function RuleBookPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+    <div className="max-w-4xl mx-auto space-y-8 pb-12 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rule Book</h1>
@@ -231,7 +232,8 @@ export default function RuleBookPage() {
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
               <Button onClick={handleSave} disabled={saving}>
-                <Save className="w-4 h-4 mr-2" /> Save Rule
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+              {saving ? "Saving..." : "Save Rule"}
               </Button>
             </div>
           </CardContent>
@@ -239,7 +241,23 @@ export default function RuleBookPage() {
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+        <div className="space-y-4 animate-in fade-in duration-300">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="rounded-xl border border-border bg-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <div className="flex gap-4 pt-1">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : rules.length === 0 && !adding ? (
         <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
           <p>Your rule book is empty.</p>
