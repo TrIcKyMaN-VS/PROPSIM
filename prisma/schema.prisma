@@ -466,6 +466,9 @@ model WeeklyReview {
   // Rule Evaluations (JSON: RuleEvaluation[])
   ruleEvaluations         String?
 
+  // Missed Trades (JSON: MissedTrade[])
+  missedTrades            String?
+
   // 5. Commitment
   oneRuleNotBreak         String?
   ruleStatusUpdates       String?

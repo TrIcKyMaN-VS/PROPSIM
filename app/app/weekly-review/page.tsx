@@ -128,6 +128,43 @@ export default function WeeklyReviewPage() {
   const [previousRules, setPreviousRules] = useState<{ when: string; then: string; from: string }[]>([]);
   const [ruleEvaluations, setRuleEvaluations] = useState<RuleEval[]>([]);
 
+  // Missed Trades
+  type MissedTrade = {
+    id: string;
+    instrument: string;
+    direction: "long" | "short";
+    date: string;
+    setupDescription: string;
+    estimatedR: string;
+    outcome: "win" | "loss" | "breakeven";
+    whyMissed: string;          // free text — user types whatever reason
+    realtimeValidity: "yes_100" | "maybe" | "honest_no";
+    ruleHelped?: boolean;       // true if rule correctly blocked a losing trade
+  };
+  const [missedTrades, setMissedTrades] = useState<MissedTrade[]>([]);
+  const [showMissedForm, setShowMissedForm] = useState(false);
+  const emptyMissed = (): MissedTrade => ({
+    id: Math.random().toString(36).slice(2),
+    instrument: "",
+    direction: "long",
+    date: "",
+    setupDescription: "",
+    estimatedR: "",
+    outcome: "win",
+    whyMissed: "",
+    realtimeValidity: "yes_100",
+    ruleHelped: false,
+  });
+  const [missedDraft, setMissedDraft] = useState<MissedTrade>(emptyMissed());
+
+  const addMissedTrade = () => {
+    if (!missedDraft.instrument || !missedDraft.whyMissed) return;
+    setMissedTrades(prev => [...prev, { ...missedDraft, id: Math.random().toString(36).slice(2) }]);
+    setMissedDraft(emptyMissed());
+    setShowMissedForm(false);
+  };
+  const removeMissedTrade = (id: string) => setMissedTrades(prev => prev.filter(t => t.id !== id));
+
   const updateEval = (idx: number, patch: Partial<RuleEval>) => {
     setRuleEvaluations(prev => {
       const updated = [...prev];
@@ -253,6 +290,16 @@ export default function WeeklyReviewPage() {
             } catch { setRuleEvaluations([]); }
           } else {
             setRuleEvaluations([]);
+          setMissedTrades([]);
+          }
+
+          // Load missed trades
+          if ((data as any).missedTrades) {
+            try {
+              setMissedTrades(JSON.parse((data as any).missedTrades));
+            } catch { setMissedTrades([]); }
+          } else {
+            setMissedTrades([]);
           }
         } else {
           // Reset form
@@ -277,6 +324,7 @@ export default function WeeklyReviewPage() {
           setOneRuleNotBreak("");
           setRuleStatusUpdates("");
           setRuleEvaluations([]);
+        setMissedTrades([]);
         }
 
         // Always load previous week's rules (regardless of whether current week exists)
@@ -343,6 +391,7 @@ export default function WeeklyReviewPage() {
         oneRuleNotBreak: oneRuleNotBreak || null,
         ruleStatusUpdates: ruleStatusUpdates || null,
         ruleEvaluations: ruleEvaluations.length > 0 ? JSON.stringify(ruleEvaluations) : null,
+        missedTrades: missedTrades.length > 0 ? JSON.stringify(missedTrades) : null,
       };
 
       await saveWeeklyReview(weekOf, payload);
@@ -743,6 +792,210 @@ export default function WeeklyReviewPage() {
               placeholder="Observations from replaying the week with strict rules..."
               className="min-h-[80px]"
             />
+          </div>
+
+          {/* ── MISSED TRADES ── */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-sm font-semibold">Missed Valid Setups</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Log setups you spotted (or missed) during the replay</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMissedForm(v => !v)}
+              >
+                {showMissedForm ? "Cancel" : "+ Add Missed Setup"}
+              </Button>
+            </div>
+
+            {/* Add form */}
+            {showMissedForm && (
+              <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Instrument</Label>
+                    <Input
+                      placeholder="NQ, ES..."
+                      value={missedDraft.instrument}
+                      onChange={e => setMissedDraft(d => ({ ...d, instrument: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Direction</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      value={missedDraft.direction}
+                      onChange={e => setMissedDraft(d => ({ ...d, direction: e.target.value as "long" | "short" }))}
+                    >
+                      <option value="long">Long</option>
+                      <option value="short">Short</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Outcome</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
+                      value={missedDraft.outcome}
+                      onChange={e => setMissedDraft(d => ({ ...d, outcome: e.target.value as "win" | "loss" | "breakeven" }))}
+                    >
+                      <option value="win">Win</option>
+                      <option value="loss">Loss</option>
+                      <option value="breakeven">Breakeven</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Estimated R</Label>
+                    <Input
+                      placeholder="+2R, -1R..."
+                      value={missedDraft.estimatedR}
+                      onChange={e => setMissedDraft(d => ({ ...d, estimatedR: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Why did you miss it? <span className="text-muted-foreground">(free text — be honest)</span></Label>
+                  <AutoTextarea
+                    placeholder="e.g. Wasn't watching, was in a revenge trade, fear after 2 losses, rule blocked it, order didn't fill..."
+                    value={missedDraft.whyMissed}
+                    onChange={e => setMissedDraft(d => ({ ...d, whyMissed: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">Setup description <span className="text-muted-foreground">(optional)</span></Label>
+                  <AutoTextarea
+                    placeholder="e.g. Clean breakout retest at previous day HOD with delta confirmation..."
+                    value={missedDraft.setupDescription}
+                    onChange={e => setMissedDraft(d => ({ ...d, setupDescription: e.target.value }))}
+                  />
+                </div>
+
+                {/* Hindsight reality check */}
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                  <Label className="text-xs font-semibold text-amber-500">⚠ Hindsight Reality Check</Label>
+                  <p className="text-xs text-muted-foreground">"Would you have taken this trade IN REAL TIME, with only the info available then?"</p>
+                  <div className="flex flex-col gap-1.5">
+                    {(["yes_100", "maybe", "honest_no"] as const).map(v => (
+                      <label key={v} className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="realtimeValidity"
+                          value={v}
+                          checked={missedDraft.realtimeValidity === v}
+                          onChange={() => setMissedDraft(d => ({ ...d, realtimeValidity: v }))}
+                          className="accent-primary"
+                        />
+                        <span className="text-sm">
+                          {v === "yes_100" && <><span className="text-success font-medium">Yes, 100%</span> — I had a clear plan for this level</>}
+                          {v === "maybe" && <><span className="text-amber-500 font-medium">Maybe</span> — not sure I'd have seen it live</>}
+                          {v === "honest_no" && <><span className="text-destructive font-medium">Honest no</span> — only obvious in hindsight</>}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <input
+                      type="checkbox"
+                      checked={!!missedDraft.ruleHelped}
+                      onChange={e => setMissedDraft(d => ({ ...d, ruleHelped: e.target.checked }))}
+                      className="accent-success"
+                    />
+                    A rule correctly prevented this (it would have been a bad trade)
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => { setShowMissedForm(false); setMissedDraft(emptyMissed()); }}>Cancel</Button>
+                  <Button size="sm" onClick={addMissedTrade} disabled={!missedDraft.instrument || !missedDraft.whyMissed}>
+                    Add Missed Trade
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Logged missed trades list */}
+            {missedTrades.length > 0 && (
+              <div className="space-y-2">
+                {missedTrades.map(t => {
+                  const isConfirmed = t.realtimeValidity === "yes_100"
+                  const isMaybe = t.realtimeValidity === "maybe"
+                  return (
+                    <div
+                      key={t.id}
+                      className={`rounded-lg border p-3 text-sm relative group ${
+                        t.ruleHelped
+                          ? "border-success/30 bg-success/5"
+                          : isConfirmed
+                          ? "border-border bg-muted/20"
+                          : "border-border bg-muted/10 opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.direction === "long" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
+                            {t.direction.toUpperCase()}
+                          </span>
+                          <span className="font-semibold">{t.instrument}</span>
+                          {t.estimatedR && (
+                            <span className={`text-xs font-mono font-bold ${t.outcome === "win" ? "text-success" : t.outcome === "loss" ? "text-destructive" : "text-muted-foreground"}`}>
+                              {t.estimatedR} • {t.outcome.toUpperCase()}
+                            </span>
+                          )}
+                          {t.ruleHelped && <span className="text-xs text-success font-medium">✓ Rule saved you</span>}
+                          {!isConfirmed && (
+                            <span className="text-xs text-muted-foreground italic">
+                              {isMaybe ? "(maybe — unconfirmed)" : "(hindsight only)"}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => removeMissedTrade(t.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-1 rounded"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      <p className="text-muted-foreground mt-1.5 text-xs"><span className="font-medium text-foreground">Missed:</span> {t.whyMissed}</p>
+                      {t.setupDescription && <p className="text-muted-foreground mt-1 text-xs italic">{t.setupDescription}</p>}
+                    </div>
+                  )
+                })}
+
+                {/* Summary bar */}
+                {(() => {
+                  const confirmed = missedTrades.filter(t => t.realtimeValidity === "yes_100" && !t.ruleHelped)
+                  const ruleSaved = missedTrades.filter(t => t.ruleHelped)
+                  const confirmedWinR = confirmed.filter(t => t.outcome === "win").map(t => parseFloat(t.estimatedR) || 0).reduce((a, b) => a + b, 0)
+                  const ruleSavedR = ruleSaved.filter(t => t.outcome === "loss").map(t => Math.abs(parseFloat(t.estimatedR) || 0)).reduce((a, b) => a + b, 0)
+                  return (
+                    <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs grid grid-cols-2 md:grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-muted-foreground">Confirmed opportunity cost</p>
+                        <p className={`font-bold text-sm mt-0.5 ${confirmedWinR > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                          {confirmedWinR > 0 ? `+${confirmedWinR.toFixed(1)}R missed` : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Rule protection saved</p>
+                        <p className={`font-bold text-sm mt-0.5 ${ruleSavedR > 0 ? "text-success" : "text-muted-foreground"}`}>
+                          {ruleSavedR > 0 ? `${ruleSavedR.toFixed(1)}R protected` : "—"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total logged</p>
+                        <p className="font-bold text-sm mt-0.5">{missedTrades.length} setup{missedTrades.length !== 1 ? "s" : ""}</p>
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
