@@ -262,7 +262,7 @@ export default function JournalPage() {
               <select
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                 value={filterPlaybook}
-                onChange={e => setFilterPlaybook(e.target.value)}
+                onChange={e => { setFilterPlaybook(e.target.value); setPage(1); }}
               >
                 <option value="">All Playbooks</option>
                 {playbookNames.map(n => (
@@ -276,7 +276,7 @@ export default function JournalPage() {
               <select
                 className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                 value={filterInstrument}
-                onChange={e => setFilterInstrument(e.target.value)}
+                onChange={e => { setFilterInstrument(e.target.value); setPage(1); }}
               >
                 <option value="">All Instruments</option>
                 {instruments.map(inst => (
@@ -310,7 +310,7 @@ export default function JournalPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {filteredTrades.map(trade => {
+              {filteredTrades.slice((page - 1) * perPage, page * perPage).map(trade => {
                  const dateStr = new Date(Number(trade.timestamp)).toLocaleDateString("en-US", {
                   timeZone: displayTimeMode === "Exchange Time" ? "America/New_York" : undefined,
                   month: "short",

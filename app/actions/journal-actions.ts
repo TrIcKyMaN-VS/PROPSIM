@@ -87,6 +87,56 @@ export async function saveDailyJournal(date: string, data: any) {
   })
 }
 
+
+export async function getPreviousWeeklyReview(currentWeekOf: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  // Get all weekly reviews ordered by weekOf desc
+  const allReviews = await prisma.weeklyReview.findMany({
+    where: { userId: session.user.id },
+    orderBy: { weekOf: 'desc' },
+    select: { weekOf: true, rulesBuilt: true, ruleEvaluations: true }
+  })
+
+  // Find the most recent week BEFORE currentWeekOf
+  const prev = allReviews.find(r => r.weekOf < currentWeekOf)
+  if (!prev) return null
+
+  // Collect all ever-retired rule signatures across ALL weeks
+  const retiredSignatures = new Set<string>()
+  for (const review of allReviews) {
+    if (review.ruleEvaluations) {
+      try {
+        const evals = JSON.parse(review.ruleEvaluations) as Array<{ when: string; then: string; verdict: string }>
+        for (const e of evals) {
+          if (e.verdict === 'retire') {
+            retiredSignatures.add(e.when + '||' + e.then)
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // Parse previous week's rules and filter out retired ones
+  let prevRules: Array<{ when: string; then: string; from: string }> = []
+  if (prev.rulesBuilt) {
+    try {
+      const parsed = JSON.parse(prev.rulesBuilt)
+      prevRules = parsed.filter((r: any) => !retiredSignatures.has(r.when + '||' + r.then))
+    } catch {}
+  }
+
+  // Get saved evaluations for current week (if editing)
+  const currentWeek = allReviews.find(r => r.weekOf === currentWeekOf)
+  let savedEvals: any[] = []
+  if (currentWeek?.ruleEvaluations) {
+    try { savedEvals = JSON.parse(currentWeek.ruleEvaluations) } catch {}
+  }
+
+  return { previousWeekOf: prev.weekOf, rules: prevRules, savedEvals }
+}
+
 export async function getWeeklyReview(weekOf: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")

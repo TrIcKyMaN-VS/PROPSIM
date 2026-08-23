@@ -43,11 +43,16 @@ export function DailyReplaySheet({
     }
   }
 
-  const dayTrades = trades.filter(t => getTradeDateKey(Number(t.timestamp)) === dateStr)
-  const pnl = dayTrades.reduce((s, t) => s + t.pnl, 0)
+  const dayTrades = React.useMemo(() => {
+    if (!dateStr) return []
+    return trades.filter(t => getTradeDateKey(Number(t.timestamp)) === dateStr)
+  }, [trades, dateStr, displayTimeMode])
+  const pnl = React.useMemo(() => dayTrades.reduce((s, t) => s + t.pnl, 0), [dayTrades])
   
-  const wins = dayTrades.filter(t => t.pnl > 0)
-  const winRate = dayTrades.length > 0 ? (wins.length / dayTrades.length) * 100 : 0
+  const winRate = React.useMemo(() => {
+    const wins = dayTrades.filter(t => t.pnl > 0)
+    return dayTrades.length > 0 ? (wins.length / dayTrades.length) * 100 : 0
+  }, [dayTrades])
   
   const bestTrade = [...dayTrades].sort((a, b) => b.pnl - a.pnl)[0]
   const worstTrade = [...dayTrades].sort((a, b) => a.pnl - b.pnl)[0]

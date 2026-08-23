@@ -483,6 +483,17 @@ export const usePropStore = create<PropState>()(
 
       tradesFor: (accountId) => get().trades.filter((t) => t.accountId === accountId),
     }),
-    { name: "propsim-store" },
+    {
+      name: "propsim-store",
+      partialize: (state) => ({
+        activeAccountId: state.activeAccountId,
+        compareFirmIds: state.compareFirmIds,
+        animationMode: state.animationMode,
+        displayTimeMode: state.displayTimeMode,
+        pnlDisplayMode: state.pnlDisplayMode,
+        routineConfig: state.routineConfig,
+        seeded: state.seeded,
+      }),
+    },
   ),
 )

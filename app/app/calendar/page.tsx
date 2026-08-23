@@ -17,10 +17,10 @@ export default function CalendarPage() {
   const displayTimeMode = usePropStore(s => s.displayTimeMode)
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
   const accounts = usePropStore(s => s.accounts)
-  const account = accounts.find(a => a.id === activeAccountId)
+  const account = useMemo(() => accounts.find(a => a.id === activeAccountId), [accounts, activeAccountId])
   const accountBalance = account?.rules?.startingBalance ?? 100000
 
-  const accountTrades = trades.filter(t => t.accountId === activeAccountId)
+  const accountTrades = useMemo(() => trades.filter(t => t.accountId === activeAccountId), [trades, activeAccountId])
 
   const [currentDate, setCurrentDate] = useState(new Date())
   const [overlay, setOverlay] = useState<"pnl" | "psychology" | "mistake">("pnl")

@@ -109,6 +109,7 @@ enum ChallengeType {
 }
 
 model ChallengeAccount {
+  @@index([userId, status])
   id                String          @id @default(cuid())
   userId            String
   firmId            String
@@ -193,6 +194,8 @@ model ChecklistTemplate {
 }
 
 model Trade {
+  @@index([accountId, timestamp])
+  @@index([timestamp])
   id                String            @id @default(cuid())
   accountId         String
   playbookId        String?
@@ -429,6 +432,7 @@ model NewsEvent {
 
 
 model WeeklyReview {
+  @@index([userId, weekOf])
   id                      String   @id @default(cuid())
   userId                  String
   weekOf                  String
@@ -458,6 +462,9 @@ model WeeklyReview {
   whatDifferenceTellsMe   String?
   ruleSavedMost           String?
   ruleFilteredGoodTrade   String?
+
+  // Rule Evaluations (JSON: RuleEvaluation[])
+  ruleEvaluations         String?
 
   // 5. Commitment
   oneRuleNotBreak         String?
@@ -507,6 +514,7 @@ model MonthlyRecap {
   @@unique([userId, month])
 }
 model DailyJournal {
+  @@index([userId, date])
   id                  String   @id @default(cuid())
   userId              String
   date                String
@@ -563,6 +571,11 @@ model RuleBook {
   action    String
   fromMistake String?
   status    String   @default("testing") // testing, active, retired
+  weekAdded         String?   // which weekOf it was created from
+  adjustmentHistory String?   // JSON: [{date, note, oldWhen, oldThen}]
+  followCount       Int       @default(0)
+  helpCount         Int       @default(0)
+  reviewCount       Int       @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)

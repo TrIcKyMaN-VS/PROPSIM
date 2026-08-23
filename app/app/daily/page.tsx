@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { usePropStore } from "@/lib/store"
 import { getDailyJournal, saveDailyJournal } from "@/app/actions/journal-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"

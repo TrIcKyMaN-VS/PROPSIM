@@ -1,80 +1,193 @@
-﻿"use client"
+"use client"
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Plus, Save, Trash2, Edit } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Plus, Save, Trash2, ChevronDown, ChevronRight, History } from "lucide-react"
 import { toast } from "sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  getRuleBookEntries,
+  createRuleBookEntry,
+  updateRuleBookStatus,
+  deleteRuleBookEntry,
+} from "@/app/actions/rulebook-actions"
+
+const STATUS_STYLES: Record<string, string> = {
+  testing: "bg-amber-500/15 text-amber-500 border-amber-500/30",
+  active: "bg-success/15 text-success border-success/30",
+  retired: "bg-muted text-muted-foreground border-border",
+}
 
 export default function RuleBookPage() {
   const [rules, setRules] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [adding, setAdding] = useState(false)
-  
+  const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({})
+
   const [form, setForm] = useState({
     condition: "",
     action: "",
     fromMistake: "",
-    status: "testing"
   })
 
-  // We will simulate fetching from a real DB for now
-  // In a real implementation, you'd use a server action.
-  useEffect(() => {
-    // Load rules from server action or use mock state for now since we just created the table
-    // A proper implementation would fetch from prisma.RuleBook
-    setRules([
-      {
-        id: "1",
-        condition: "price is balanced",
-        action: "prefer entries on the breakout and retest",
-        fromMistake: "entered in middle of range",
-        status: "active",
-        createdAt: new Date().toISOString()
-      }
-    ])
-  }, [])
+  const load = async () => {
+    try {
+      const data = await getRuleBookEntries()
+      setRules(data)
+    } catch (e) {
+      toast.error("Failed to load rules")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [])
 
   const handleSave = async () => {
-    if (!form.condition || !form.action) {
-      return toast.error("Condition and Action are required")
+    if (!form.condition.trim() || !form.action.trim()) {
+      return toast.error("WHEN and THEN are required")
     }
-    setLoading(true)
-    
-    // Simulating save since I don't have the server action built yet
-    setTimeout(() => {
-      setRules([...rules, {
-        id: Date.now().toString(),
-        ...form,
-        createdAt: new Date().toISOString()
-      }])
-      setAdding(false)
-      setForm({ condition: "", action: "", fromMistake: "", status: "testing" })
-      setLoading(false)
-      toast.success("Rule added to Rule Book")
-    }, 500)
+    setSaving(true)
+    try {
+      const res = await createRuleBookEntry({ ...form, fromMistake: form.fromMistake || undefined })
+      if (res.isDuplicate) {
+        toast.warning("This rule already exists in your Rule Book")
+      } else {
+        toast.success("Rule added to Rule Book")
+        setAdding(false)
+        setForm({ condition: "", action: "", fromMistake: "" })
+        await load()
+      }
+    } catch {
+      toast.error("Failed to save rule")
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = (id: string) => {
-    if (!window.confirm("Delete this rule?")) return
-    setRules(rules.filter(r => r.id !== id))
-    toast.success("Rule deleted")
+  const handleStatusChange = async (id: string, status: string) => {
+    try {
+      await updateRuleBookStatus(id, status)
+      setRules(prev => prev.map(r => r.id === id ? { ...r, status } : r))
+      toast.success(`Status updated to ${status}`)
+    } catch {
+      toast.error("Failed to update status")
+    }
   }
 
-  const handleStatusChange = (id: string, status: string) => {
-    setRules(rules.map(r => r.id === id ? { ...r, status } : r))
-    toast.success(`Status updated to ${status}`)
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this rule permanently?")) return
+    try {
+      await deleteRuleBookEntry(id)
+      setRules(prev => prev.filter(r => r.id !== id))
+      toast.success("Rule deleted")
+    } catch {
+      toast.error("Failed to delete rule")
+    }
+  }
+
+  const active = rules.filter(r => r.status === "active")
+  const testing = rules.filter(r => r.status === "testing")
+  const retired = rules.filter(r => r.status === "retired")
+
+  const RuleCard = ({ rule, i }: { rule: any; i: number }) => {
+    const history: any[] = rule.adjustmentHistory || []
+    const isHistoryOpen = !!expandedHistory[rule.id]
+    const promoteReady = rule.status === "testing" && rule.reviewCount >= 2 && rule.helpCount >= 2
+
+    return (
+      <div className="relative group flex gap-4 p-5 rounded-xl border bg-card hover:border-primary/20 transition-colors">
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-black uppercase text-muted-foreground">Rule {i + 1}</span>
+            <span className="text-[10px] text-muted-foreground/60">{new Date(rule.createdAt).toLocaleDateString()}</span>
+            {rule.weekAdded && <span className="text-[10px] text-muted-foreground/50">from {rule.weekAdded}</span>}
+          </div>
+
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
+            <span className="font-bold text-primary">WHEN</span>
+            <span className="font-medium">{rule.condition}</span>
+            <span className="font-bold text-primary">THEN</span>
+            <span className="font-medium">{rule.action}</span>
+          </div>
+
+          {rule.fromMistake && (
+            <div className="text-xs text-muted-foreground italic">(from: {rule.fromMistake})</div>
+          )}
+
+          <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
+            <span>Reviewed {rule.reviewCount}x</span>
+            <span>Followed {rule.followCount}x</span>
+            <span>Helped {rule.helpCount}x</span>
+          </div>
+
+          {promoteReady && (
+            <div className="flex items-center gap-2 p-2 rounded-lg bg-success/10 border border-success/20 text-xs text-success font-semibold">
+              Helped 2+ times over 2+ weeks. Ready to promote to Active?
+              <button
+                onClick={() => handleStatusChange(rule.id, "active")}
+                className="underline ml-1"
+              >Promote</button>
+            </div>
+          )}
+
+          {history.length > 0 && (
+            <div>
+              <button
+                onClick={() => setExpandedHistory(prev => ({ ...prev, [rule.id]: !prev[rule.id] }))}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <History className="w-3 h-3" />
+                {history.length} adjustment{history.length > 1 ? "s" : ""} in history
+                {isHistoryOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              </button>
+              {isHistoryOpen && (
+                <div className="mt-2 space-y-2 border-l-2 border-border pl-3">
+                  {history.map((h: any, hi: number) => (
+                    <div key={hi} className="text-xs text-muted-foreground space-y-0.5">
+                      <div className="font-semibold">{new Date(h.date).toLocaleDateString()}</div>
+                      <div className="line-through opacity-60">Was: {h.oldCondition} / {h.oldAction}</div>
+                      {h.note && <div className="italic">Note: {h.note}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col justify-between items-end gap-2">
+          <select
+            className={`text-xs font-bold uppercase tracking-wider border rounded px-2 py-1 cursor-pointer ${STATUS_STYLES[rule.status] || ""}`}
+            value={rule.status}
+            onChange={e => handleStatusChange(rule.id, e.target.value)}
+          >
+            <option value="testing">Testing</option>
+            <option value="active">Active</option>
+            <option value="retired">Retired</option>
+          </select>
+          <button
+            onClick={() => handleDelete(rule.id)}
+            className="opacity-0 group-hover:opacity-100 p-2 text-destructive hover:bg-destructive/10 rounded transition-all"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-12">
-      <div className="flex items-center justify-between mb-6">
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Rule Book</h1>
-          <p className="text-muted-foreground text-sm">Maintain one master list, dated, with the status of each rule.</p>
+          <p className="text-muted-foreground text-sm mt-1">One master list. Rules earned from real mistakes, tracked over time.</p>
         </div>
         <Button onClick={() => setAdding(!adding)}>
           <Plus className="w-4 h-4 mr-2" /> New Rule
@@ -82,52 +195,42 @@ export default function RuleBookPage() {
       </div>
 
       {adding && (
-        <Card className="border-primary/50 shadow-sm mb-8">
+        <Card className="border-primary/40">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm uppercase tracking-wider">Draft New Rule</CardTitle>
-            <CardDescription>A rule must be written as a condition plus an action.</CardDescription>
+            <CardDescription>Write the rule as a condition and an action you commit to.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">WHEN (Condition)</Label>
-              <Textarea 
-                placeholder="e.g. aggressive large trades show on the 1-minute"
-                value={form.condition} onChange={e => setForm({...form, condition: e.target.value})}
+              <Textarea
+                placeholder="e.g. price is in a balanced range"
+                value={form.condition}
+                onChange={e => setForm({ ...form, condition: e.target.value })}
                 className="bg-muted/20 resize-none h-20"
               />
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">THEN (Action)</Label>
-              <Textarea 
-                placeholder="e.g. check effort vs result across more than one candle before accepting"
-                value={form.action} onChange={e => setForm({...form, action: e.target.value})}
+              <Textarea
+                placeholder="e.g. wait for a breakout and retest before entering"
+                value={form.action}
+                onChange={e => setForm({ ...form, action: e.target.value })}
                 className="bg-muted/20 resize-none h-20"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Born from mistake</Label>
-                <Input 
-                  placeholder="e.g. got trapped in momentum ignition"
-                  value={form.fromMistake} onChange={e => setForm({...form, fromMistake: e.target.value})}
-                  className="bg-muted/20"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Initial Status</Label>
-                <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm ring-offset-background"
-                  value={form.status} onChange={e => setForm({...form, status: e.target.value})}
-                >
-                  <option value="testing">Testing (Weeks 1-3)</option>
-                  <option value="active">Active (Survived 3 weeks)</option>
-                  <option value="retired">Retired (Cost more than it saved)</option>
-                </select>
-              </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Born from mistake (optional)</Label>
+              <Input
+                placeholder="e.g. kept entering mid-range and getting chopped"
+                value={form.fromMistake}
+                onChange={e => setForm({ ...form, fromMistake: e.target.value })}
+                className="bg-muted/20"
+              />
             </div>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={loading}>
+              <Button onClick={handleSave} disabled={saving}>
                 <Save className="w-4 h-4 mr-2" /> Save Rule
               </Button>
             </div>
@@ -135,58 +238,64 @@ export default function RuleBookPage() {
         </Card>
       )}
 
-      <div className="space-y-4">
-        {rules.map((rule, i) => (
-          <div key={rule.id} className="relative group flex gap-4 p-5 rounded-xl border bg-card hover:border-primary/30 transition-colors">
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-muted-foreground">Rule {i + 1}</span>
-                <span className="text-[10px] text-muted-foreground/60">{new Date(rule.createdAt).toLocaleDateString()}</span>
-              </div>
-              
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 text-sm">
-                <span className="font-bold text-primary">WHEN</span>
-                <span className="font-medium">{rule.condition}</span>
-                <span className="font-bold text-primary">THEN</span>
-                <span className="font-medium">{rule.action}</span>
-              </div>
+      {loading ? (
+        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+      ) : rules.length === 0 && !adding ? (
+        <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+          <p>Your rule book is empty.</p>
+          <p className="text-sm mt-1">Rules from your Weekly Review will appear here automatically.</p>
+        </div>
+      ) : (
+        <Tabs defaultValue="testing" className="w-full mt-6">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
+            <TabsTrigger value="testing">
+              Testing ({testing.length})
+            </TabsTrigger>
+            <TabsTrigger value="active">
+              Active ({active.length})
+            </TabsTrigger>
+            <TabsTrigger value="retired">
+              Retired ({retired.length})
+            </TabsTrigger>
+          </TabsList>
 
-              {rule.fromMistake && (
-                <div className="pt-2 text-xs text-muted-foreground flex gap-1">
-                  <span className="opacity-70">(from:</span>
-                  <span className="italic">{rule.fromMistake}</span>
-                  <span className="opacity-70">)</span>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex flex-col justify-between items-end gap-2">
-              <select 
-                className={`text-xs font-bold uppercase tracking-wider border-0 rounded px-2 py-1 cursor-pointer ${rule.status === 'testing' ? 'bg-amber-500/20 text-amber-600' : rule.status === 'active' ? 'bg-green-500/20 text-green-600' : 'bg-muted text-muted-foreground'}`}
-                value={rule.status}
-                onChange={(e) => handleStatusChange(rule.id, e.target.value)}
-              >
-                <option value="testing">Testing</option>
-                <option value="active">Active</option>
-                <option value="retired">Retired</option>
-              </select>
-              
-              <button 
-                onClick={() => handleDelete(rule.id)}
-                className="opacity-0 group-hover:opacity-100 p-2 text-destructive hover:bg-destructive/10 rounded transition-all"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        ))}
-        {rules.length === 0 && !adding && (
-          <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
-            <p>Your rule book is empty.</p>
-            <p className="text-sm mt-1">Start converting repeated mistakes into testable rules.</p>
-          </div>
-        )}
-      </div>
+          <TabsContent value="testing" className="space-y-4">
+            {testing.length > 0 ? (
+              <div className="space-y-3">
+                {testing.map((r, i) => <RuleCard key={r.id} rule={r} i={i + 1} />)}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+                No rules currently in testing phase.
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="active" className="space-y-4">
+            {active.length > 0 ? (
+              <div className="space-y-3">
+                {active.map((r, i) => <RuleCard key={r.id} rule={r} i={i + 1} />)}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+                No active rules yet. Test rules first to promote them here.
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="retired" className="space-y-4">
+            {retired.length > 0 ? (
+              <div className="space-y-3 opacity-60">
+                {retired.map((r, i) => <RuleCard key={r.id} rule={r} i={i + 1} />)}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground border border-dashed rounded-xl">
+                No retired rules.
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }

@@ -1,8 +1,6 @@
 "use client"
 
 import { useState, useRef } from "react"
-import Papa from "papaparse"
-import * as XLSX from "xlsx"
 import { usePropStore } from "@/lib/store"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -127,12 +125,14 @@ export function ImportDialog() {
     setIsProcessing(true)
     try {
       if (file.name.endsWith('.csv')) {
+        const Papa = (await import('papaparse')).default
         Papa.parse(file, {
           header: true,
           skipEmptyLines: true,
           complete: (results: any) => processData(results.data)
         })
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        const XLSX = await import('xlsx')
         const buffer = await file.arrayBuffer()
         const wb = XLSX.read(buffer, { type: 'array' })
         const sheetName = wb.SheetNames[0]

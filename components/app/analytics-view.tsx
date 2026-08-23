@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { usePropStore } from "@/lib/store"
 import { getFirm } from "@/lib/firms"
 import { computeAnalytics, fundedReadiness } from "@/lib/analytics"
@@ -27,12 +28,12 @@ export function AnalyticsView() {
   const activeId = usePropStore((s) => s.activeAccountId)
   const trades = usePropStore((s) => s.trades)
 
-  const account = accounts.find((a) => a.id === activeId)
-  const accountTrades = account ? trades.filter((t) => t.accountId === account.id) : []
-  const a = computeAnalytics(accountTrades)
-  const readiness = fundedReadiness(a)
-  const probabilities = calculatePassProbability({ winRate: a.winRate/100, rr: a.profitFactor, consistency: 0 })
-  const firm = account ? getFirm(account.firmId) : undefined
+  const account = useMemo(() => accounts.find((a) => a.id === activeId), [accounts, activeId])
+  const accountTrades = useMemo(() => account ? trades.filter((t) => t.accountId === account.id) : [], [account, trades])
+  const a = useMemo(() => computeAnalytics(accountTrades), [accountTrades])
+  const readiness = useMemo(() => fundedReadiness(a), [a])
+  const probabilities = useMemo(() => calculatePassProbability({ winRate: a.winRate/100, rr: a.profitFactor, consistency: 0 }), [a])
+  const firm = useMemo(() => account ? getFirm(account.firmId) : undefined, [account])
 
   if (!account || accountTrades.length === 0) {
     return (
