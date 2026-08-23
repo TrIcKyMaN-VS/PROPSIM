@@ -1,9 +1,4 @@
-import dynamic from 'next/dynamic'
-
-const AnalyticsView = dynamic(
-  () => import("@/components/app/analytics-view").then((mod) => mod.AnalyticsView),
-  { ssr: false }
-)
+import { AnalyticsView } from "@/components/app/analytics-view"
 
 export default function AnalyticsPage() {
   return <AnalyticsView />

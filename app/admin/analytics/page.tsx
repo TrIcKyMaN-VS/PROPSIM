@@ -1,4 +1,5 @@
 "use client"
+import dynamic from "next/dynamic"
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from "recharts"
@@ -28,7 +29,7 @@ const featuresData = [
   { name: 'General Chat', uses: 1200 },
 ]
 
-export default function AdminAnalyticsPage() {
+function AdminAnalyticsPageInner() {
   return (
     <div className="space-y-6">
       <div>
@@ -126,3 +127,5 @@ export default function AdminAnalyticsPage() {
     </div>
   )
 }
+
+export default dynamic(() => Promise.resolve(AdminAnalyticsPageInner), { ssr: false });

@@ -1,4 +1,5 @@
 "use client"
+import dynamic from "next/dynamic"
 
 import { usePropStore } from "@/lib/store"
 import { getFirm } from "@/lib/firms"
@@ -22,7 +23,7 @@ import { Target, Percent, Scale, Activity, TrendingDown, Gauge, BookOpen, Clock,
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
-export function AnalyticsView() {
+function AnalyticsViewInner() {
   const accounts = usePropStore((s) => s.accounts)
   const activeId = usePropStore((s) => s.activeAccountId)
   const trades = usePropStore((s) => s.trades)
@@ -430,3 +431,5 @@ export function AnalyticsView() {
     </div>
   )
 }
+
+export const AnalyticsView = dynamic(() => Promise.resolve(AnalyticsViewInner), { ssr: false });

@@ -1,4 +1,5 @@
 "use client"
+import dynamic from "next/dynamic"
 
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts"
 import { TrendingUp } from "lucide-react"
@@ -31,7 +32,7 @@ function Bar({ label, pct, tone }: { label: string; pct: number; tone: string })
   )
 }
 
-export function HeroPreview() {
+function HeroPreviewInner() {
   return (
     <div className="rounded-xl border border-border bg-card/80 p-2 shadow-2xl shadow-black/40 backdrop-blur">
       <div className="rounded-lg border border-border/60 bg-background/60">
@@ -94,3 +95,5 @@ export function HeroPreview() {
     </div>
   )
 }
+
+export const HeroPreview = dynamic(() => Promise.resolve(HeroPreviewInner), { ssr: false });
