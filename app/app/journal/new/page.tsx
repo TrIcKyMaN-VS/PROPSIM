@@ -1,4 +1,5 @@
 "use client"
+import { uploadImageFormData } from "@/app/actions/journal-actions";
 
 import { useState, useEffect } from "react"
 import { usePropStore } from "@/lib/store"
@@ -74,40 +75,60 @@ export default function NewManualTradePage() {
   const [screenshots, setScreenshots] = useState<string[]>([])
   
   useEffect(() => {
-        const handlePaste = (e: ClipboardEvent) => {
-      const items = e.clipboardData?.items
-      if (!items) return
-      let hasImage = false
-      for (const item of Array.from(items)) {
-        if (item.type.indexOf("image") !== -1) hasImage = true
-      }
-      if (hasImage) e.preventDefault()
-      
-      for (const item of Array.from(items)) {
-        if (item.type.indexOf("image") !== -1) {
-          const file = item.getAsFile()
-          if (!file) continue
-          const reader = new FileReader()
-          reader.onloadend = () => {
-            setScreenshots(s => [...s, reader.result as string])
-            toast.success("Screenshot pasted!")
+      const handlePaste = async (e: ClipboardEvent) => {
+        const items = e.clipboardData?.items
+        if (!items) return
+        let hasImage = false
+        for (const item of Array.from(items)) {
+          if (item.type.indexOf("image") !== -1) hasImage = true
+        }
+        if (hasImage) e.preventDefault()
+        
+        for (const item of Array.from(items)) {
+          if (item.type.indexOf("image") !== -1) {
+            const file = item.getAsFile()
+            if (!file) continue
+            setUploadingImg(true)
+            try {
+              const formData = new FormData()
+              formData.append("file", file)
+              formData.append("prefix", "new_trade_paste")
+              const url = await uploadImageFormData(formData)
+              setScreenshots(s => [...s, url])
+              toast.success("Screenshot pasted!")
+            } catch {
+              toast.error("Paste upload failed")
+            } finally {
+              setUploadingImg(false)
+            }
           }
-          reader.readAsDataURL(file)
         }
       }
-    }
+      
     window.addEventListener("paste", handlePaste)
     return () => window.removeEventListener("paste", handlePaste)
   }, [])
 
-  const handleUploadScreenshot = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [uploadingImg, setUploadingImg] = useState(false)
+  
+  const handleUploadScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader()
-      reader.onloadend = () => setScreenshots(s => [...s, reader.result as string])
-      reader.readAsDataURL(file)
-    })
+    setUploadingImg(true)
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData()
+        formData.append("file", files[i])
+        formData.append("prefix", "new_trade_upload")
+        const url = await uploadImageFormData(formData)
+        setScreenshots(s => [...s, url])
+      }
+      toast.success("Screenshots uploaded!")
+    } catch {
+      toast.error("Upload failed")
+    } finally {
+      setUploadingImg(false)
+    }
     e.target.value = ""
   }
 
@@ -180,7 +201,7 @@ export default function NewManualTradePage() {
 
       <Card>
         <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Part B ÃƒÆ’Ã‚Â¯Ãƒâ€šÃ‚Â¿Ãƒâ€šÃ‚Â½ Trade breakdown</CardTitle>
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Part B ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ Trade breakdown</CardTitle>
         </CardHeader>
         <CardContent className="pt-6 space-y-8">
           
@@ -218,7 +239,7 @@ export default function NewManualTradePage() {
                 <div>
                   <p className="text-sm font-medium">Upload Images</p>
                 </div>
-                <input type="file" accept="image/*" multiple className="hidden" onChange={handleUploadScreenshot} />
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handleUploadScreenshot} disabled={uploadingImg} />
               </label>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

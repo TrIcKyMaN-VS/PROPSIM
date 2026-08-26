@@ -156,26 +156,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
 
   return (
       <>
-        <Dialog open={!!viewImage} onOpenChange={(o) => {
-          if (!o) { setIsZoomed(false); setViewImage(null) }
-        }}>
-          <DialogContent 
-            className="max-w-[95vw] w-fit p-1 bg-black/90 border-0 flex items-center justify-center"
-            onClick={() => setIsZoomed(!isZoomed)}
-          >
-            {viewImage && (
-              <img
-                src={viewImage}
-                alt="Trade screenshot expanded"
-                className={isZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsZoomed(!isZoomed)
-                }}
-              />
-            )}
-          </DialogContent>
-        </Dialog>
 
         <SectionHeader title="Trade List" />
         <div>
