@@ -34,7 +34,7 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
 // Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function formatHoldDuration(ms: number): string {
-  if (!ms || ms < 0) return "Ã¢â‚¬â€"
+  if (!ms || ms < 0) return "--"
   const minutes = Math.floor(ms / 60000)
   if (minutes < 60) return `${minutes}m`
   const hours = Math.floor(minutes / 60)
@@ -197,26 +197,33 @@ export default function TradeDetailsPage() {
 
   const handleSave = async () => {
     if (!trade) return
-    await saveTradePsychology({
-      tradeId: trade.id,
-      executionGrade: stratForm.executionGrade,
-    })
-    await updateTrade(trade.id, {
-      entry:          parseFloat(execForm.entry)     || trade.entry,
-      exit:           parseFloat(execForm.exit)      || trade.exit,
-      contracts:      parseFloat(execForm.contracts) || trade.contracts,
-      pnl:            parseFloat(execForm.pnl)       || trade.pnl,
-      stopLoss:       parseFloat(riskForm.stopLoss)  || undefined,
-      takeProfit:     parseFloat(riskForm.takeProfit)|| undefined,
-      riskAmount:     parseFloat(riskForm.riskAmount)|| undefined,
-      reasonForEntry: stratForm.reasonForEntry,
-      resultVsExpectation: stratForm.resultVsExpectation,
-      expectedRR:     stratForm.expectedRR,
-      mistakes:             journalForm.mistakes,
-      executionImprovement: journalForm.executionImprovement,
-      playbookChecklist: checkedItems,
-    } as any)
-    toast.success("Trade saved!")
+    setSaving(true)
+    try {
+      await saveTradePsychology({
+        tradeId: trade.id,
+        executionGrade: stratForm.executionGrade,
+      })
+      await updateTrade(trade.id, {
+        entry:          parseFloat(execForm.entry)     || trade.entry,
+        exit:           parseFloat(execForm.exit)      || trade.exit,
+        contracts:      parseFloat(execForm.contracts) || trade.contracts,
+        pnl:            parseFloat(execForm.pnl)       || trade.pnl,
+        stopLoss:       parseFloat(riskForm.stopLoss)  || undefined,
+        takeProfit:     parseFloat(riskForm.takeProfit)|| undefined,
+        riskAmount:     parseFloat(riskForm.riskAmount)|| undefined,
+        reasonForEntry: stratForm.reasonForEntry,
+        resultVsExpectation: stratForm.resultVsExpectation,
+        expectedRR:     stratForm.expectedRR,
+        mistakes:             journalForm.mistakes,
+        executionImprovement: journalForm.executionImprovement,
+        playbookChecklist: checkedItems,
+      } as any)
+      toast.success("Trade saved!")
+    } catch {
+      toast.error("Failed to save changes")
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ early return Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
@@ -290,8 +297,8 @@ export default function TradeDetailsPage() {
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-xs text-muted-foreground hidden md:block">
               {formatDisplayDateTime(trade.timestamp, displayTimeMode)}
-              {trade.exitTime && ` Ã¢â€ â€™ ${formatDisplayTime(trade.exitTime, displayTimeMode)}`}
-              {holdDuration !== "Ã¢â‚¬â€" && <span className="ml-1.5 text-muted-foreground/60">Ã‚Â· {holdDuration}</span>}
+                {trade.exitTime && ` &mdash; ${formatDisplayTime(trade.exitTime, displayTimeMode)}`}
+                {holdDuration !== "--" && <span className="ml-1.5 text-muted-foreground/60">&middot; {holdDuration}</span>}
             </div>
             <Button onClick={handleSave} size="sm" disabled={saving}>{saving ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}{saving ? "Saving..." : "Save"}</Button>
           </div>
@@ -345,9 +352,9 @@ export default function TradeDetailsPage() {
             <CardContent className="pt-5 space-y-4">
               {[
                 { label: "ENTRY PRICE",   value: `$${trade.entry?.toLocaleString()}` },
-                { label: "EXIT PRICE",    value: trade.exit ? `$${trade.exit?.toLocaleString()}` : "Ã¢â‚¬â€" },
+                  { label: "EXIT PRICE",    value: trade.exit ? `$${trade.exit?.toLocaleString()}` : "--" },
                 { label: "ENTRY DATE",    value: formatDisplayDateTime(trade.timestamp, displayTimeMode) },
-                { label: "EXIT DATE",     value: trade.exitTime ? formatDisplayDateTime(trade.exitTime, displayTimeMode) : "Ã¢â‚¬â€" },
+                  { label: "EXIT DATE",     value: trade.exitTime ? formatDisplayDateTime(trade.exitTime, displayTimeMode) : "--" },
                 { label: "POSITION SIZE", value: `${trade.contracts} contract${trade.contracts !== 1 ? "s" : ""}` },
                 { label: "HOLD DURATION", value: holdDuration },
               ].map(({ label, value }) => (
