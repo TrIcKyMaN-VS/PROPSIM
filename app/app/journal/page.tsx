@@ -297,7 +297,7 @@ export default function JournalPage() {
                 <TableHead>Instrument</TableHead>
                 <TableHead>Direction</TableHead>
                 <TableHead>Session</TableHead>
-                <TableHead>Playbook</TableHead>
+                
                 <TableHead>Grade</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
                 <TableHead>Tags</TableHead>
@@ -362,14 +362,7 @@ export default function JournalPage() {
                       {trade.session || "—"}
                     </TableCell>
 
-                    {/* Playbook */}
-                    <TableCell className="text-sm max-w-[140px] truncate">
-                      {trade.playbookName ? (
-                        <span className="text-primary font-medium truncate block">{trade.playbookName}</span>
-                      ) : (
-                        <span className="text-muted-foreground/50">—</span>
-                      )}
-                    </TableCell>
+                    
 
                     {/* Grade */}
                     <TableCell>
