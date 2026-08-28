@@ -57,11 +57,9 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
       value={val}
       onChange={(e) => {
         setVal(e.target.value)
+        if (props.onChange) props.onChange(e as any)
       }}
       onBlur={(e) => {
-        if (props.onChange) {
-          props.onChange(e as any)
-        }
         if (props.onBlur) props.onBlur(e)
       }}
       onInput={(e) => {

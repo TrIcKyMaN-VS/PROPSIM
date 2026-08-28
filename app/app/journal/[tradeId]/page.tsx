@@ -353,10 +353,10 @@ export default function TradeDetailsPage() {
               {[
                 { label: "ENTRY PRICE",   value: `$${trade.entry?.toLocaleString()}` },
                   { label: "EXIT PRICE",    value: trade.exit ? `$${trade.exit?.toLocaleString()}` : "--" },
-                { label: "ENTRY DATE",    value: formatDisplayDateTime(trade.timestamp, displayTimeMode) },
-                  { label: "EXIT DATE",     value: trade.exitTime ? formatDisplayDateTime(trade.exitTime, displayTimeMode) : "--" },
+                { label: "ENTRY DE",    value: formatDisplayDateTime(trade.timestamp, displayTimeMode) },
+                  { label: "EXIT DE",     value: trade.exitTime ? formatDisplayDateTime(trade.exitTime, displayTimeMode) : "--" },
                 { label: "POSITION SIZE", value: `${trade.contracts} contract${trade.contracts !== 1 ? "s" : ""}` },
-                { label: "HOLD DURATION", value: holdDuration },
+                { label: "HOLD DURION", value: holdDuration },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
