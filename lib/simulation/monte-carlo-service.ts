@@ -1,26 +1,37 @@
 import { MonteCarloInputs, MonteCarloStats } from "./monte-carlo-types"
+import { runPropFirmModel } from "./monte-carlo-worker"
 
 export class MonteCarloService {
   private worker: Worker | null = null
-  private cache = new Map<string, MonteCarloStats>()
+  // FIX BUG 10 – limit cache to 1 entry to avoid serving stale results
+  private lastCacheKey: string | null = null
+  private lastCacheResult: MonteCarloStats | null = null
 
   run(
     inputs: MonteCarloInputs,
     onProgress?: (progress: number) => void
   ): Promise<MonteCarloStats> {
-    const cacheKey = JSON.stringify({ inputs })
-    if (this.cache.has(cacheKey)) {
-      return Promise.resolve(this.cache.get(cacheKey)!)
+    const cacheKey = JSON.stringify(inputs)
+
+    // Return cached result only if the inputs are identical to the last run
+    if (this.lastCacheKey === cacheKey && this.lastCacheResult) {
+      return Promise.resolve(this.lastCacheResult)
     }
 
     return new Promise((resolve, reject) => {
-      // Terminate previous worker if running
+      // Terminate any previous in-flight worker
       if (this.worker) {
         this.worker.terminate()
+        this.worker = null
+      }
+
+      const handleResult = (stats: MonteCarloStats) => {
+        this.lastCacheKey = cacheKey
+        this.lastCacheResult = stats
+        resolve(stats)
       }
 
       try {
-        // Instantiate the web worker relative to this file
         this.worker = new Worker(
           new URL("./monte-carlo-worker.ts", import.meta.url)
         )
@@ -31,8 +42,7 @@ export class MonteCarloService {
           if (type === "progress" && onProgress) {
             onProgress(progress)
           } else if (type === "complete") {
-            this.cache.set(cacheKey, stats)
-            resolve(stats)
+            handleResult(stats)
             this.worker?.terminate()
             this.worker = null
           } else if (type === "error") {
@@ -48,21 +58,26 @@ export class MonteCarloService {
           this.worker = null
         }
 
-        this.worker.postMessage({
-          type: "run",
-          inputs
-        })
+        this.worker.postMessage({ type: "run", inputs })
+
       } catch (err) {
-        // Fallback for environment constraints: Run synchronously on main thread
-        console.warn("Web Worker creation failed. Falling back to synchronous Monte Carlo simulation.", err)
+        // FIX BUG 11 – real synchronous fallback: run the model directly on the
+        // main thread instead of immediately rejecting.
+        console.warn(
+          "Web Worker creation failed — falling back to synchronous Monte Carlo simulation.",
+          err
+        )
         try {
-          // Import sync runner dynamically
-          import("./monte-carlo-worker").then(() => {
-            // Web worker file registers ctx.onmessage, so we can emulate it
-            // Or we can just import the worker module logic and run it
-            // For simplicity, we fallback to a promise timeout
-            reject(new Error("Web Worker could not be instantiated. Ensure your browser supports Web Workers."))
-          })
+          // Run synchronously; use setTimeout(0) to yield the microtask queue first
+          // so the UI can render the loading state before we block.
+          setTimeout(() => {
+            try {
+              const stats = runPropFirmModel(inputs)
+              handleResult(stats)
+            } catch (e: any) {
+              reject(e)
+            }
+          }, 0)
         } catch (e) {
           reject(e)
         }

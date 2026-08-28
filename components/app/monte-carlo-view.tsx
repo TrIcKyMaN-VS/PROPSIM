@@ -207,6 +207,36 @@ export default function MonteCarloView() {
     }))
   }
 
+  // FIX BUG 13 – auto-normalize day-mix probabilities to always sum to 1.0
+  // When one slider moves, the remaining two are scaled proportionally.
+  const updateProbability = (changed: "probabilityGoodDay" | "probabilityFlatDay" | "probabilityBadDay", newVal: number) => {
+    setInputs(prev => {
+      const clamped = Math.max(0, Math.min(1, newVal))
+      const remaining = 1 - clamped
+      const others: Array<"probabilityGoodDay" | "probabilityFlatDay" | "probabilityBadDay"> =
+        (["probabilityGoodDay", "probabilityFlatDay", "probabilityBadDay"] as const).filter(k => k !== changed)
+      const sumOthers = prev.dayMix[others[0]] + prev.dayMix[others[1]]
+      let a: number, b: number
+      if (sumOthers <= 0) {
+        a = remaining / 2
+        b = remaining / 2
+      } else {
+        a = (prev.dayMix[others[0]] / sumOthers) * remaining
+        b = (prev.dayMix[others[1]] / sumOthers) * remaining
+      }
+      return {
+        ...prev,
+        dayMix: {
+          ...prev.dayMix,
+          [changed]: clamped,
+          [others[0]]: Math.round(a * 100) / 100,
+          [others[1]]: Math.round(b * 100) / 100,
+        }
+      }
+    })
+  }
+
+
   // Derived weekly targets
   const goodDaysPerWeek = inputs.dayModel === "dayMix" ? inputs.dayMix.probabilityGoodDay * 5 : 2.5
   const weeklyTargetR = inputs.dayModel === "dayMix" 
@@ -355,7 +385,7 @@ export default function MonteCarloView() {
               <div className="flex justify-between items-start">
                 <div>
                   <Label className="text-sm font-bold text-white">Trading days left in 2026</Label>
-                  <p className="text-[11px] text-slate-500 mt-1">work today (2026-08-10) - Dec 31 minus exchange holidays</p>
+                  <p className="text-[11px] text-slate-500 mt-1">from today ({new Date().toISOString().slice(0,10)}) through Dec 31 minus exchange holidays</p>
                 </div>
                 <span className="text-sm font-bold text-white">{inputs.account.tradingDaysLeftThisYear}</span>
               </div>
@@ -525,9 +555,20 @@ export default function MonteCarloView() {
           {/* F. HOW OFTEN DOES EACH KIND OF DAY HAPPEN? */}
           {inputs.dayModel === "dayMix" && (
             <div className="p-5 rounded-xl border border-slate-800 bg-[#0f111a] space-y-6">
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-blue-500 flex items-center gap-2">
-                <span className="text-blue-500">▲</span> F. HOW OFTEN DOES EACH KIND OF DAY HAPPEN?
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-blue-500 flex items-center gap-2">
+                  <span className="text-blue-500">▲</span> F. HOW OFTEN DOES EACH KIND OF DAY HAPPEN?
+                </h3>
+                {/* Live sum indicator */}
+                {(() => {
+                  const sum = Math.round((inputs.dayMix.probabilityGoodDay + inputs.dayMix.probabilityFlatDay + inputs.dayMix.probabilityBadDay) * 100)
+                  return (
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${sum === 100 ? "text-green-500 bg-green-500/10" : "text-red-500 bg-red-500/10"}`}>
+                      {sum}% {sum === 100 ? "✓" : "≠ 100%"}
+                    </span>
+                  )
+                })()}
+              </div>
               
               <div className="space-y-6">
                 <div className="space-y-3 border-b border-slate-800/50 pb-4">
@@ -544,7 +585,7 @@ export default function MonteCarloView() {
                   <Slider 
                     min={0} max={1} step={0.01}
                     value={[inputs.dayMix.probabilityGoodDay]} 
-                    onValueChange={(val: any) => updateNestedInput("dayMix", "probabilityGoodDay", Array.isArray(val) ? val[0] : val)}
+                    onValueChange={(val: any) => updateProbability("probabilityGoodDay", Array.isArray(val) ? val[0] : val)}
                     className="[&_[role=slider]]:bg-blue-500 [&_[role=slider]]:border-blue-500 [&_.bg-primary]:bg-slate-800"
                   />
                 </div>
@@ -562,7 +603,7 @@ export default function MonteCarloView() {
                   <Slider 
                     min={0} max={1} step={0.01}
                     value={[inputs.dayMix.probabilityFlatDay]} 
-                    onValueChange={(val: any) => updateNestedInput("dayMix", "probabilityFlatDay", Array.isArray(val) ? val[0] : val)}
+                    onValueChange={(val: any) => updateProbability("probabilityFlatDay", Array.isArray(val) ? val[0] : val)}
                     className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-slate-800"
                   />
                 </div>
@@ -581,17 +622,18 @@ export default function MonteCarloView() {
                   <Slider 
                     min={0} max={1} step={0.01}
                     value={[inputs.dayMix.probabilityBadDay]} 
-                    onValueChange={(val: any) => updateNestedInput("dayMix", "probabilityBadDay", Array.isArray(val) ? val[0] : val)}
+                    onValueChange={(val: any) => updateProbability("probabilityBadDay", Array.isArray(val) ? val[0] : val)}
                     className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-slate-800"
                   />
                 </div>
 
                 <p className="text-[11px] leading-relaxed text-slate-500">
-                  Count 'em out of your trading days left. Get these from your real last 30-60 days - they're the dials the whole answer hangs on.
+                  Sliders auto-balance to always total 100%. Get these from your real last 30-60 days — they're the dials the whole answer hangs on.
                 </p>
               </div>
             </div>
           )}
+
 
         </div>
 
@@ -653,7 +695,7 @@ export default function MonteCarloView() {
               <div className="text-3xl font-extrabold text-white">
                 {stats?.avgTradingDaysToFunded}
               </div>
-              <div className="text-xs text-slate-400 mt-2 font-medium">~ trades from now</div>
+              <div className="text-xs text-slate-400 mt-2 font-medium">~ trading days from now</div>
             </div>
             
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
