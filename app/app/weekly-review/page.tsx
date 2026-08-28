@@ -141,7 +141,7 @@ export default function WeeklyReviewPage() {
     setupDescription: string;
     estimatedR: string;
     outcome: "win" | "loss" | "breakeven";
-    whyMissed: string;          // free text — user types whatever reason
+    whyMissed: string;          // free text â€” user types whatever reason
     realtimeValidity: "yes_100" | "maybe" | "honest_no";
     ruleHelped?: boolean;       // true if rule correctly blocked a losing trade
     screenshotUrl?: string;     // legacy single uploaded chart screenshot
@@ -1000,7 +1000,7 @@ export default function WeeklyReviewPage() {
             />
           </div>
 
-          {/* ━━━ MISSED TRADES ━━━ */}
+          {/* â”â”â” MISSED TRADES â”â”â” */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
@@ -1068,7 +1068,7 @@ export default function WeeklyReviewPage() {
                           {t.ruleHelped && <span className="text-xs text-success font-medium">&#x2713; Rule saved you</span>}
                           {!isConfirmed && (
                             <span className="text-xs text-muted-foreground italic">
-                              {isMaybe ? "(maybe &mdash; unconfirmed)" : "(hindsight only)"}
+                              {isMaybe ? "(maybe - unconfirmed)" : "(hindsight only)"}
                             </span>
                           )}
                         </div>
