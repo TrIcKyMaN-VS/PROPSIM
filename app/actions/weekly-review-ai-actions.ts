@@ -66,8 +66,16 @@ export async function generateWeeklyPatterns(weekOf: string) {
 
   // ── Build trade summary sections ───────────────────────────────────────────
   const formatTrade = (t: typeof weekTrades[0], idx: number) => {
+    const entryDate = new Date(Number(t.timestamp)).toISOString()
+    const exitDate = t.exitTime ? new Date(Number(t.exitTime)).toISOString() : "N/A"
+    const holdMs = t.exitTime ? (Number(t.exitTime) - Number(t.timestamp)) : null
+    const holdMins = holdMs ? (holdMs / 1000 / 60).toFixed(1) + " mins" : "N/A"
+    
     const lines = [
-      `  Trade ${idx + 1} | ${t.instrument} ${t.direction.toUpperCase()} | PnL: $${t.pnl}`
+      `  Trade ${idx + 1} | ${t.instrument} ${t.direction.toUpperCase()} | PnL: $${t.pnl} | Net R: ${t.netR ? t.netR.toFixed(2) + "R" : "N/A"}`,
+      `    Execution: Entry @ ${t.entry ?? "N/A"}, Exit @ ${t.exit ?? "N/A"} | Size: ${t.contracts} | Session: ${(t as any).session ?? "N/A"}`,
+      `    Timing: In @ ${entryDate} -> Out @ ${exitDate} (Hold: ${holdMins})`,
+      `    Risk Management: StopLoss ${t.stopLoss ?? "N/A"}, Planned Risk $${t.plannedRisk ?? "N/A"}`
     ]
     if (t.playbookName)          lines.push(`    Playbook/Setup: ${t.playbookName}`)
     if (t.reasonForEntry)        lines.push(`    Reason for entry: ${t.reasonForEntry}`)
@@ -145,16 +153,16 @@ ${journalBlock}
   // ── AI schema — each answer has two sub-sections ──────────────────────────
   const schema = z.object({
     repeatedMistakes: z.object({
-      fromTrades:   z.array(z.string()).describe("Mistakes found directly in trade records (mistakes field, bad resultVsExpectation). Only include if seen 2+ times."),
-      fromContext:  z.array(z.string()).describe("Mistake patterns found in journal reflections / rules broken. Only include if seen 2+ times.")
+      fromTrades:   z.array(z.string()).describe("Mistakes and losing patterns found from trade logs (hold times, specific setups, bad R/R, entry timing). Only include if seen 2+ times."),
+      fromContext:  z.array(z.string()).describe("Correlated context from journals (e.g. state checks, prep, rules broken) matching the trade mistakes. Only include if seen 2+ times.")
     }),
     repeatedWinConditions: z.object({
-      fromTrades:  z.array(z.string()).describe("Common factors across WINNING trades only — shared entry reasons, tags, setups. Only include if seen 2+ times."),
-      fromContext: z.array(z.string()).describe("Win conditions or prep habits mentioned in journal reflections. Only include if seen 2+ times.")
+      fromTrades:  z.array(z.string()).describe("Shared characteristics of WINNING trades (time of day, hold times, specific setups). Only include if seen 2+ times."),
+      fromContext: z.array(z.string()).describe("Correlated habits or states from journals matching the winning trade conditions. Only include if seen 2+ times.")
     }),
     emotionalTimingPatterns: z.object({
-      fromTrades:  z.array(z.string()).describe("Emotional patterns from per-trade psychology notes. Only include if seen 2+ times."),
-      fromContext: z.array(z.string()).describe("Emotional/timing patterns from daily journal mental state notes. Only include if seen 2+ times.")
+      fromTrades:  z.array(z.string()).describe("Emotional/behavioral flags (hesitation, revenge, moving stops) mapped to specific trade timing or durations. Only include if seen 2+ times."),
+      fromContext: z.array(z.string()).describe("Journal mentions of mental states that correlate with specific trade execution periods. Only include if seen 2+ times.")
     })
   })
 
@@ -162,20 +170,22 @@ ${journalBlock}
     const { object, usage } = await generateObject({
       model,
       schema,
-      prompt: `You are an expert trading psychologist and performance coach.
+      prompt: `You are an expert trading psychologist and quantitative performance coach.
 
-Review the week's TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
+Perform a deep cross-analysis of the week's TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
+You must analyze and cross-reference EVERY available detail: entry/exit timing, holding time, session, P&L, Net R, risk management (SL/TP), setup tags, direction, and trade psychology flags.
 
 RULES:
-1. Once is noise. Twice or more is a pattern. Only include items seen 2+ times.
-2. For "repeatedWinConditions" — look ONLY at winning trades (PnL > 0). Do NOT include anything from losing trades.
-3. For "repeatedMistakes" — look at losing trades' mistakes tags, bad resultVsExpectation, and rules broken in journals.
-4. For "emotionalTimingPatterns" — look at per-trade psychology notes AND journal mental state notes.
-5. Each answer must have TWO sub-sections: "fromTrades" (from actual trade records) and "fromContext" (from journal reflections). 
+1. ONLY SHOW PATTERNS WITH ACTUAL REPEATED EVIDENCE (seen 2+ times). Do NOT make generic assumptions or invent patterns when the data doesn't support them.
+2. Cross-reference the trade logs with the journal reflections. For example, if the journal mentions hesitation, and the trade logs show late entries or missed moves, explicitly connect those data points.
+3. For "repeatedWinConditions" — analyze WINNING trades only. Look at hold times, sessions, setups, and prep habits that lead to success.
+4. For "repeatedMistakes" — analyze LOSING trades. Look for correlations between bad performance and specific times, hold times, broken rules, or specific setups.
+5. For "emotionalTimingPatterns" — connect emotional states (from journals/psychology notes) with specific timing or performance outcomes (e.g. "Revenge trading happens mostly after 11 AM").
+6. Each answer must be split into "fromTrades" (evidence strictly from trade execution records) and "fromContext" (evidence from journal context/reflections).
    - If no trades were logged, "fromTrades" should be an empty array [].
    - If no journals exist, "fromContext" should be an empty array [].
    - NEVER invent or hallucinate. If genuinely nothing repeated, return [].
-6. Be direct and specific. Reference the instrument, direction, or reason when possible.
+7. Be direct and highly specific (e.g., "Held 3 losing NQ trades for >45 mins despite planned 10 min hold").
 
 DATA:
 ${compiledText}`
