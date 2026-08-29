@@ -793,7 +793,7 @@ export default function WeeklyReviewPage() {
           <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:-rotate-180" />
         </summary>
         
-        <div className="space-y-6 pt-2 pb-6 px-1">
+        <div className="space-y-8 pt-4 pb-6 px-2">
           {weekTotalTrades === 0 ? (
             <div className="text-center py-10 bg-card rounded-xl border border-dashed text-muted-foreground text-sm">
               No trades logged in the journal for this week.
@@ -805,30 +805,46 @@ export default function WeeklyReviewPage() {
               
               const dayPnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
               const dateObj = new Date(date + "T12:00:00");
-              const dateDisplay = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
+              const dateDisplay = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' });
 
               return (
-                <div key={date} className="space-y-3">
-                  <div className="flex items-center justify-between px-2">
-                    <h3 className="text-sm font-bold text-muted-foreground">{dateDisplay}</h3>
-                    <span className={cn("text-sm font-bold font-mono", dayPnl >= 0 ? "text-success" : "text-destructive")}>
-                      {dayPnl >= 0 ? "+" : "-"}${Math.abs(dayPnl).toFixed(2)}
-                    </span>
-                  </div>
+                <div key={date} className="relative group/day">
+                  {/* Subtle timeline connector */}
+                  <div className="absolute left-1.5 top-2 bottom-0 w-[2px] bg-border/40 rounded-full" />
                   
-                  <div className="space-y-2">
-                    {dayTrades.slice().sort((a,b) => b.timestamp - a.timestamp).map((t, idx) => {
-                      const setupName = t.playbookName ?? t.instrument;
-                      const grade = tradePsychology.find(p => p.tradeId === t.id)?.executionGrade;
-                      const isOpen = !!openTrades[t.id];
+                  <div className="pl-6 space-y-4">
+                    <div className="flex items-center justify-between relative">
+                      {/* Timeline dot */}
+                      <div className="absolute -left-[23px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-background bg-muted-foreground/30" />
                       
-                      return (
-                        <div key={t.id} className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
-                          <button
-                            type="button"
-                            onClick={() => toggleTradeDetail(t.id)}
-                            className="w-full select-none flex items-center justify-between px-4 py-3.5 text-sm hover:bg-muted/30 transition-colors outline-none"
-                          >
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-sm font-bold text-foreground/90 tracking-wide">{dateDisplay}</h3>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest bg-muted/40 px-2 py-0.5 rounded-md">
+                          {dayTrades.length} Trade{dayTrades.length > 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      
+                      <span className={cn(
+                        "text-xs font-bold font-mono px-2.5 py-1 rounded-md border", 
+                        dayPnl >= 0 ? "bg-success/10 text-success border-success/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                      )}>
+                        {dayPnl >= 0 ? "+" : "-"}${Math.abs(dayPnl).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-2.5">
+                      {dayTrades.slice().sort((a,b) => b.timestamp - a.timestamp).map((t, idx) => {
+                        const setupName = t.playbookName ?? t.instrument;
+                        const grade = tradePsychology.find(p => p.tradeId === t.id)?.executionGrade;
+                        const isOpen = !!openTrades[t.id];
+                        
+                        return (
+                          <div key={t.id} className="border border-border/50 rounded-xl overflow-hidden bg-card/30 hover:bg-card/80 transition-colors shadow-sm">
+                            <button
+                              type="button"
+                              onClick={() => toggleTradeDetail(t.id)}
+                              className="w-full select-none flex items-center justify-between px-4 py-3 text-sm outline-none"
+                            >
                             <span className="font-bold tracking-wide text-foreground flex items-center gap-3">
                               <span className="text-muted-foreground/60 uppercase text-[11px]">TRADE {dayTrades.length - idx}</span>
                               <span className="text-[14px]">{t.instrument?.toUpperCase()}</span>
@@ -923,6 +939,7 @@ export default function WeeklyReviewPage() {
                       );
                     })}
                   </div>
+                </div>
                 </div>
               );
             })
