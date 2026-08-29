@@ -11,7 +11,7 @@ export function PnlModeToggle() {
   return (
     <div
       className="flex items-center gap-0.5 rounded-lg border border-border bg-muted/40 p-0.5"
-      title="Toggle P&L display between currency ($) and percentage (%)"
+      title="Toggle P&L display between currency ($), percentage (%), and R-multiple (R)"
     >
       <button
         id="pnl-mode-currency"
@@ -40,6 +40,20 @@ export function PnlModeToggle() {
         aria-label="Show P&L as percentage"
       >
         <Percent className="h-3.5 w-3.5" />
+      </button>
+      <button
+        id="pnl-mode-rmultiple"
+        onClick={() => setPnlDisplayMode("r_multiple")}
+        className={cn(
+          "flex h-7 w-7 items-center justify-center rounded-md text-xs font-bold transition-all",
+          pnlDisplayMode === "r_multiple"
+            ? "bg-primary text-primary-foreground shadow-sm"
+            : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+        )}
+        aria-pressed={pnlDisplayMode === "r_multiple"}
+        aria-label="Show P&L as R-multiple"
+      >
+        R
       </button>
     </div>
   )

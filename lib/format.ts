@@ -1,3 +1,5 @@
+import { usePropStore } from "@/lib/store"
+
 export function fmtCurrency(n: number | null | undefined, opts?: { sign?: boolean }): string {
   if (n === undefined || n === null || Number.isNaN(n) || !Number.isFinite(n)) {
     return "N/A"
@@ -8,23 +10,30 @@ export function fmtCurrency(n: number | null | undefined, opts?: { sign?: boolea
 
 export function fmtPct(n: number | null | undefined, digits = 1): string {
   if (n === undefined || n === null || Number.isNaN(n) || !Number.isFinite(n)) {
-    return "N/A"
+    return "0.0%"
   }
-  return `${n.toFixed(digits)}%`
+  return `${n > 0 ? "+" : ""}${n.toFixed(digits)}%`
 }
 
 /**
- * Format a P&L value as either currency ($1,234) or percentage of account balance (+2.47%).
+ * Format a P&L value as either currency ($1,234), percentage of account balance (+2.47%), or R-multiple (+2.50R).
  * Pass `accountBalance` (the starting balance) to enable percentage mode.
  */
 export function fmtPnl(
   pnl: number | null | undefined,
-  mode: "currency" | "percentage",
+  mode: "currency" | "percentage" | "r_multiple",
   accountBalance: number,
   opts?: { sign?: boolean; digits?: number }
 ): string {
   if (pnl === undefined || pnl === null || Number.isNaN(pnl) || !Number.isFinite(pnl)) {
     return "N/A"
+  }
+  if (mode === "r_multiple") {
+    const defaultPlannedRisk = usePropStore.getState().defaultPlannedRisk || 100
+    const r = pnl / defaultPlannedRisk
+    const digits = opts?.digits ?? 2
+    const sign = r > 0 ? "+" : ""
+    return `${sign}${r.toFixed(digits)}R`
   }
   if (mode === "percentage") {
     if (!accountBalance || accountBalance === 0) return "N/A"
@@ -33,7 +42,7 @@ export function fmtPnl(
     const sign = pct > 0 ? "+" : ""
     return `${sign}${pct.toFixed(digits)}%`
   }
-  return fmtCurrency(pnl, opts)
+  return fmtCurrency(pnl, { sign: opts?.sign })
 }
 
 export function logRuleEngineDiagnostic(accountId: string, challengeId: string, calcName: string, inputs: any, error: string) {

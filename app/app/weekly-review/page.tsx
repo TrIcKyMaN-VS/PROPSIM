@@ -121,9 +121,11 @@ export default function WeeklyReviewPage() {
     return grouped;
   }, [allTrades, weekDates, displayTimeMode]);
 
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100;
+
   const weekTotalTrades = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.length, 0);
   const weekTotalPnl = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + t.pnl, 0), 0);
-  const weekTotalNetR = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + (t.netR || 0), 0), 0);
+  const weekTotalNetR = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0), 0);
   const weekWins = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl > 0).length, 0);
   const weekLosses = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl <= 0).length, 0);
 
@@ -785,6 +787,7 @@ export default function WeeklyReviewPage() {
               <Badge variant="secondary" className="font-mono">{weekTotalTrades} trades</Badge>
               <span>•</span>
               <span className={weekTotalPnl >= 0 ? "text-success font-bold" : "text-destructive font-bold"}>
+                {weekTotalNetR !== 0 && <span className="opacity-80 mr-1.5">{weekTotalNetR > 0 ? "+" : ""}{weekTotalNetR.toFixed(2)}R |</span>}
                 {weekTotalPnl >= 0 ? "+" : "-"}${Math.abs(weekTotalPnl).toFixed(2)}
               </span>
               <span>•</span>
@@ -805,7 +808,7 @@ export default function WeeklyReviewPage() {
               if (dayTrades.length === 0) return null;
               
               const dayPnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
-              const dayNetR = dayTrades.reduce((s, t) => s + (t.netR || 0), 0);
+              const dayNetR = dayTrades.reduce((s, t) => s + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0);
               const dateObj = new Date(date + "T12:00:00");
               const dateDisplay = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -863,7 +866,15 @@ export default function WeeklyReviewPage() {
                                 </span>
                               )}
                               <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
-                                {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
+                                {(() => {
+                                  const tNetR = t.netR ?? (t.pnl / defaultPlannedRisk)
+                                  return (
+                                    <>
+                                      {tNetR !== 0 && <span className="opacity-80 mr-1.5">{tNetR > 0 ? "+" : ""}{tNetR.toFixed(2)}R |</span>}
+                                      {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
+                                    </>
+                                  )
+                                })()}
                               </span>
                               <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "-rotate-180")} />
                             </div>

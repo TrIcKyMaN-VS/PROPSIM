@@ -59,6 +59,8 @@ export default function CalendarPage() {
     }
   }
 
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
+
   // Calculate stats per day
   const dailyStats = useMemo(() => {
     const stats: Record<string, any> = {}
@@ -66,9 +68,10 @@ export default function CalendarPage() {
     accountTrades.forEach(t => {
       const dateStr = getLocalDateString(t.timestamp)
       if (!stats[dateStr]) {
-        stats[dateStr] = { pnl: 0, trades: 0, wins: 0, ruleBreaks: 0, emotionDriven: 0 }
+        stats[dateStr] = { pnl: 0, netR: 0, trades: 0, wins: 0, ruleBreaks: 0, emotionDriven: 0 }
       }
       stats[dateStr].pnl += t.pnl
+      stats[dateStr].netR += (t.netR ?? (t.pnl / defaultPlannedRisk))
       stats[dateStr].trades += 1
       if (t.pnl > 0) stats[dateStr].wins += 1
 
@@ -359,7 +362,7 @@ export default function CalendarPage() {
                           <div className={`font-bold text-lg leading-none ${textColor}`}>
                             {fmtPnl(stat.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                           </div>
-                          <div className="flex justify-between text-xs font-medium text-muted-foreground">
+                          <div className="flex justify-between text-xs font-medium text-muted-foreground mt-1">
                             <span>{stat.trades} Trades</span>
                             <span>{Math.round((stat.wins / stat.trades) * 100)}% WR</span>
                           </div>

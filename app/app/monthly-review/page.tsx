@@ -27,12 +27,13 @@ export default function MonthlyRecapPage() {
 
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const allTrades = usePropStore(s => s.tradesFor(activeAccountId!))
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
 
   const monthTotalNetR = allTrades.filter(t => {
     const d = new Date(t.timestamp)
     const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
     return mStr === month
-  }).reduce((sum, t) => sum + (t.netR || 0), 0)
+  }).reduce((sum, t) => sum + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0)
 
   // Header
   const [daysTradedCount, setDaysTradedCount] = useState("")

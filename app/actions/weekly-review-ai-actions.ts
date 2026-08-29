@@ -150,19 +150,18 @@ ${tradesBlock}
 ${journalBlock}
 `
 
-  // ── AI schema — each answer has two sub-sections ──────────────────────────
   const schema = z.object({
     repeatedMistakes: z.object({
-      fromTrades:   z.array(z.string()).describe("Mistakes and losing patterns found from trade logs (hold times, specific setups, bad R/R, entry timing). Only include if seen 2+ times."),
-      fromContext:  z.array(z.string()).describe("Correlated context from journals (e.g. state checks, prep, rules broken) matching the trade mistakes. Only include if seen 2+ times.")
+      fromTrades:   z.array(z.string()).describe("Mistakes and losing patterns found from trade logs. Return ['Insufficient evidence to identify a repeated pattern.'] if < 3 examples or low sample size."),
+      fromContext:  z.array(z.string()).describe("Correlated context from journals matching the trade mistakes. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
     }),
     repeatedWinConditions: z.object({
-      fromTrades:  z.array(z.string()).describe("Shared characteristics of WINNING trades (time of day, hold times, specific setups). Only include if seen 2+ times."),
-      fromContext: z.array(z.string()).describe("Correlated habits or states from journals matching the winning trade conditions. Only include if seen 2+ times.")
+      fromTrades:  z.array(z.string()).describe("Characteristics appearing MORE OFTEN in winning trades compared to losing trades. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence."),
+      fromContext: z.array(z.string()).describe("Correlated habits/states from journals matching the best trade conditions. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
     }),
     emotionalTimingPatterns: z.object({
-      fromTrades:  z.array(z.string()).describe("Emotional/behavioral flags (hesitation, revenge, moving stops) mapped to specific trade timing or durations. Only include if seen 2+ times."),
-      fromContext: z.array(z.string()).describe("Journal mentions of mental states that correlate with specific trade execution periods. Only include if seen 2+ times.")
+      fromTrades:  z.array(z.string()).describe("Trade timing/holding durations correlated with specific results. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence."),
+      fromContext: z.array(z.string()).describe("Journal mentions of mental states correlated with actual execution timing. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
     })
   })
 
@@ -172,20 +171,17 @@ ${journalBlock}
       schema,
       prompt: `You are an expert trading psychologist and quantitative performance coach.
 
-Perform a deep cross-analysis of the week's TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
-You must analyze and cross-reference EVERY available detail: entry/exit timing, holding time, session, P&L, Net R, risk management (SL/TP), setup tags, direction, and trade psychology flags.
+Perform a deep cross-analysis of all available TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
+You must analyze and cross-reference EVERY available detail: entry/exit timing, holding time, session, P&L, Net R, risk management (SL/TP), setup, direction, market condition, trade management, and journal context.
 
 RULES:
-1. ONLY SHOW PATTERNS WITH ACTUAL REPEATED EVIDENCE (seen 2+ times). Do NOT make generic assumptions or invent patterns when the data doesn't support them.
-2. Cross-reference the trade logs with the journal reflections. For example, if the journal mentions hesitation, and the trade logs show late entries or missed moves, explicitly connect those data points.
-3. For "repeatedWinConditions" — analyze WINNING trades only. Look at hold times, sessions, setups, and prep habits that lead to success.
-4. For "repeatedMistakes" — analyze LOSING trades. Look for correlations between bad performance and specific times, hold times, broken rules, or specific setups.
-5. For "emotionalTimingPatterns" — connect emotional states (from journals/psychology notes) with specific timing or performance outcomes (e.g. "Revenge trading happens mostly after 11 AM").
-6. Each answer must be split into "fromTrades" (evidence strictly from trade execution records) and "fromContext" (evidence from journal context/reflections).
-   - If no trades were logged, "fromTrades" should be an empty array [].
-   - If no journals exist, "fromContext" should be an empty array [].
-   - NEVER invent or hallucinate. If genuinely nothing repeated, return [].
-7. Be direct and highly specific (e.g., "Held 3 losing NQ trades for >45 mins despite planned 10 min hold").
+1. ONLY SHOW PATTERNS WITH ACTUAL REPEATED EVIDENCE. Do NOT call something a "repeated pattern" based on only 1-2 examples. Rely strictly on sample size.
+2. If there is not enough evidence to confidently identify a pattern, you MUST return an array with exactly one string: ["Insufficient evidence to identify a repeated pattern."]
+3. For "repeatedWinConditions": compare winning trades against losing trades and identify conditions that actually appear MORE OFTEN in the best-performing trades. Do not just search for matching words in the journal.
+4. For "emotionalTimingPatterns": connect journal reflections with actual trade timing, entry/exit timing, holding time, and results. Only mention an emotional/timing pattern when both the journal and trade data support it.
+5. Do not invent, assume, exaggerate, or force any pattern. No generic trading advice.
+6. The analysis must be done internally, but the final text output must be clean, concise, highly specific, and easy to understand. Avoid long paragraphs and repeated statements.
+7. Keep each answer split into "fromTrades" (evidence strictly from trade records) and "fromContext" (evidence from journal reflections).
 
 DATA:
 ${compiledText}`

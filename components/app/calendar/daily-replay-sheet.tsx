@@ -31,8 +31,6 @@ export function DailyReplaySheet({
   const [openTrades, setOpenTrades] = React.useState<Record<string, boolean>>({})
   const toggleTrade = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }))
   const [viewImage, setViewImage] = React.useState<string | null>(null)
-  const [isZoomed, setIsZoomed] = React.useState(false)
-
   const getTradeDateKey = (timestamp: number) => {
     const date = new Date(timestamp)
     if (displayTimeMode === "Exchange Time") {
@@ -42,7 +40,13 @@ export function DailyReplaySheet({
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
     }
   }
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
+  
+  const [isZoomed, setIsZoomed] = React.useState(false)
 
+  // Compute daily stats
+  const dateObj = dateStr ? new Date(dateStr + "T12:00:00") : new Date()
+  
   const dayTrades = React.useMemo(() => {
     if (!dateStr) return []
     return trades.filter(t => getTradeDateKey(Number(t.timestamp)) === dateStr)
@@ -51,13 +55,13 @@ export function DailyReplaySheet({
   
   const winRate = React.useMemo(() => {
     const wins = dayTrades.filter(t => t.pnl > 0)
-    return dayTrades.length > 0 ? (wins.length / dayTrades.length) * 100 : 0
+    return dayTrades.length > 0 ? Math.round((wins.length / dayTrades.length) * 100) : 0
   }, [dayTrades])
   
   const bestTrade = [...dayTrades].sort((a, b) => b.pnl - a.pnl)[0]
   const worstTrade = [...dayTrades].sort((a, b) => a.pnl - b.pnl)[0]
 
-  const totalR = dayTrades.reduce((s, t) => s + (t.netR || 0), 0)
+  const totalR = dayTrades.reduce((s, t) => s + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0)
 
   const gradeColor = (g?: string) => {
     if (!g) return "border-border text-muted-foreground"
@@ -173,7 +177,15 @@ export function DailyReplaySheet({
                               </span>
                             )}
                             <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
-                              {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
+                              {(() => {
+                                const tNetR = t.netR ?? (t.pnl / defaultPlannedRisk)
+                                return (
+                                  <>
+                                    {tNetR !== 0 && <span className="opacity-80 mr-1.5">{tNetR > 0 ? "+" : ""}{tNetR.toFixed(2)}R |</span>}
+                                    {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
+                                  </>
+                                )
+                              })()}
                             </span>
                             {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                           </div>

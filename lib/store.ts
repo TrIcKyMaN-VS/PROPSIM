@@ -86,8 +86,8 @@ interface PropState {
   animationMode: "Full" | "Reduced" | "Off"
   displayTimeMode: "Exchange Time" | "Local Time"
   setDisplayTimeMode: (mode: "Exchange Time" | "Local Time") => void
-  pnlDisplayMode: "currency" | "percentage"
-  setPnlDisplayMode: (mode: "currency" | "percentage") => void
+  pnlDisplayMode: "currency" | "percentage" | "r_multiple"
+  setPnlDisplayMode: (mode: "currency" | "percentage" | "r_multiple") => void
 
   init: () => void
   syncWithDb: () => Promise<void>
@@ -150,7 +150,7 @@ export const usePropStore = create<PropState>()(
       seeded: false,
       animationMode: "Full",
       displayTimeMode: "Exchange Time",
-      pnlDisplayMode: "currency",
+      pnlDisplayMode: "r_multiple",
 
       setDisplayTimeMode: (mode) => set({ displayTimeMode: mode }),
       setAnimationMode: (mode) => set({ animationMode: mode }),

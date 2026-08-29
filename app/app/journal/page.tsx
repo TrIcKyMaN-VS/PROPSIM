@@ -44,6 +44,7 @@ export default function JournalPage() {
   const removeTrade = usePropStore(s => s.removeTrade)
   const displayTimeMode = usePropStore(s => s.displayTimeMode)
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk)
   const accounts = usePropStore(s => s.accounts)
   const account = accounts.find(a => a.id === activeAccountId)
   const accountBalance = account?.rules?.startingBalance ?? 100000
@@ -300,7 +301,6 @@ export default function JournalPage() {
                 
                 <TableHead>Grade</TableHead>
                 <TableHead className="text-right">P&L</TableHead>
-                <TableHead>Tags</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -382,18 +382,6 @@ export default function JournalPage() {
                       ) : (
                         fmtPnl(trade.pnl, pnlDisplayMode, accountBalance, { sign: true })
                       )}
-                    </TableCell>
-
-                    {/* Tags */}
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {parsedTags.slice(0, 2).map((tag: string) => (
-                          <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
-                        ))}
-                        {parsedTags.length > 2 && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">+{parsedTags.length - 2}</Badge>
-                        )}
-                      </div>
                     </TableCell>
 
                     {/* Delete action */}
