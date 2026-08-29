@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   getWeeklyReview,
   saveWeeklyReview,
@@ -23,12 +23,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil, Target } from "lucide-react";
 import {
   getRuleBookEntries,
   createRuleBookEntry,
   applyRuleVerdict,
 } from "@/app/actions/rulebook-actions";
+import { usePropStore } from "@/lib/store";
+import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
 const getCurrentWeekKey = () => {
   const d = new Date();
@@ -74,6 +78,62 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
 
 export default function WeeklyReviewPage() {
   const [weekOf, setWeekOf] = useState(getCurrentWeekKey());
+  const router = useRouter();
+  const allTrades = usePropStore(s => s.trades);
+  const tradePsychology = usePropStore(s => s.tradePsychology);
+  const displayTimeMode = usePropStore(s => s.displayTimeMode);
+  const [openTrades, setOpenTrades] = useState<Record<string, boolean>>({});
+  const toggleTradeDetail = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }));
+  const [tradeViewImage, setTradeViewImage] = useState<string | null>(null);
+  const [tradeImageZoomed, setTradeImageZoomed] = useState(false);
+
+  // Derive Mon–Sun date strings for the selected weekOf key
+  const weekDates = useMemo<string[]>(() => {
+    const [yearStr, wStr] = weekOf.split("-W");
+    const year = Number(yearStr);
+    const week = Number(wStr);
+    // ISO week: Jan 4 is always in week 1
+    const jan4 = new Date(year, 0, 4);
+    const mondayOfW1 = new Date(jan4);
+    mondayOfW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
+    const monday = new Date(mondayOfW1);
+    monday.setDate(mondayOfW1.getDate() + (week - 1) * 7);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    });
+  }, [weekOf]);
+
+  // Filter all trades to this week, grouped by date
+  const weekTradesByDay = useMemo(() => {
+    const dateSet = new Set(weekDates);
+    const grouped: Record<string, typeof allTrades> = {};
+    allTrades.forEach(t => {
+      const raw = new Date(Number(t.timestamp));
+      const dateKey = displayTimeMode === "Exchange Time"
+        ? (() => { const ny = new Date(raw.toLocaleString("en-US", { timeZone: "America/New_York" })); return `${ny.getFullYear()}-${String(ny.getMonth()+1).padStart(2,"0")}-${String(ny.getDate()).padStart(2,"0")}` })()
+        : `${raw.getFullYear()}-${String(raw.getMonth()+1).padStart(2,"0")}-${String(raw.getDate()).padStart(2,"0")}`;
+      if (!dateSet.has(dateKey)) return;
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(t);
+    });
+    return grouped;
+  }, [allTrades, weekDates, displayTimeMode]);
+
+  const weekTotalTrades = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.length, 0);
+  const weekTotalPnl = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + t.pnl, 0), 0);
+  const weekWins = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl > 0).length, 0);
+  const weekLosses = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl <= 0).length, 0);
+
+  const gradeColor = (g?: string) => {
+    if (!g) return "border-border text-muted-foreground"
+    if (g === "A+" || g === "A") return "border-green-500 text-green-400 bg-green-500/10"
+    if (g === "B") return "border-blue-500 text-blue-400 bg-blue-500/10"
+    if (g === "C") return "border-yellow-500 text-yellow-400 bg-yellow-500/10"
+    return "border-red-500 text-red-400 bg-red-500/10"
+  }
+
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -697,6 +757,173 @@ export default function WeeklyReviewPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Image Zoom Lightbox for Trades */}
+      <Dialog open={!!tradeViewImage} onOpenChange={(o) => { if (!o) { setTradeImageZoomed(false); setTradeViewImage(null); } }}>
+        <DialogContent className="max-w-[95vw] w-fit p-1 bg-black/90 border-0 flex items-center justify-center z-[100]">
+          {tradeViewImage && (
+            <img
+              src={tradeViewImage}
+              alt="Chart screenshot"
+              className={tradeImageZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
+              onClick={e => { e.stopPropagation(); setTradeImageZoomed(!tradeImageZoomed); }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* WEEK'S TRADE LOG */}
+      <details className="group" open>
+        <summary className="cursor-pointer list-none flex items-center justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm mb-6 transition-colors hover:bg-muted/50">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-muted-foreground" />
+              Week's Trade Log
+            </h2>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-2">
+              <Badge variant="secondary" className="font-mono">{weekTotalTrades} trades</Badge>
+              <span>•</span>
+              <span className={weekTotalPnl >= 0 ? "text-success font-bold" : "text-destructive font-bold"}>
+                {weekTotalPnl >= 0 ? "+" : "-"}${Math.abs(weekTotalPnl).toFixed(2)}
+              </span>
+              <span>•</span>
+              <span className="text-xs">{weekWins}W {weekLosses}L</span>
+            </div>
+          </div>
+          <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:-rotate-180" />
+        </summary>
+        
+        <div className="space-y-6 pt-2 pb-6 px-1">
+          {weekTotalTrades === 0 ? (
+            <div className="text-center py-10 bg-card rounded-xl border border-dashed text-muted-foreground text-sm">
+              No trades logged in the journal for this week.
+            </div>
+          ) : (
+            weekDates.map(date => {
+              const dayTrades = weekTradesByDay[date] || [];
+              if (dayTrades.length === 0) return null;
+              
+              const dayPnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
+              const dateObj = new Date(date + "T12:00:00");
+              const dateDisplay = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
+
+              return (
+                <div key={date} className="space-y-3">
+                  <div className="flex items-center justify-between px-2">
+                    <h3 className="text-sm font-bold text-muted-foreground">{dateDisplay}</h3>
+                    <span className={cn("text-sm font-bold font-mono", dayPnl >= 0 ? "text-success" : "text-destructive")}>
+                      {dayPnl >= 0 ? "+" : "-"}${Math.abs(dayPnl).toFixed(2)}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {dayTrades.slice().sort((a,b) => b.timestamp - a.timestamp).map((t, idx) => {
+                      const setupName = t.playbookName ?? t.instrument;
+                      const grade = tradePsychology.find(p => p.tradeId === t.id)?.executionGrade;
+                      const isOpen = !!openTrades[t.id];
+                      
+                      return (
+                        <div key={t.id} className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
+                          <button
+                            type="button"
+                            onClick={() => toggleTradeDetail(t.id)}
+                            className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-muted/30 transition-colors"
+                          >
+                            <span className="font-bold tracking-wide text-foreground flex items-center gap-2">
+                              <span className="text-muted-foreground/50">#{dayTrades.length - idx}</span> 
+                              <span>{setupName?.toUpperCase()}</span>
+                              <Badge variant={t.direction === "long" ? "default" : "destructive"} className="text-[10px] px-1.5 py-0">{t.direction}</Badge>
+                            </span>
+                            <div className="flex items-center gap-4">
+                              {grade && (
+                                <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", gradeColor(grade))}>
+                                  {grade}
+                                </span>
+                              )}
+                              <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
+                                {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
+                              </span>
+                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                            </div>
+                          </button>
+
+                          {isOpen && (
+                            <div className="border-t border-border/60 p-4 space-y-4 bg-muted/5 font-mono text-sm">
+                              {t.screenshots && t.screenshots.length > 0 && (
+                                <div 
+                                  className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/20 cursor-pointer"
+                                  onClick={() => { setTradeViewImage(t.screenshots![0].url); setTradeImageZoomed(false); }}
+                                >
+                                  <img
+                                    src={t.screenshots[0].url}
+                                    alt="Trade screenshot"
+                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                                  />
+                                </div>
+                              )}
+
+                              <div className="space-y-3 font-sans">
+                                {/* Reasoning */}
+                                <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400/70" /> Reasoning / logic / confirmation
+                                  </div>
+                                  <div className="text-foreground/90 whitespace-pre-wrap leading-relaxed text-[13px]">
+                                    {t.reasonForEntry || <span className="italic text-muted-foreground/50">No reasoning provided</span>}
+                                  </div>
+                                </div>
+
+                                {/* Expectation */}
+                                <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-purple-400/70" /> Result vs expectation
+                                  </div>
+                                  <div className="text-foreground/90 whitespace-pre-wrap leading-relaxed text-[13px]">
+                                    {t.resultVsExpectation || <span className="italic text-muted-foreground/50">No result provided</span>}
+                                  </div>
+                                </div>
+
+                                {/* Mistakes */}
+                                <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-destructive/70 mb-1.5 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-destructive/70" /> Mistakes
+                                  </div>
+                                  <div className="text-foreground/90 whitespace-pre-wrap leading-relaxed text-[13px]">
+                                    {t.mistakes || <span className="italic text-muted-foreground/50">No mistakes logged</span>}
+                                  </div>
+                                </div>
+
+                                {/* Improvement */}
+                                <div className="p-3 rounded-lg bg-warning/5 border border-warning/20">
+                                  <div className="text-[10px] font-bold uppercase tracking-widest text-warning/70 mb-1.5 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-warning/70" /> How execution could improve
+                                  </div>
+                                  <div className="text-foreground/90 whitespace-pre-wrap leading-relaxed text-[13px]">
+                                    {t.executionImprovement || <span className="italic text-muted-foreground/50">No improvement notes logged</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex justify-end pt-2">
+                                <button 
+                                  onClick={() => router.push(`/app/journal/${t.id}`)}
+                                  className="text-xs font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
+                                >
+                                  Full Edit <Target className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </details>
 
       {/* 1. PATTERNS */}
       <Card>
