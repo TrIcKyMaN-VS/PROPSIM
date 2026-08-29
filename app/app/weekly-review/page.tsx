@@ -774,7 +774,7 @@ export default function WeeklyReviewPage() {
 
       {/* WEEK'S TRADE LOG */}
       <details className="group" open>
-        <summary className="cursor-pointer list-none flex items-center justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm mb-6 transition-colors hover:bg-muted/50">
+        <summary className="cursor-pointer select-none list-none flex items-center justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm mb-6 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold flex items-center gap-2">
               <BookOpen className="w-5 h-5 text-muted-foreground" />
@@ -827,7 +827,7 @@ export default function WeeklyReviewPage() {
                           <button
                             type="button"
                             onClick={() => toggleTradeDetail(t.id)}
-                            className="w-full flex items-center justify-between px-4 py-3.5 text-sm hover:bg-muted/30 transition-colors"
+                            className="w-full select-none flex items-center justify-between px-4 py-3.5 text-sm hover:bg-muted/30 transition-colors outline-none"
                           >
                             <span className="font-bold tracking-wide text-foreground flex items-center gap-3">
                               <span className="text-muted-foreground/60 uppercase text-[11px]">TRADE {dayTrades.length - idx}</span>
