@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Save, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { usePropStore } from "@/lib/store"
 
 const currentMonth = () => {
   const d = new Date()
@@ -23,6 +24,15 @@ export default function MonthlyRecapPage() {
   const [month, setMonth] = useState(currentMonth())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+
+  const activeAccountId = usePropStore(s => s.activeAccountId)
+  const allTrades = usePropStore(s => s.tradesFor(activeAccountId!))
+
+  const monthTotalNetR = allTrades.filter(t => {
+    const d = new Date(t.timestamp)
+    const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    return mStr === month
+  }).reduce((sum, t) => sum + (t.netR || 0), 0)
 
   // Header
   const [daysTradedCount, setDaysTradedCount] = useState("")
@@ -124,10 +134,10 @@ export default function MonthlyRecapPage() {
             onChange={e => setDaysTradedCount(e.target.value)}
           />
           <Input
-            className="h-9 text-sm w-28"
+            className="h-9 text-sm w-32 bg-muted/50 cursor-not-allowed"
             placeholder="Net R"
-            value={netR}
-            onChange={e => setNetR(e.target.value)}
+            value={`${monthTotalNetR > 0 ? "+" : ""}${monthTotalNetR.toFixed(2)}R`}
+            readOnly
           />
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}

@@ -56,6 +56,7 @@ export interface Trade {
   stopLoss?: number
   takeProfit?: number
   riskAmount?: number
+  plannedRisk?: number | null
   contracts: number
   pnl: number
   netR?: number | null

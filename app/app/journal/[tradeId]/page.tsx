@@ -110,7 +110,7 @@ export default function TradeDetailsPage() {
     setRiskForm({
       stopLoss:   trade.stopLoss?.toString()   ?? "",
       takeProfit: trade.takeProfit?.toString() ?? "",
-      riskAmount: trade.riskAmount?.toString() ?? "",
+      riskAmount: trade.plannedRisk?.toString() ?? trade.riskAmount?.toString() ?? "",
     })
     setStratForm({
       reasonForEntry:      trade.reasonForEntry  ?? "",
@@ -210,7 +210,8 @@ export default function TradeDetailsPage() {
         pnl:            parseFloat(execForm.pnl)       || trade.pnl,
         stopLoss:       parseFloat(riskForm.stopLoss)  || undefined,
         takeProfit:     parseFloat(riskForm.takeProfit)|| undefined,
-        riskAmount:     parseFloat(riskForm.riskAmount)|| undefined,
+        plannedRisk:    parseFloat(riskForm.riskAmount)|| undefined,
+        netR:           parseFloat(riskForm.riskAmount) > 0 ? ((parseFloat(execForm.pnl) || trade.pnl) / parseFloat(riskForm.riskAmount)) : undefined,
         reasonForEntry: stratForm.reasonForEntry,
         resultVsExpectation: stratForm.resultVsExpectation,
         expectedRR:     stratForm.expectedRR,
@@ -415,7 +416,7 @@ export default function TradeDetailsPage() {
                   className="h-8 mt-1 text-sm" placeholder="Price level" />
               </div>
               <div>
-                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">RISK AMOUNT ($)</Label>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PLANNED RISK ($)</Label>
                 <Input type="number" step="any" value={riskForm.riskAmount}
                   onChange={e => setRiskForm(f => ({ ...f, riskAmount: e.target.value }))}
                   className="h-8 mt-1 text-sm" placeholder="Dollar risk" />

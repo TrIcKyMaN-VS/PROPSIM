@@ -85,6 +85,9 @@ export default function ProfileSettingsPage() {
           </CardFooter>
         </Card>
 
+        {/* Trading Preferences */}
+        <TradingPreferencesCard />
+
         {/* AI Provider Settings */}
         <AiSettingsCard />
 
@@ -282,6 +285,54 @@ function AiSettingsCard() {
           <Save className="w-4 h-4 ml-2" />
         </Button>
       </CardFooter>
+    </Card>
+  )
+}
+
+function TradingPreferencesCard() {
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk)
+  const setDefaultPlannedRisk = usePropStore(s => s.setDefaultPlannedRisk)
+  const [val, setVal] = useState(defaultPlannedRisk.toString())
+
+  // We need Input from ui components, already imported at top
+  const handleSave = () => {
+    const num = parseFloat(val)
+    if (!isNaN(num) && num > 0) {
+      setDefaultPlannedRisk(num)
+      toast.success("Trading preferences updated.")
+    } else {
+      toast.error("Please enter a valid dollar amount.")
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /> Trading Preferences</CardTitle>
+        <CardDescription>Configure your default trading risk metrics to automate your analytics.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label>Default Planned Risk ($)</Label>
+          <div className="text-sm text-muted-foreground mb-3 leading-relaxed">
+            This is the standard dollar amount you risk per trade (e.g. 1R = $100). 
+            When you import trades, the simulator will automatically use this value to calculate your Net R multiple.
+          </div>
+          <div className="flex items-center gap-2 max-w-sm">
+            <div className="relative flex-1">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+              <Input
+                type="number"
+                step="any"
+                className="pl-7 h-9"
+                value={val}
+                onChange={e => setVal(e.target.value)}
+              />
+            </div>
+            <Button size="sm" onClick={handleSave}>Save</Button>
+          </div>
+        </div>
+      </CardContent>
     </Card>
   )
 }

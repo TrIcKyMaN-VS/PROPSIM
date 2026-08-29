@@ -441,6 +441,9 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
 
+  const user = await prisma.user.findUnique({ where: { id: session.user.id } })
+  const defaultRisk = user?.defaultPlannedRisk || 100
+
   let ts = Date.now()
   
   const data = trades.map(t => {
@@ -452,6 +455,9 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
     // Calculate default scores for imported trades
     const scores = calculateTradeScores(t, null)
     
+    const plannedRisk = t.plannedRisk || defaultRisk
+    const netR = t.pnl / plannedRisk
+
     return {
       accountId,
       instrument: t.instrument,
@@ -460,6 +466,8 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
       exit: t.exit,
       contracts: t.contracts,
       pnl: t.pnl,
+      plannedRisk,
+      netR,
       day: t.day,
       session: t.session,
       notes: t.notes || "",

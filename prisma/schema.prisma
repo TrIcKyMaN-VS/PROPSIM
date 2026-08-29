@@ -24,6 +24,7 @@ model User {
   routineConfig       String?
   notes               String?
   status              String               @default("ACTIVE")
+  defaultPlannedRisk  Float                @default(100)
   accounts            Account[]
   apiTokens           ApiToken[]
   adminActions        AuditLog[]           @relation("AdminAuditLogs")
@@ -218,6 +219,7 @@ model Trade {
   calculatedPnl     Float?
   pnlMode           String            @default("AUTO")
   expectedRR        String?
+  plannedRisk       Float?
   lessonsLearned    String?
   marketBias        String?
   mistakes          String?

@@ -120,7 +120,9 @@ interface PropState {
   deleteChecklistTemplate: (id: string) => Promise<void>
   
   routineConfig: { morning: string[], eod: string[] }
+  defaultPlannedRisk: number
   setRoutineConfig: (config: { morning: string[], eod: string[] }) => void
+  setDefaultPlannedRisk: (val: number) => void
   toggleCompare: (firmId: string) => void
   tradesFor: (accountId: string) => Trade[]
   setAnimationMode: (mode: "Full" | "Reduced" | "Off") => void
@@ -144,6 +146,7 @@ export const usePropStore = create<PropState>()(
         morning: ["Sleep Completed (7+ Hours)", "Economic Calendar Checked", "Headline News Checked", "Daily Bias Prepared", "Risk Plan Prepared"],
         eod: ["Trade Journal Completed", "Lessons Logged", "All Trades Reviewed", "Screenshots Uploaded"]
       },
+      defaultPlannedRisk: 100,
       seeded: false,
       animationMode: "Full",
       displayTimeMode: "Exchange Time",
@@ -152,6 +155,8 @@ export const usePropStore = create<PropState>()(
       setDisplayTimeMode: (mode) => set({ displayTimeMode: mode }),
       setAnimationMode: (mode) => set({ animationMode: mode }),
       setPnlDisplayMode: (mode) => set({ pnlDisplayMode: mode }),
+      
+      setDefaultPlannedRisk: (val) => set({ defaultPlannedRisk: val }),
 
       setRoutineConfig: (config) => {
         set({ routineConfig: config })

@@ -123,6 +123,7 @@ export default function WeeklyReviewPage() {
 
   const weekTotalTrades = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.length, 0);
   const weekTotalPnl = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + t.pnl, 0), 0);
+  const weekTotalNetR = Object.values(weekTradesByDay).reduce((sum, arr) => sum + arr.reduce((s, t) => s + (t.netR || 0), 0), 0);
   const weekWins = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl > 0).length, 0);
   const weekLosses = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl <= 0).length, 0);
 
@@ -747,11 +748,11 @@ export default function WeeklyReviewPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Net R (Actual)</Label>
+              <Label>Net R (Auto-Calculated)</Label>
               <Input
-                value={netR}
-                onChange={(e) => setNetR(e.target.value)}
-                placeholder="e.g. 2.5R"
+                value={`${weekTotalNetR > 0 ? "+" : ""}${weekTotalNetR.toFixed(2)}R`}
+                readOnly
+                className="bg-muted/50 cursor-not-allowed"
               />
             </div>
           </div>
@@ -804,6 +805,7 @@ export default function WeeklyReviewPage() {
               if (dayTrades.length === 0) return null;
               
               const dayPnl = dayTrades.reduce((s, t) => s + t.pnl, 0);
+              const dayNetR = dayTrades.reduce((s, t) => s + (t.netR || 0), 0);
               const dateObj = new Date(date + "T12:00:00");
               const dateDisplay = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -814,13 +816,11 @@ export default function WeeklyReviewPage() {
                   
                   <div className="pl-6 space-y-4">
                     <div className="flex items-center justify-between relative">
-                      {/* Timeline dot */}
-                      <div className="absolute -left-[23px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 border-background bg-muted-foreground/30" />
-                      
+                      <div className="absolute -left-[27px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-background border-[3px] border-primary z-10 shadow-[0_0_0_4px_hsl(var(--background))]" />
                       <div className="flex items-center gap-3">
-                        <h3 className="text-sm font-bold text-foreground/90 tracking-wide">{dateDisplay}</h3>
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest bg-muted/40 px-2 py-0.5 rounded-md">
-                          {dayTrades.length} Trade{dayTrades.length > 1 ? 's' : ''}
+                        <h4 className="font-bold text-base tracking-tight">{dateDisplay}</h4>
+                        <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-secondary/50 text-muted-foreground border border-border/50">
+                          {dayTrades.length} Trade{dayTrades.length !== 1 ? 's' : ''}
                         </span>
                       </div>
                       
@@ -828,6 +828,7 @@ export default function WeeklyReviewPage() {
                         "text-xs font-bold font-mono px-2.5 py-1 rounded-md border", 
                         dayPnl >= 0 ? "bg-success/10 text-success border-success/20" : "bg-destructive/10 text-destructive border-destructive/20"
                       )}>
+                        {dayNetR !== 0 && <span className="opacity-70 mr-2">{dayNetR > 0 ? "+" : ""}{dayNetR.toFixed(2)}R |</span>}
                         {dayPnl >= 0 ? "+" : "-"}${Math.abs(dayPnl).toFixed(2)}
                       </span>
                     </div>
