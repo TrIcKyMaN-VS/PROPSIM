@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo } from "react"
 import { usePropStore } from "@/lib/store"
 import { MonteCarloInputs, MonteCarloStats } from "@/lib/simulation/monte-carlo-types"
 import { MonteCarloService } from "@/lib/simulation/monte-carlo-service"
@@ -141,25 +141,28 @@ export default function MonteCarloView() {
     }
   }, [historicalStats, dataSource])
 
-  const runSimulation = useCallback(async () => {
-    setIsRunning(true)
-    try {
-      const results = await monteCarloService.run(inputs)
-      setStats(results)
-    } catch (e: any) {
-      toast.error("Simulation failed: " + e.message)
-    } finally {
-      setIsRunning(false)
-    }
-  }, [inputs])
-
-  // Debounced run
+  // Debounced auto-run — runs on every input change.
+  // NOT using useCallback to avoid the circular dep: useCallback(inputs) → useEffect(runSimulation) → re-runs on every render.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      runSimulation()
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      if (cancelled) return
+      setIsRunning(true)
+      try {
+        const results = await monteCarloService.run(inputs)
+        if (!cancelled) setStats(results)
+      } catch (e: any) {
+        if (!cancelled) toast.error("Simulation failed: " + e.message)
+      } finally {
+        if (!cancelled) setIsRunning(false)
+      }
     }, 300)
-    return () => clearTimeout(timer)
-  }, [inputs, runSimulation])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputs])
 
   const copyPrompt = () => {
     const payload = {
@@ -527,7 +530,12 @@ export default function MonteCarloView() {
                     <span className="text-sm font-bold text-white">-{inputs.dayMix.dailyStopR}R</span>
                   </div>
                   <Slider 
-                    min={1} max={Math.max(1, Math.floor(inputs.challengeRules.dailyLossLimitPct / (Math.max(0.1, ...Object.values(inputs.riskPerTradePctOfAccount).map(Number)) || 1)))} step={0.5} 
+                    min={1} 
+                    max={Math.max(1, Math.floor(
+                      inputs.challengeRules.dailyLossLimitPct / 
+                      Math.max(0.1, inputs.riskPerTradePctOfAccount.phase1, inputs.riskPerTradePctOfAccount.phase2, inputs.riskPerTradePctOfAccount.funded)
+                    ))} 
+                    step={0.5} 
                     value={[inputs.dayMix.dailyStopR]} 
                     onValueChange={(val: any) => updateNestedInput("dayMix", "dailyStopR", Array.isArray(val) ? val[0] : val)}
                     className="[&_[role=slider]]:bg-white [&_[role=slider]]:border-white [&_.bg-primary]:bg-slate-800"
@@ -643,22 +651,28 @@ export default function MonteCarloView() {
           {/* HERO WIDGET */}
           <div className={`p-6 rounded-xl border border-slate-800 bg-[#0f111a] space-y-8 transition-opacity duration-300 ${isRunning ? "opacity-50" : "opacity-100"}`}>
             
-            <h2 className="text-lg leading-relaxed text-slate-300 font-medium">
-              With days like these you get funded <strong className="text-green-500 font-extrabold text-xl">~{stats?.getFundedPerAccountPct.toFixed(0)}%</strong> of the time, 
-              usually in <strong className="text-white font-extrabold text-xl">~{stats?.avgTradingDaysToFunded}</strong> trading days, 
-              finishing the year with roughly <strong className="text-blue-500 font-extrabold text-xl">{fmtCurrency(stats?.takeHomeByDec31Usd.median || 0)}</strong> in your pocket.
-            </h2>
-            
-            <div className="space-y-2">
-              <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
-                <div className="bg-blue-600 h-full" style={{ width: `${stats?.getFundedPerAccountPct || 0}%` }} />
-                <div className="bg-red-500/50 h-full" style={{ width: `${stats?.blowUpRiskPct || 0}%` }} />
-              </div>
-              <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 tracking-wider">
-                <span>chances you get funded</span>
-                <span>{stats?.getFundedPerAccountPct.toFixed(0)}%</span>
-              </div>
-            </div>
+            {!stats ? (
+              <div className="text-slate-500 text-sm animate-pulse">Running simulation…</div>
+            ) : (
+              <>
+                <h2 className="text-lg leading-relaxed text-slate-300 font-medium">
+                  With days like these you get funded <strong className="text-green-500 font-extrabold text-xl">~{stats.getFundedPerAccountPct}%</strong> of the time, 
+                  usually in <strong className="text-white font-extrabold text-xl">~{stats.avgTradingDaysToFunded}</strong> trading days, 
+                  finishing the year with roughly <strong className="text-blue-500 font-extrabold text-xl">{fmtCurrency(stats.takeHomeByDec31Usd.median)}</strong> in your pocket.
+                </h2>
+                
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden flex border border-slate-800">
+                    <div className="bg-blue-600 h-full" style={{ width: `${stats.getFundedPerAccountPct}%` }} />
+                    <div className="bg-red-500/50 h-full" style={{ width: `${stats.blowUpRiskPct}%` }} />
+                  </div>
+                  <div className="flex justify-between text-[10px] uppercase font-bold text-slate-500 tracking-wider">
+                    <span>chances you get funded</span>
+                    <span>{stats.getFundedPerAccountPct}%</span>
+                  </div>
+                </div>
+              </>
+            )}
             
           </div>
 
@@ -667,17 +681,17 @@ export default function MonteCarloView() {
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Edge Per Day</div>
               <div className={`text-3xl font-extrabold ${stats && stats.edgePerDayR > 0 ? "text-green-500" : "text-red-500"}`}>
-                {stats && stats.edgePerDayR > 0 ? "+" : ""}{stats?.edgePerDayR.toFixed(2)}R
+                {stats && stats.edgePerDayR > 0 ? "+" : ""}{(stats?.edgePerDayR ?? 0).toFixed(2)}R
               </div>
               <div className="text-xs text-slate-400 mt-2 font-medium">
-                {stats && stats.edgePerDayR > 0 ? "+" : ""}{fmtCurrency(stats?.edgePerDayUsdPhase1 || 0)}/day in P1
+                {stats && stats.edgePerDayR > 0 ? "+" : ""}{fmtCurrency(stats?.edgePerDayUsdPhase1 ?? 0)}/day in P1
               </div>
             </div>
             
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Pass Phase 1</div>
               <div className="text-3xl font-extrabold text-white">
-                {stats?.passPhase1Pct.toFixed(0)}%
+                {stats?.passPhase1Pct ?? "--"}%
               </div>
               <div className="text-xs text-slate-400 mt-2 font-medium">reach +{inputs.challengeRules.phase1TargetPct}% per acct</div>
             </div>
@@ -685,7 +699,7 @@ export default function MonteCarloView() {
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Get Funded</div>
               <div className="text-3xl font-extrabold text-white">
-                {stats?.getFundedPerAccountPct.toFixed(0)}%
+                {stats?.getFundedPerAccountPct ?? "--"}%
               </div>
               <div className="text-xs text-slate-400 mt-2 font-medium">pass both phases</div>
             </div>
@@ -693,7 +707,7 @@ export default function MonteCarloView() {
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Time to Funded</div>
               <div className="text-3xl font-extrabold text-white">
-                {stats?.avgTradingDaysToFunded}
+                {stats?.avgTradingDaysToFunded ?? "--"}
               </div>
               <div className="text-xs text-slate-400 mt-2 font-medium">~ trading days from now</div>
             </div>
@@ -701,10 +715,10 @@ export default function MonteCarloView() {
             <div className="p-4 rounded-xl bg-[#0f111a] border border-slate-800 flex flex-col justify-between">
               <div className="text-[10px] uppercase font-bold text-slate-500 mb-2">Deepest Hole [Median]</div>
               <div className="text-3xl font-extrabold text-red-500">
-                -{stats?.medianDeepestDrawdownR.toFixed(1)}R
+                -{(stats?.medianDeepestDrawdownR ?? 0).toFixed(1)}R
               </div>
               <div className="text-xs text-slate-400 mt-2 font-medium">
-                ~ -{((stats?.medianDeepestDrawdownR || 0) * inputs.riskPerTradePctOfAccount.phase1).toFixed(0)}% in P1
+                ~ -{((stats?.medianDeepestDrawdownR ?? 0) * inputs.riskPerTradePctOfAccount.phase1).toFixed(0)}% in P1
               </div>
             </div>
             
@@ -732,16 +746,16 @@ export default function MonteCarloView() {
           <div className="p-6 rounded-xl border border-slate-800 bg-[#0f111a] flex flex-col justify-between items-start">
             <div className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2">Take-Home by Dec 31 (Your {inputs.challengeRules.payoutSplitToTrader * 100}% — Funded Stage Only)</div>
             <div className="text-5xl font-extrabold text-blue-500">
-              {fmtCurrency(stats?.takeHomeByDec31Usd.median || 0)}
+              {fmtCurrency(stats?.takeHomeByDec31Usd.median ?? 0)}
             </div>
             <div className="text-sm text-slate-400 mt-2 font-medium">
-              likely range {fmtCurrency(stats?.takeHomeByDec31Usd.p25 || 0)} - {fmtCurrency(stats?.takeHomeByDec31Usd.p75 || 0)}
+              likely range {fmtCurrency(stats?.takeHomeByDec31Usd.p25 ?? 0)} - {fmtCurrency(stats?.takeHomeByDec31Usd.p75 ?? 0)}
             </div>
           </div>
 
           {inputs.dayModel === "dayMix" && (
             <div className="p-4 rounded-xl border border-slate-800 bg-[#0f111a] text-sm text-slate-400 font-medium">
-              you need <strong className="text-white">{stats?.breakevenGoodDayFractionPct}%</strong> good days just to break even
+              you need <strong className="text-white">{stats?.breakevenGoodDayFractionPct ?? "--"}%</strong> good days just to break even
             </div>
           )}
 

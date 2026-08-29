@@ -7,7 +7,12 @@ ctx.onmessage = (event: MessageEvent) => {
 
   if (type === "run") {
     try {
-      const stats = runPropFirmModel(inputs)
+      // Pass the postMessage callback so the pure model function stays free of
+      // any Worker-specific globals (fixes the main-thread crash when running
+      // as a synchronous fallback).
+      const onProgress = (pct: number) =>
+        ctx.postMessage({ type: "progress", progress: pct })
+      const stats = runPropFirmModel(inputs, onProgress)
       ctx.postMessage({ type: "complete", stats })
     } catch (error: any) {
       ctx.postMessage({ type: "error", error: error.message || String(error) })
@@ -15,8 +20,13 @@ ctx.onmessage = (event: MessageEvent) => {
   }
 }
 
-// ─── Exported so the service can run it synchronously as a fallback ───────────
-export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
+// ─── Pure model function — no Worker globals ──────────────────────────────────
+// The optional `onProgress` callback keeps this safe to call from the main
+// thread (synchronous fallback) without crashing due to `window.postMessage`.
+export function runPropFirmModel(
+  inputs: MonteCarloInputs,
+  onProgress?: (pct: number) => void
+): MonteCarloStats {
   const { account, challengeRules, riskPerTradePctOfAccount, dayModel, dayMix, withinDay, simulations } = inputs
 
   // ── Phase-appropriate risk getter ────────────────────────────────────────────
@@ -26,21 +36,23 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
     return riskPerTradePctOfAccount.funded
   }
 
-  let passedPhase1Count  = 0
-  let getFundedCount     = 0
-  let blowUpCount        = 0
+  let passedPhase1Count   = 0
+  let getFundedCount      = 0
+  let blowUpCount         = 0
 
   const daysToFundedList: number[] = []
   const drawdownsRList:   number[] = []
   const payoutsUsdList:   number[] = []
 
-  let totalEdgePerDayR  = 0
+  let totalEdgePerDayR   = 0
   let totalEdgeDaysCount = 0
 
+  const progressStep = Math.max(1, Math.floor(simulations / 10))
+
   for (let s = 0; s < simulations; s++) {
-    // Progress heartbeat every 10 %
-    if (s > 0 && s % Math.floor(simulations / 10) === 0) {
-      ctx.postMessage({ type: "progress", progress: Math.round((s / simulations) * 100) })
+    // Progress heartbeat every 10% — safe regardless of execution context
+    if (s > 0 && s % progressStep === 0 && onProgress) {
+      onProgress(Math.round((s / simulations) * 100))
     }
 
     // ── Per-simulation state ─────────────────────────────────────────────────
@@ -52,18 +64,15 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
     const startRiskPct = getRiskPct(currentPhase)
     let currentR       = startRiskPct > 0 ? account.currentNetPctInPhase / startRiskPct : 0
 
-    // FIX BUG 3 – track drawdown across the ENTIRE journey (not just current phase).
-    // We keep a single global peak-to-trough tracker that never resets.
-    let globalPeakR    = currentR
-    let maxDrawdownR   = 0
+    // Track drawdown across the ENTIRE journey (not just current phase)
+    let globalPeakR  = currentR
+    let maxDrawdownR = 0
 
-    let daysTaken          = 0
-    let didPassP1ThisRun   = false
+    let daysTaken           = 0
+    let didPassP1ThisRun    = false
     let didGetFundedThisRun = false
 
-    // FIX BUG 7 – record funded-stage starting R so we can exclude it from payout.
-    // If the account starts in funded, the opening currentR is already-earned equity
-    // and must NOT be counted again as profit from this sim.
+    // Record funded-stage starting R so we only count profit GENERATED this sim
     let fundedStartR: number | null = currentPhase === "funded" ? currentR : null
 
     while (daysLeft > 0 && !ruined) {
@@ -75,8 +84,8 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
                         currentPhase === "p2" ? challengeRules.phase2TargetPct : Infinity
       const targetR    = targetPct / phaseRiskPct
 
-      // Overall max-loss floor (from phase-start balance — standard FTMO rules)
-      const floorR    = -challengeRules.maxOverallLossPct / phaseRiskPct
+      // Overall max-loss floor (from phase-start balance)
+      const floorR     = -challengeRules.maxOverallLossPct / phaseRiskPct
 
       // Daily loss limit in R units for this phase
       const dailyLossR = -challengeRules.dailyLossLimitPct / phaseRiskPct
@@ -87,21 +96,18 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
       if (dayModel === "dayMix") {
         const rand = Math.random()
         if (rand < dayMix.probabilityGoodDay) {
-          // FIX BUG 8 – honour bankGoodDays flag
-          // ON  → bank the full goodDayTargetR (stop once target hit)
-          // OFF → give back most of it; only keep ~1R ("no heroes")
+          // bankGoodDays ON → full target; OFF → give most back, keep ~1R
           dayPnLR = dayMix.bankGoodDays ? dayMix.goodDayTargetR : 1.0
         } else if (rand < dayMix.probabilityGoodDay + dayMix.probabilityFlatDay) {
           dayPnLR = 0
         } else {
           dayPnLR = -dayMix.dailyStopR
         }
-
-        // FIX BUG 1 – clamp dayMix PnL to the daily loss limit BEFORE adding to account
+        // Clamp to daily loss limit before adding to account equity
         if (dayPnLR < dailyLossR) dayPnLR = dailyLossR
 
       } else {
-        // withinDay – trade-by-trade loop already enforces dailyLossR internally
+        // withinDay – trade-by-trade; inner loop enforces dailyLossR
         let dR     = 0
         let trades = 0
         const ceiling = withinDay.bankGoodDays ? withinDay.dailyCeilingR : 1.0
@@ -112,25 +118,20 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
           } else {
             dR -= 1
           }
-          // Inner daily loss clamp
-          if (dR <= dailyLossR) {
-            dR = dailyLossR
-            break
-          }
+          if (dR <= dailyLossR) { dR = dailyLossR; break }
           trades++
         }
-        // FIX BUG 1 – no outer clamp needed; inner loop already clamped
         dayPnLR = dR
       }
 
-      currentR  += dayPnLR
+      currentR += dayPnLR
       daysLeft--
       daysTaken++
 
       totalEdgePerDayR += dayPnLR
       totalEdgeDaysCount++
 
-      // FIX BUG 3 – track global high-water mark & deepest drawdown across ALL phases
+      // Global high-water mark & deepest drawdown across ALL phases
       if (currentR > globalPeakR) globalPeakR = currentR
       const dd = globalPeakR - currentR
       if (dd > maxDrawdownR) maxDrawdownR = dd
@@ -142,50 +143,32 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
         break
       }
 
-      // ── Check phase-advancement targets ───────────────────────────────────
+      // ── Phase-advancement ─────────────────────────────────────────────────
       if (currentR >= targetR && currentPhase !== "funded") {
         if (currentPhase === "p1") {
           didPassP1ThisRun = true
           currentPhase = "p2"
           currentR = 0
-          // Note: globalPeakR intentionally NOT reset – we track whole-journey DD
         } else if (currentPhase === "p2") {
           didGetFundedThisRun = true
           currentPhase = "funded"
           currentR = 0
-          fundedStartR = 0 // started fresh in funded this run
+          fundedStartR = 0
           daysToFundedList.push(daysTaken)
         }
       }
-    } // end while
-
-    // ── FIX BUG 4 & 5 & 6 – Counters are mutually exclusive ─────────────────
-    // blowUpCount already incremented inside the loop if ruined.
-    // Only count pass/funded if NOT ruined.
-
-    if (!ruined) {
-      // Pass Phase 1: either passed it this run, OR started beyond P1 (and didn't blow up)
-      if (didPassP1ThisRun || account.currentPhase !== "p1") {
-        passedPhase1Count++
-      }
-
-      // Get Funded: either got funded this run, OR already started funded (and survived)
-      if (didGetFundedThisRun || (account.currentPhase === "funded" && !ruined)) {
-        getFundedCount++
-      }
-    } else {
-      // Even if account started in funded/p2, a blow-up voids both counters
-      // (blowUpCount already incremented — no additional counting)
     }
 
-    // ── Payout at Dec 31 ─────────────────────────────────────────────────────
+    // ── Mutually exclusive counters (blowUp already incremented in loop) ──────
+    if (!ruined) {
+      if (didPassP1ThisRun || account.currentPhase !== "p1") passedPhase1Count++
+      if (didGetFundedThisRun || account.currentPhase === "funded") getFundedCount++
+    }
+
+    // ── Payout at end of year ─────────────────────────────────────────────────
     if (currentPhase === "funded" && !ruined) {
       const fundedRiskPct = riskPerTradePctOfAccount.funded
-
-      // FIX BUG 7 – subtract the R we started the funded stage with so we only
-      // count profit GENERATED during this simulation, not pre-existing equity.
       const profitR = currentR - (fundedStartR ?? 0)
-
       if (profitR > 0) {
         const usdProfit = profitR * (fundedRiskPct / 100) * account.accountSizeUsd
         payoutsUsdList.push(usdProfit * challengeRules.payoutSplitToTrader)
@@ -197,7 +180,7 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
     }
 
     drawdownsRList.push(maxDrawdownR)
-  } // end simulation loop
+  }
 
   // ── Aggregate statistics ──────────────────────────────────────────────────
   const sortAsc = (arr: number[]) => [...arr].sort((a, b) => a - b)
@@ -222,22 +205,19 @@ export function runPropFirmModel(inputs: MonteCarloInputs): MonteCarloStats {
     edgePerDayR * (riskPerTradePctOfAccount.phase1 / 100) * account.accountSizeUsd
   )
 
-  // FIX BUG 9 – correct breakeven formula: stop / (target + stop)
-  // This is the fraction of days that must be good days just for the expectancy to be 0.
-  // Flat days don't affect the calculation – they contribute 0 to both sides.
   const breakevenGoodDayFractionPct = dayModel === "dayMix" && (dayMix.goodDayTargetR + dayMix.dailyStopR) > 0
     ? Math.round((dayMix.dailyStopR / (dayMix.goodDayTargetR + dayMix.dailyStopR)) * 100)
     : 0
 
   return {
     simulations,
-    passPhase1Pct:           Math.round((passedPhase1Count / simulations) * 100),
-    getFundedPerAccountPct:  Math.round((getFundedCount    / simulations) * 100),
-    blowUpRiskPct:           Math.round((blowUpCount       / simulations) * 100),
-    avgTradingDaysToFunded:  avgDaysToFunded,
+    passPhase1Pct:          Math.round((passedPhase1Count / simulations) * 100),
+    getFundedPerAccountPct: Math.round((getFundedCount    / simulations) * 100),
+    blowUpRiskPct:          Math.round((blowUpCount       / simulations) * 100),
+    avgTradingDaysToFunded: avgDaysToFunded,
     edgePerDayR,
     edgePerDayUsdPhase1,
-    medianDeepestDrawdownR:  Math.round(getPercentile(sortedDrawdowns, 50) * 10) / 10,
+    medianDeepestDrawdownR: Math.round(getPercentile(sortedDrawdowns, 50) * 10) / 10,
     takeHomeByDec31Usd: {
       p25:    Math.round(getPercentile(sortedPayouts, 25)),
       median: Math.round(getPercentile(sortedPayouts, 50)),

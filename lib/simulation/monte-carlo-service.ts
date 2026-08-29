@@ -3,7 +3,7 @@ import { runPropFirmModel } from "./monte-carlo-worker"
 
 export class MonteCarloService {
   private worker: Worker | null = null
-  // FIX BUG 10 – limit cache to 1 entry to avoid serving stale results
+  // Single-entry cache — avoids infinite growth and stale long-lived results
   private lastCacheKey: string | null = null
   private lastCacheResult: MonteCarloStats | null = null
 
@@ -13,7 +13,6 @@ export class MonteCarloService {
   ): Promise<MonteCarloStats> {
     const cacheKey = JSON.stringify(inputs)
 
-    // Return cached result only if the inputs are identical to the last run
     if (this.lastCacheKey === cacheKey && this.lastCacheResult) {
       return Promise.resolve(this.lastCacheResult)
     }
@@ -61,26 +60,21 @@ export class MonteCarloService {
         this.worker.postMessage({ type: "run", inputs })
 
       } catch (err) {
-        // FIX BUG 11 – real synchronous fallback: run the model directly on the
-        // main thread instead of immediately rejecting.
+        // Real synchronous fallback — runs the pure model on the main thread.
+        // runPropFirmModel no longer calls any Worker globals so this is safe.
         console.warn(
           "Web Worker creation failed — falling back to synchronous Monte Carlo simulation.",
           err
         )
-        try {
-          // Run synchronously; use setTimeout(0) to yield the microtask queue first
-          // so the UI can render the loading state before we block.
-          setTimeout(() => {
-            try {
-              const stats = runPropFirmModel(inputs)
-              handleResult(stats)
-            } catch (e: any) {
-              reject(e)
-            }
-          }, 0)
-        } catch (e) {
-          reject(e)
-        }
+        setTimeout(() => {
+          try {
+            // Pass onProgress so callers still get progress events if they want
+            const stats = runPropFirmModel(inputs, onProgress)
+            handleResult(stats)
+          } catch (e: any) {
+            reject(e)
+          }
+        }, 0)
       }
     })
   }
