@@ -827,23 +827,28 @@ export default function WeeklyReviewPage() {
                           <button
                             type="button"
                             onClick={() => toggleTradeDetail(t.id)}
-                            className="w-full flex items-center justify-between px-4 py-3 text-sm hover:bg-muted/30 transition-colors"
+                            className="w-full flex items-center justify-between px-4 py-3.5 text-sm hover:bg-muted/30 transition-colors"
                           >
-                            <span className="font-bold tracking-wide text-foreground flex items-center gap-2">
-                              <span className="text-muted-foreground/50">#{dayTrades.length - idx}</span> 
-                              <span>{setupName?.toUpperCase()}</span>
-                              <Badge variant={t.direction === "long" ? "default" : "destructive"} className="text-[10px] px-1.5 py-0">{t.direction}</Badge>
+                            <span className="font-bold tracking-wide text-foreground flex items-center gap-3">
+                              <span className="text-muted-foreground/60 uppercase text-[11px]">TRADE {dayTrades.length - idx}</span>
+                              <span className="text-[14px]">{t.instrument?.toUpperCase()}</span>
+                              <span className={cn(
+                                "text-[10px] px-2 py-0.5 rounded-full",
+                                t.direction === "long" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"
+                              )}>
+                                {t.direction}
+                              </span>
                             </span>
                             <div className="flex items-center gap-4">
                               {grade && (
                                 <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", gradeColor(grade))}>
-                                  {grade}
+                                  {grade} GRADE
                                 </span>
                               )}
                               <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
                                 {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
                               </span>
-                              {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "-rotate-180")} />
                             </div>
                           </button>
 
