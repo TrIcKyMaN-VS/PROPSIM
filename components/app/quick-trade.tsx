@@ -33,12 +33,14 @@ export function QuickTrade({ account }: { account: ChallengeAccount }) {
       return
     }
     const c = Number(contracts) || 1
+    const priceDelta = pnlNum / (c * 50 || 1)
+    const exitPrice = direction === "short" ? 5000 - priceDelta : 5000 + priceDelta
     addTrade({
       accountId: account.id,
       instrument,
       direction,
       entry: 5000,
-      exit: 5000 + pnlNum / (c * 50 || 1),
+      exit: exitPrice,
       contracts: c,
       pnl: pnlNum,
       day: currentDay,

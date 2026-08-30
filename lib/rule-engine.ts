@@ -376,28 +376,26 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
       }
     }
 
-    // daily loss limit (checked on the day's net)
-    if (rules.dailyLossLimit > 0 && dayPnl <= -rules.dailyLossLimit && !failed) {
+    // Intraday daily loss limit breach check
+    if (rules.dailyLossLimit > 0 && !failed) {
       let runningDayPnl = 0
-      let triggeringTrade: Trade | null = null
       for (const dt of dayTrades) {
         runningDayPnl += dt.pnl
         if (runningDayPnl <= -rules.dailyLossLimit) {
-          triggeringTrade = dt
+          violations.push({
+            type: "daily_loss",
+            label: "Intraday Daily Loss Limit hit",
+            detail: `Intraday day loss reached $${Math.abs(runningDayPnl).toLocaleString()}, breaching daily loss limit of $${rules.dailyLossLimit.toLocaleString()}.`,
+            tradeId: dt.id,
+            allowedValue: rules.dailyLossLimit,
+            actualValue: Math.abs(runningDayPnl),
+            timestamp: Number(dt.timestamp),
+            severity: "HARD"
+          })
+          failed = true
           break
         }
       }
-      violations.push({
-        type: "daily_loss",
-        label: "Daily loss limit hit",
-        detail: `Day ${day} lost $${Math.abs(dayPnl).toLocaleString()}, limit is $${rules.dailyLossLimit.toLocaleString()}.`,
-        tradeId: triggeringTrade?.id,
-        allowedValue: rules.dailyLossLimit,
-        actualValue: Math.abs(dayPnl),
-        timestamp: triggeringTrade ? Number(triggeringTrade.timestamp) : Date.now(),
-        severity: "HARD"
-      })
-      failed = true
     }
 
     // EOD trailing: floor advances at day close based on end-of-day balance high
@@ -405,6 +403,18 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
       const eodHigh = Math.max(lastDayBalance, balance)
       if (eodHigh > start) {
         staticFloor = Math.max(staticFloor, eodHigh - rules.maxDrawdown)
+      }
+      // EOD Drawdown failure post-check evaluation
+      if (balance <= staticFloor && !failed) {
+        violations.push({
+          type: "max_drawdown",
+          label: "EOD Drawdown breached at day close",
+          detail: `Day close balance $${balance.toLocaleString()} fell below updated EOD drawdown floor $${staticFloor.toLocaleString()}.`,
+          allowedValue: rules.maxDrawdown,
+          actualValue: Math.round(eodHigh - balance),
+          severity: "HARD"
+        })
+        failed = true
       }
     }
     lastDayBalance = balance
@@ -422,7 +432,7 @@ export function evaluate(rules: ChallengeRules, trades: Trade[]): RuleStatus {
   // today's pnl = last day net (days are EST date strings like "08/12/2026")
   const lastDay = days.length ? days[days.length - 1] : null
   const dailyPnl = lastDay ? byDay.get(lastDay)!.reduce((s, t) => s + t.pnl, 0) : 0
-  const remainingDailyLoss = rules.dailyLossLimit > 0 ? Math.max(0, rules.dailyLossLimit + Math.min(0, dailyPnl)) : 0
+  const remainingDailyLoss = rules.dailyLossLimit > 0 ? Math.max(0, rules.dailyLossLimit + dailyPnl) : 0
   const dailyLossLimitVal = rules.dailyLossLimit || 1 // Avoid division by zero
   const dailyLossUsedPct =
     rules.dailyLossLimit > 0 ? clampPct((Math.max(0, -dailyPnl) / dailyLossLimitVal) * 100) : 0
@@ -518,7 +528,10 @@ export function equityCurve(account: ChallengeAccount, trades: Trade[]) {
     bal += t.pnl
     if (bal > high) high = bal
     let floor = account.rules.startingBalance - account.rules.maxDrawdown
-    if (isTrailing) floor = high - account.rules.maxDrawdown
+    if (isTrailing) {
+      const lockReached = account.rules.trailingLockProfit && account.rules.trailingLockProfit > 0 && high - account.rules.startingBalance >= account.rules.trailingLockProfit
+      floor = lockReached ? account.rules.startingBalance : high - account.rules.maxDrawdown
+    }
     if (isHybrid) floor = Math.min(account.rules.startingBalance, high - account.rules.maxDrawdown)
     points.push({ idx: i + 1, balance: Math.round(bal), floor: Math.round(floor), label: `#${i + 1}` })
   })

@@ -4,11 +4,13 @@ export interface Analytics {
   totalTrades: number
   wins: number
   losses: number
+  breakevens: number
   winRate: number
   lossRate: number
   profitFactor: number
   avgWinner: number
   avgLoser: number
+  payoffRatio: number
   expectancy: number
   largestWinner: number
   largestLoser: number
@@ -24,8 +26,10 @@ export function computeAnalytics(trades: Trade[]): Analytics {
   const total = trades.length
   const winTrades = trades.filter((t) => t.pnl > 0)
   const lossTrades = trades.filter((t) => t.pnl < 0)
+  const breakevenTrades = trades.filter((t) => t.pnl === 0)
   const wins = winTrades.length
   const losses = lossTrades.length
+  const breakevens = breakevenTrades.length
   const grossWin = winTrades.reduce((s, t) => s + t.pnl, 0)
   const grossLoss = Math.abs(lossTrades.reduce((s, t) => s + t.pnl, 0))
   const netPnl = grossWin - grossLoss
@@ -33,7 +37,8 @@ export function computeAnalytics(trades: Trade[]): Analytics {
   const lossRate = total ? (losses / total) * 100 : 0
   const avgWinner = wins ? grossWin / wins : 0
   const avgLoser = losses ? grossLoss / losses : 0
-  const profitFactor = grossLoss ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0
+  const payoffRatio = avgLoser ? avgWinner / avgLoser : avgWinner > 0 ? 99.99 : 0
+  const profitFactor = grossLoss ? grossWin / grossLoss : grossWin > 0 ? 99.99 : 0
   const expectancy = total ? netPnl / total : 0
   const largestWinner = winTrades.reduce((m, t) => Math.max(m, t.pnl), 0)
   const largestLoser = lossTrades.reduce((m, t) => Math.min(m, t.pnl), 0)
@@ -88,11 +93,13 @@ export function computeAnalytics(trades: Trade[]): Analytics {
     totalTrades: total,
     wins,
     losses,
+    breakevens,
     winRate,
     lossRate,
-    profitFactor: profitFactor === Infinity ? 99 : profitFactor,
+    profitFactor,
     avgWinner,
     avgLoser,
+    payoffRatio,
     expectancy,
     largestWinner,
     largestLoser,
