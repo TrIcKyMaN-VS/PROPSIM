@@ -43,7 +43,7 @@ export function UltraLoader({ label = "Syncing VSX Engine..." }: { label?: strin
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
             </span>
-            <span className="vsx-cursive text-sm font-black italic tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white via-cyan-300 to-blue-400">VSX QUANT ENGINE</span>
+            <span className="vsx-cursive text-sm font-bold tracking-wider"><span className="text-white">VS</span><span className="text-sky-400">X</span> QUANT ENGINE</span>
           </div>
 
           <h3 className="text-base font-semibold tracking-tight text-foreground/90">

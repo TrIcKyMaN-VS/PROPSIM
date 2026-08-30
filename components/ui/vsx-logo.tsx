@@ -18,12 +18,13 @@ export function VsxBrandLogo({
           src="/logo.png" 
           alt="VSX Logo" 
           style={{ width: iconSize, height: iconSize }}
-          className="object-contain rounded-full shadow-[0_0_12px_rgba(59,130,246,0.4)]" 
+          className="object-contain rounded-full shadow-[0_0_10px_rgba(59,130,246,0.35)]" 
         />
       </div>
       {showText && (
-        <span className="vsx-cursive text-xl font-black italic tracking-wider bg-gradient-to-r from-white via-cyan-300 to-blue-400 bg-clip-text text-transparent drop-shadow-sm select-none">
-          VSX
+        <span className="vsx-cursive text-2xl font-bold tracking-normal select-none leading-none flex items-center">
+          <span className="text-white drop-shadow-sm">VS</span>
+          <span className="text-sky-400 drop-shadow-[0_0_10px_rgba(56,189,248,0.7)] ml-0.5">X</span>
         </span>
       )}
     </div>

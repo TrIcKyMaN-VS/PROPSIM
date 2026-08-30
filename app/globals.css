@@ -1,13 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@1,800&family=Playfair+Display:ital,wght@1,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Kaushan+Script&family=Satisfy&family=Caveat:wght@700&family=Dancing+Script:wght@700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
 .vsx-cursive {
-  font-family: 'Playfair Display', 'Plus Jakarta Sans', Georgia, serif;
-  font-style: italic;
-  font-weight: 900;
-  letter-spacing: 0.04em;
+  font-family: 'Kaushan Script', 'Satisfy', 'Caveat', 'Dancing Script', cursive;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 @custom-variant dark (&:is(.dark *));
