@@ -19,9 +19,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login")
   }
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-background overflow-x-hidden w-full max-w-full relative">
       <AppSidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden max-w-full">
         <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/60 px-4 backdrop-blur-md md:px-6">
           <div className="flex items-center gap-4 flex-1">
             <AccountSwitcher />
