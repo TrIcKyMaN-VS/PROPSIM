@@ -273,23 +273,23 @@ RULES FOR PATTERN DETECTION & CLASSIFICATION:
    - Never manufacture a pattern just to fill the section.
 
 13. DYNAMIC PATTERN DETECTION
-   - Pattern detection MUST be dynamic. Do NOT use fixed occurrence thresholds such as "3 trades = pattern" or "5 trades = pattern".
-   - Determine pattern strength relative to the size of the available dataset.
-   - Evaluate:
-     1. Frequency of the behavior/condition
-     2. Percentage of relevant trades in which it occurs
-     3. Consistency of the behavior across the dataset
-     4. Relationship with the outcome (win/loss, P&L, R:R, execution quality, etc.)
-     5. Relevance and practical significance
-     6. Whether the same relationship appears across different trades or journal entries
-   - A behavior does NOT need to appear in every trade to be a pattern.
-   - A behavior appearing frequently within a small dataset may be a meaningful pattern.
-   - A behavior appearing only rarely within a large dataset should generally be treated as an observation.
-   - The threshold for "Repeated pattern" must adapt automatically as the amount of available data changes.
-   - Do NOT hardcode percentages, trade counts, or minimum sample sizes. The classification must be context-dependent and data-driven.
-   - When evidence is limited but potentially useful, use "Observation:" or "Possible pattern:" rather than hiding it.
-   - When evidence is strong and recurring relative to the available dataset, use "Repeated pattern:".
-   - Never classify something as a pattern merely because the same value appears multiple times; the relationship must be meaningful.
+   - Pattern detection MUST be fully dynamic and data-driven. Do NOT use fixed occurrence thresholds, fixed trade counts, fixed percentages, or rules such as "3 trades = pattern" or "40% = pattern".
+   - Re-evaluate pattern strength based on the amount and distribution of the currently available data.
+   - Evaluate each potential pattern using multiple factors:
+     1. Frequency relative to the relevant/comparable trades
+     2. Consistency across those trades
+     3. Strength of the relationship with the relevant outcome or behavior
+     4. Whether the same relationship appears across different trades, sessions, setups, or journal entries when applicable
+     5. Practical relevance to the trader's execution and decision-making
+     6. Quality and completeness of the supporting data
+   - A behavior does not need to appear in every trade to be considered a pattern.
+   - A frequently occurring behavior in a small dataset can be a meaningful pattern, but should be worded appropriately if confidence is limited.
+   - A behavior that appears frequently in a large dataset is not automatically a strong pattern; the relationship must remain meaningful and consistent.
+   - Do not classify a pattern based only on raw occurrence count or percentage.
+   - Do not classify a pattern merely because two or more trades share the same value. The repeated characteristic must have meaningful context or relevance.
+   - When evidence is limited but useful, classify it as "Observation:" or "Possible pattern:".
+   - When evidence is sufficiently recurring, consistent, and meaningful relative to the available dataset, classify it as "Repeated pattern:".
+   - Re-evaluate all pattern classifications whenever additional trades or journal entries become available. The classification must adapt as the dataset grows.
 
 DATA TO ANALYZE:
 ${compiledText}`
