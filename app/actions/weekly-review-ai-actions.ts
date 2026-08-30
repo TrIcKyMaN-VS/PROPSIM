@@ -152,16 +152,16 @@ ${journalBlock}
 
   const schema = z.object({
     repeatedMistakes: z.object({
-      fromTrades:   z.array(z.string()).describe("Mistakes and losing patterns found from trade logs. Return ['Insufficient evidence to identify a repeated pattern.'] if < 3 examples or low sample size."),
-      fromContext:  z.array(z.string()).describe("Correlated context from journals matching the trade mistakes. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
+      fromTrades:   z.array(z.string()).describe("Mistakes and losing tendencies from trade logs. Prefix items with 'Repeated pattern:' if multiple occurrences, or 'Observation:' / 'Possible pattern:' if 1-2 times. Return ['Insufficient evidence'] ONLY if genuinely no insight exists."),
+      fromContext:  z.array(z.string()).describe("Journal context matching trade errors. Prefix items with 'Repeated pattern:' if multiple occurrences, or 'Observation:' / 'Possible pattern:' if 1-2 times. Return ['Insufficient evidence'] ONLY if genuinely no insight exists.")
     }),
     repeatedWinConditions: z.object({
-      fromTrades:  z.array(z.string()).describe("Characteristics appearing MORE OFTEN in winning trades compared to losing trades. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence."),
-      fromContext: z.array(z.string()).describe("Correlated habits/states from journals matching the best trade conditions. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
+      fromTrades:  z.array(z.string()).describe("Characteristics present in winning trades vs losing trades. Prefix items with 'Repeated pattern:' if multiple occurrences, or 'Observation:' / 'Possible pattern:' if 1-2 times. Return ['Insufficient evidence'] ONLY if genuinely no insight exists."),
+      fromContext: z.array(z.string()).describe("Journal habits/states correlated with best trades. Prefix items with 'Repeated pattern:' if multiple occurrences, or 'Observation:' / 'Possible pattern:' if 1-2 times. Return ['Insufficient evidence'] ONLY if genuinely no insight exists.")
     }),
     emotionalTimingPatterns: z.object({
-      fromTrades:  z.array(z.string()).describe("Trade timing/holding durations correlated with specific results. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence."),
-      fromContext: z.array(z.string()).describe("Journal mentions of mental states correlated with actual execution timing. Return ['Insufficient evidence to identify a repeated pattern.'] if lack of evidence.")
+      fromTrades:  z.array(z.string()).describe("Trade timing/session/holding durations correlated with outcomes. Prefix with 'Repeated pattern:' or 'Observation:'. Return ['Insufficient evidence'] ONLY if genuinely no insight exists."),
+      fromContext: z.array(z.string()).describe("Journal mental state notes correlated with entry/exit timing and results. Prefix with 'Repeated pattern:' or 'Observation:'. Return ['Insufficient evidence'] ONLY if genuinely no insight exists.")
     })
   })
 
@@ -171,19 +171,22 @@ ${journalBlock}
       schema,
       prompt: `You are an expert trading psychologist and quantitative performance coach.
 
-Perform a deep cross-analysis of all available TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
-You must analyze and cross-reference EVERY available detail: entry/exit timing, holding time, session, P&L, Net R, risk management (SL/TP), setup, direction, market condition, trade management, and journal context.
+Perform an active, deep cross-analysis of all available TRADE EXECUTIONS and DAILY JOURNAL REFLECTIONS below.
+Analyze and cross-reference EVERY available detail together: setup, direction, entry/exit price, entry/exit time, holding time, P&L, Net R, SL, TP, risk/reward, session, market condition, trade management, entry/exit quality scores, and journal reflections.
 
-RULES:
-1. ONLY SHOW PATTERNS WITH ACTUAL REPEATED EVIDENCE. Do NOT call something a "repeated pattern" based on only 1-2 examples. Rely strictly on sample size.
-2. If there is not enough evidence to confidently identify a pattern, you MUST return an array with exactly one string: ["Insufficient evidence to identify a repeated pattern."]
-3. For "repeatedWinConditions": compare winning trades against losing trades and identify conditions that actually appear MORE OFTEN in the best-performing trades. Do not just search for matching words in the journal.
-4. For "emotionalTimingPatterns": connect journal reflections with actual trade timing, entry/exit timing, holding time, and results. Only mention an emotional/timing pattern when both the journal and trade data support it.
-5. Do not invent, assume, exaggerate, or force any pattern. No generic trading advice.
-6. The analysis must be done internally, but the final text output must be clean, concise, highly specific, and easy to understand. Avoid long paragraphs and repeated statements.
-7. Keep each answer split into "fromTrades" (evidence strictly from trade records) and "fromContext" (evidence from journal reflections).
+RULES FOR PATTERN DETECTION & CLASSIFICATION:
+1. DO NOT be overly conservative. Extract useful insights whenever there is reasonable evidence. Do NOT require a large sample size before reporting a pattern or observation.
+2. Cross-reference actual trade data with journal context together to discover non-obvious correlations.
+3. Categorize evidence clearly using evidence-based wording:
+   - Multiple examples across trades/journals -> Start line with "Repeated pattern: "
+   - Limited examples (1-2 occurrences) -> Start line with "Observation: " or "Possible pattern: "
+   - Genuinely no meaningful evidence available -> Return exactly: ["Insufficient evidence"]
+4. Use "Insufficient evidence" ONLY when there is genuinely no meaningful insight available, NOT simply because the sample size is small.
+5. For Win Conditions: compare winning trades against losing trades and identify common successful characteristics (session, setup, holding time, mindset, risk/reward).
+6. For Emotional/Timing Patterns: connect journal reflections (state check, notes, feelings) with actual entry timing, exit timing, holding duration, and trade outcome.
+7. Concise & Clean Output: Show only 2-4 sharp, relevant insights per section. Avoid generic advice, fluff, repetition, or unnecessary explanations.
 
-DATA:
+DATA TO ANALYZE:
 ${compiledText}`
     })
 
