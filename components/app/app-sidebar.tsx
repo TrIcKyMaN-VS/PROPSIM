@@ -20,7 +20,7 @@ const nav = [
   { href: "/app/rule-book",             label: "Rule Book",      icon: Target },
   { href: "/app/journal",               label: "Journal",        icon: NotebookPen },
   { href: "/app/notebook",              label: "Notebook",       icon: BookOpen },
-  { href: "/app/calculator",            label: "P&L Calculator", icon: Calculator },
+  { href: "/app/pnl-calc",              label: "P&L Calculator", icon: Calculator },
   { href: "/app/weekly-review",         label: "Weekly Review",  icon: Target },
   { href: "/app/monthly-review",        label: "Monthly Recap",  icon: Activity },
   { href: "/app/analytics",             label: "Analytics",      icon: BarChart3 },
