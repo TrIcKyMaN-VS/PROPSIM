@@ -781,7 +781,7 @@ export default function WeeklyReviewPage() {
       </Dialog>
 
       {/* WEEK'S TRADE LOG */}
-      <details className="group" open>
+      <details className="group">
         <summary className="cursor-pointer select-none list-none flex items-center justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm mb-6 transition-colors hover:bg-muted/50">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold flex items-center gap-2">
