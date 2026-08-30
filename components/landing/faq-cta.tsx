@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils"
 
 const faqs = [
   {
-    q: "Is PROPSIM affiliated with the prop firms?",
-    a: "No. PROPSIM is an independent simulator. We model each firm's published evaluation rules so you can practice and plan, but we are not affiliated with or endorsed by any prop firm.",
+    q: "Is VSX affiliated with the prop firms?",
+    a: "No. VSX is an independent simulator. We model each firm's published evaluation rules so you can practice and plan, but we are not affiliated with or endorsed by any prop firm.",
   },
   {
     q: "How accurate are the rule simulations?",
@@ -21,7 +21,7 @@ const faqs = [
   },
   {
     q: "Does passing a simulation mean I'll pass the real eval?",
-    a: "Not guaranteed, but it dramatically improves your odds. PROPSIM shows you exactly which rules you would have violated and when, so you can fix the behavior before risking real evaluation fees.",
+    a: "Not guaranteed, but it dramatically improves your odds. VSX shows you exactly which rules you would have violated and when, so you can fix the behavior before risking real evaluation fees.",
   },
   {
     q: "What does the AI coach do?",
@@ -87,20 +87,17 @@ export function FaqCta() {
   )
 }
 
+import { VsxBrandLogo } from "@/components/ui/vsx-logo"
+
 export function Footer() {
   return (
     <footer className="border-t border-border">
       <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-            P
-          </div>
-          <span className="font-semibold tracking-tight">PROPSIM</span>
-        </div>
+        <VsxBrandLogo iconSize={26} />
         <p className="text-sm text-muted-foreground">
           Independent prop firm simulator. Not affiliated with any prop firm.
         </p>
-        <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} PROPSIM</p>
+        <p className="text-sm text-muted-foreground">© {new Date().getFullYear()} VSX</p>
       </div>
     </footer>
   )

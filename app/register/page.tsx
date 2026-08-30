@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from "sonner"
 import { registerAction } from "@/app/actions/auth-actions"
 import { Eye, EyeOff, CheckCircle2 } from "lucide-react"
+import { VsxBrandLogo } from "@/components/ui/vsx-logo"
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -45,7 +46,6 @@ export default function RegisterPage() {
       const res = await signIn("credentials", {
         email: form.email,
         password: form.password,
-        rememberMe: "false",
         redirect: false,
       })
       if (res?.ok) {
@@ -64,13 +64,10 @@ export default function RegisterPage() {
     <div className="flex min-h-screen bg-background">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:flex-1 flex-col justify-between bg-gradient-to-br from-primary/10 via-background to-primary/5 p-12 border-r border-border">
-        <div className="flex items-center gap-2 font-bold text-xl">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">P</div>
-          PROPSIM
-        </div>
+        <VsxBrandLogo iconSize={32} />
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-4">Train smarter.<br/>Pass faster.</h1>
-          <p className="text-muted-foreground text-lg">Join thousands of traders using PROPSIM to master prop firm challenges before paying for one.</p>
+          <p className="text-muted-foreground text-lg">Join thousands of traders using VSX to master prop firm challenges before paying for one.</p>
           <div className="mt-8 space-y-3">
             {["Simulate any prop firm challenge rules", "AI trading coach & DNA analysis", "Journal, calendar, and weekly reviews", "No real money at risk"].map(f => (
               <div key={f} className="flex items-center gap-3 text-sm">
@@ -80,15 +77,14 @@ export default function RegisterPage() {
             ))}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">© 2026 PROPSIM. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">© 2026 VSX. All rights reserved.</p>
       </div>
 
       {/* Right form panel */}
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden flex items-center gap-2 font-bold text-lg">
-            <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">P</div>
-            PROPSIM
+          <div className="mb-8 lg:hidden">
+            <VsxBrandLogo iconSize={28} />
           </div>
 
           <Card>

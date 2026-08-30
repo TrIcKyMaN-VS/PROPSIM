@@ -186,7 +186,7 @@ export default function IntegrationsPage() {
               })()}
             </div>
             <CardDescription>
-              Sync trades in real-time from your local NinjaTrader 8 platform to PROPSIM automatically.
+              Sync trades in real-time from your local NinjaTrader 8 platform to VSX automatically.
             </CardDescription>
             <div className="pt-2 flex flex-col sm:flex-row gap-3">
               <Dialog>
@@ -197,7 +197,7 @@ export default function IntegrationsPage() {
                   <DialogHeader>
                     <DialogTitle>How to Connect NinjaTrader</DialogTitle>
                     <DialogDescription>
-                      Follow these steps to automatically sync your NinjaTrader 8 executions with PROPSIM.
+                      Follow these steps to automatically sync your NinjaTrader 8 executions with VSX.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-6 pt-4 text-sm">
@@ -238,7 +238,7 @@ export default function IntegrationsPage() {
                         Give NinjaTrader the Token
                       </h3>
                       <div className="pl-8 text-muted-foreground space-y-2">
-                        <p>We need to tell the Add-On which PROPSIM account to send trades to.</p>
+                        <p>We need to tell the Add-On which VSX account to send trades to.</p>
                         <ul className="list-disc pl-4 space-y-1">
                           <li>Open your computer's Documents folder and navigate to: <br/><code>Documents\NinjaTrader 8\</code></li>
                           <li>Create a new Text Document and name it exactly: <code>propsim_token.txt</code></li>
@@ -260,7 +260,7 @@ export default function IntegrationsPage() {
                         Map Your Accounts
                       </h3>
                       <div className="pl-8 text-muted-foreground">
-                        Scroll down to the <strong>Account Mapping</strong> section on this page to link your local NinjaTrader broker accounts to your active PROPSIM Challenges.
+                        Scroll down to the <strong>Account Mapping</strong> section on this page to link your local NinjaTrader broker accounts to your active VSX Challenges.
                       </div>
                     </div>
                   </div>
@@ -381,7 +381,7 @@ export default function IntegrationsPage() {
       <div className="pt-6">
         <h2 className="text-xl font-bold tracking-tight mb-4">Account Mapping</h2>
         <p className="text-muted-foreground mb-4 text-sm">
-          Map your broker account names to your PROPSIM challenges. When a trade is synced, we'll match it to the correct account using this mapping.
+          Map your broker account names to your VSX challenges. When a trade is synced, we'll match it to the correct account using this mapping.
         </p>
 
         {loading ? (

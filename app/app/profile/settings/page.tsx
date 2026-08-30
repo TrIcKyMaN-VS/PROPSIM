@@ -205,7 +205,7 @@ function AiSettingsCard() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2"><BrainCircuit className="h-5 w-5 text-primary" /> AI Provider Settings</CardTitle>
-        <CardDescription>Choose between PROPSIM Managed AI (default) or provide your own API keys for unlimited personal usage.</CardDescription>
+        <CardDescription>Choose between VSX Managed AI (default) or provide your own API keys for unlimited personal usage.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {loading ? (
@@ -219,7 +219,7 @@ function AiSettingsCard() {
                   <SelectValue placeholder="Select Provider" />
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false} align="start" side="bottom">
-                  <SelectItem value="PROPSIM">PROPSIM Managed (Default)</SelectItem>
+                  <SelectItem value="PROPSIM">VSX Managed (Default)</SelectItem>
                   <SelectItem value="OPENAI">OpenAI (Personal Key)</SelectItem>
                   <SelectItem value="ANTHROPIC">Anthropic (Personal Key)</SelectItem>
                   <SelectItem value="GEMINI">Google Gemini (Personal Key)</SelectItem>

@@ -1,7 +1,7 @@
 import { HistoryView } from "@/components/app/history-view"
 
 export const metadata = {
-  title: "Challenge History | PropSim",
+  title: "Challenge History | VSX",
   description: "Review your past prop firm challenges and statistics",
 }
 

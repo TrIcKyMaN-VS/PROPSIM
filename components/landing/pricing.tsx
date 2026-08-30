@@ -57,7 +57,7 @@ export function Pricing() {
             Cheaper than a single failed evaluation
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            The average trader blows three evals before passing. That&apos;s over $500 gone. PROPSIM costs less than one.
+            The average trader blows three evals before passing. That&apos;s over $500 gone. VSX costs less than one.
           </p>
         </div>
 

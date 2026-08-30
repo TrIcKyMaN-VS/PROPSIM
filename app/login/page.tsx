@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { AlertTriangle, Eye, EyeOff } from "lucide-react"
+import { VsxBrandLogo } from "@/components/ui/vsx-logo"
 
 function LoginForm() {
   const router = useRouter()
@@ -77,23 +78,19 @@ function LoginForm() {
     <div className="flex min-h-screen bg-background">
       {/* Left branding panel */}
       <div className="hidden lg:flex lg:flex-1 flex-col justify-between bg-gradient-to-br from-primary/10 via-background to-primary/5 p-12 border-r border-border">
-        <div className="flex items-center gap-2 font-bold text-xl">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">P</div>
-          PROPSIM
-        </div>
+        <VsxBrandLogo iconSize={32} />
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-4">Welcome back,<br />trader.</h1>
           <p className="text-muted-foreground text-lg">Sign in to continue your training. Your data, challenges, and journal are waiting.</p>
         </div>
-        <p className="text-xs text-muted-foreground">© 2026 PROPSIM. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">© 2026 VSX. All rights reserved.</p>
       </div>
 
       {/* Right form panel */}
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">
-          <div className="mb-8 lg:hidden flex items-center gap-2 font-bold text-lg">
-            <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">P</div>
-            PROPSIM
+          <div className="mb-8 lg:hidden">
+            <VsxBrandLogo iconSize={28} />
           </div>
 
           {suspended && (

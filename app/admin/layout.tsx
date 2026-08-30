@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex h-14 items-center border-b px-6">
           <Link href="/admin" className="flex items-center gap-2 font-bold text-destructive">
             <ShieldAlert className="h-5 w-5" />
-            <span>PROPSIM Admin</span>
+            <span className="vsx-cursive italic text-lg text-foreground">VSX Admin</span>
           </Link>
         </div>
         <div className="flex-1 overflow-auto py-4">

@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'PROPSIM — Practice Any Prop Firm Challenge Before Paying For One',
+  title: 'VSX — Practice Any Prop Firm Challenge Before Paying For One',
   description:
-    'PropSim is a professional futures prop firm challenge simulator. Simulate Apex, Topstep, Lucid, MFFU, TradeDay and more. Track every rule and pass challenges before risking real money.',
+    'VSX is a professional futures prop firm challenge simulator. Simulate Apex, Topstep, Lucid, MFFU, TradeDay and more. Track every rule and pass challenges before risking real money.',
   generator: 'v0.app',
 }
 

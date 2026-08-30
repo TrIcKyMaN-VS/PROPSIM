@@ -31,9 +31,8 @@ function ForgotPasswordForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center gap-2 font-bold text-lg">
-          <div className="h-7 w-7 rounded-md bg-primary flex items-center justify-center text-primary-foreground text-sm font-bold">P</div>
-          PROPSIM
+        <div className="mb-8">
+          <VsxBrandLogo iconSize={28} />
         </div>
 
         <Card>
@@ -99,6 +98,8 @@ function ForgotPasswordForm() {
     </div>
   )
 }
+
+import { VsxBrandLogo } from "@/components/ui/vsx-logo"
 
 export default function ForgotPasswordPage() {
   return (

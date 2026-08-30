@@ -46,7 +46,7 @@ export function Features() {
             A full evaluation, analytics, and trader development platform
           </h2>
           <p className="mt-4 text-pretty leading-relaxed text-muted-foreground">
-            PropSim isn't a trading platform. It's the simulator, evaluator, and coach that prepares
+            VSX isn't a trading platform. It's the simulator, evaluator, and coach that prepares
             you to pass — and stay funded.
           </p>
         </div>

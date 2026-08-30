@@ -1,4 +1,5 @@
 "use client"
+import { VsxBrandLogo } from "@/components/ui/vsx-logo"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
@@ -88,17 +89,9 @@ export function AppSidebar() {
       {/* ── Logo header ────────────────────────────────────────────────── */}
       <div className={cn(
         "flex h-14 items-center border-b border-border transition-all duration-300",
-        collapsed ? "justify-center" : "gap-2 px-5"
+        collapsed ? "justify-center px-2" : "px-4"
       )}>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground">
-          P
-        </div>
-        <span className={cn(
-          "font-semibold tracking-tight whitespace-nowrap transition-all duration-300 overflow-hidden",
-          collapsed ? "w-0 opacity-0 ml-0" : "w-auto opacity-100 ml-0"
-        )}>
-          PROPSIM
-        </span>
+        <VsxBrandLogo showText={!collapsed} iconSize={26} />
       </div>
 
       {/* ── Toggle chevron button ───────────────────────────────────────── */}
