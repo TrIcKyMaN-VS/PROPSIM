@@ -11,6 +11,16 @@ import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   getRuleBookEntries,
   createRuleBookEntry,
   updateRuleBookStatus,
@@ -81,12 +91,14 @@ export default function RuleBookPage() {
     }
   }
 
+  const [deleteRuleId, setDeleteRuleId] = useState<string | null>(null)
+
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this rule permanently?")) return
     try {
       await deleteRuleBookEntry(id)
       setRules(prev => prev.filter(r => r.id !== id))
       toast.success("Rule deleted")
+      setDeleteRuleId(null)
     } catch {
       toast.error("Failed to delete rule")
     }
@@ -173,7 +185,7 @@ export default function RuleBookPage() {
             <option value="retired">Retired</option>
           </select>
           <button
-            onClick={() => handleDelete(rule.id)}
+            onClick={() => setDeleteRuleId(rule.id)}
             className="opacity-0 group-hover:opacity-100 p-2 text-destructive hover:bg-destructive/10 rounded transition-all"
           >
             <Trash2 className="w-4 h-4" />
@@ -314,6 +326,29 @@ export default function RuleBookPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Delete Rule Confirmation Dialog */}
+      <AlertDialog open={deleteRuleId !== null} onOpenChange={(open) => !open && setDeleteRuleId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Rule?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this rule from your rule book?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteRuleId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteRuleId) handleDelete(deleteRuleId)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -13,6 +13,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload } from "lucide-react"
 import { toast } from "sonner"
 import type { TradeDirection } from "@/lib/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   return (
@@ -54,6 +64,7 @@ export default function NewManualTradePage() {
 
   const [loading, setLoading] = useState(false)
   const [playbookId, setPlaybookId] = useState("")
+  const [deleteScreenshotIdx, setDeleteScreenshotIdx] = useState<number | null>(null)
 
   const [form, setForm] = useState({
     instrument: "ES",
@@ -249,9 +260,7 @@ export default function NewManualTradePage() {
                     <button 
                       onClick={(e) => {
                         e.preventDefault()
-                        if (window.confirm("Are you sure you want to remove this screenshot?")) {
-                          setScreenshots(s => s.filter((_, i) => i !== idx))
-                        }
+                        setDeleteScreenshotIdx(idx)
                       }}
                       className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-destructive text-white rounded transition-colors"
                     >
@@ -377,6 +386,32 @@ export default function NewManualTradePage() {
           <Save className="w-4 h-4 mr-2" /> Save Trade Breakdown
         </Button>
       </div>
+
+      {/* Delete Screenshot Confirmation Dialog */}
+      <AlertDialog open={deleteScreenshotIdx !== null} onOpenChange={(open) => !open && setDeleteScreenshotIdx(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Screenshot?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this screenshot?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteScreenshotIdx(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteScreenshotIdx !== null) {
+                  setScreenshots(s => s.filter((_, i) => i !== deleteScreenshotIdx))
+                  setDeleteScreenshotIdx(null)
+                }
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )

@@ -5,6 +5,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Trash2, Plus, ListChecks } from "lucide-react"
 import { toast } from "sonner"
@@ -12,6 +22,7 @@ import { usePropStore } from "@/lib/store"
 
 export function ChecklistLibrary({ onSelect }: { onSelect?: (checklist: any) => void }) {
   const [open, setOpen] = useState(false)
+  const [deleteTemplate, setDeleteTemplate] = useState<{ id: string; name: string } | null>(null)
   const checklistTemplates = usePropStore(s => s.checklistTemplates) || []
   const saveChecklistTemplate = usePropStore(s => s.saveChecklistTemplate)
   const deleteChecklistTemplate = usePropStore(s => s.deleteChecklistTemplate)
@@ -69,10 +80,7 @@ export function ChecklistLibrary({ onSelect }: { onSelect?: (checklist: any) => 
                       className="h-6 w-6 text-destructive hover:bg-destructive/10 z-10"
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (confirm(`Are you sure you want to delete template "${t.name}"?`)) {
-                          deleteChecklistTemplate(t.id)
-                          toast.success("Template deleted")
-                        }
+                        setDeleteTemplate({ id: t.id, name: t.name })
                       }}
                     >
                       <Trash2 className="h-3 w-3" />
@@ -150,6 +158,33 @@ export function ChecklistLibrary({ onSelect }: { onSelect?: (checklist: any) => 
           </div>
         </div>
       </DialogContent>
+
+      {/* Delete Checklist Template Confirmation Dialog */}
+      <AlertDialog open={deleteTemplate !== null} onOpenChange={(open) => !open && setDeleteTemplate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Checklist Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete template &quot;{deleteTemplate?.name}&quot;?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTemplate(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTemplate) {
+                  deleteChecklistTemplate(deleteTemplate.id)
+                  toast.success("Template deleted")
+                  setDeleteTemplate(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   )
 }

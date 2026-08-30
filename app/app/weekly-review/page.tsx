@@ -34,6 +34,16 @@ import { usePropStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { fmtPnl } from "@/lib/format";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const getCurrentWeekKey = () => {
   const d = new Date();
@@ -165,6 +175,8 @@ export default function WeeklyReviewPage() {
   const [rulesBuilt, setRulesBuilt] = useState<
     { when: string; then: string; from: string }[]
   >([]);
+  const [deleteRuleIdx, setDeleteRuleIdx] = useState<number | null>(null);
+  const [deleteMissedScreenshotIdx, setDeleteMissedScreenshotIdx] = useState<number | null>(null);
 
   // 3. Backtest
   const [backtestTradesTaken, setBacktestTradesTaken] = useState<number | "">(
@@ -343,9 +355,7 @@ export default function WeeklyReviewPage() {
                         <button
                           onClick={e => {
                             e.stopPropagation();
-                            if (window.confirm("Are you sure you want to remove this screenshot?")) {
-                              setMissedDraft(d => ({ ...d, screenshots: d.screenshots?.filter((_, i) => i !== idx) }));
-                            }
+                            setDeleteMissedScreenshotIdx(idx);
                           }}
                           className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-all z-10"
                         >
@@ -1192,8 +1202,8 @@ const cleanUnicodeEscapes = (str: string) => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => removeRule(idx)}
-                    className="text-destructive"
+                    onClick={() => setDeleteRuleIdx(idx)}
+                    className="text-destructive hover:bg-destructive/10"
                   >
                     <Trash className="w-4 h-4" />
                   </Button>
@@ -1545,6 +1555,59 @@ const cleanUnicodeEscapes = (str: string) => {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Delete Rule Confirmation Dialog */}
+    <AlertDialog open={deleteRuleIdx !== null} onOpenChange={(open) => !open && setDeleteRuleIdx(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Rule?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this rule built from this week?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setDeleteRuleIdx(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              if (deleteRuleIdx !== null) {
+                removeRule(deleteRuleIdx);
+                setDeleteRuleIdx(null);
+                toast.success("Rule removed");
+              }
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Delete Missed Trade Screenshot Confirmation Dialog */}
+    <AlertDialog open={deleteMissedScreenshotIdx !== null} onOpenChange={(open) => !open && setDeleteMissedScreenshotIdx(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Remove Screenshot?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to remove this chart screenshot from your draft?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setDeleteMissedScreenshotIdx(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => {
+              if (deleteMissedScreenshotIdx !== null) {
+                setMissedDraft(d => ({ ...d, screenshots: d.screenshots?.filter((_, i) => i !== deleteMissedScreenshotIdx) }));
+                setDeleteMissedScreenshotIdx(null);
+              }
+            }}
+          >
+            Remove
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     </>
   );

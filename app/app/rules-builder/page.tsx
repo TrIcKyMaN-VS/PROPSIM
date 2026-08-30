@@ -6,6 +6,16 @@ import "@xyflow/react/dist/style.css"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -30,6 +40,7 @@ export default function RulesBuilderPage() {
   const [templateName, setTemplateName] = useState("")
   const [templates, setTemplates] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null)
 
   const onNodesChange = useCallback((changes: any) => setNodes((nds) => applyNodeChanges(changes, nds)), [])
   const onEdgesChange = useCallback((changes: any) => setEdges((eds) => applyEdgeChanges(changes, eds)), [])
@@ -288,13 +299,9 @@ export default function RulesBuilderPage() {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => applyTemplate(t)}>Load</Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={async () => {
-                      if (confirm("Delete this template?")) {
-                        await deleteRuleTemplate(t.id)
-                        toast.success("Deleted")
-                        loadTemplates()
-                      }
-                    }}><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteTemplateId(t.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               ))
@@ -302,6 +309,35 @@ export default function RulesBuilderPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Template Confirmation Dialog */}
+      <AlertDialog open={deleteTemplateId !== null} onOpenChange={(open) => !open && setDeleteTemplateId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Rule Template?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this rule template?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTemplateId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (deleteTemplateId) {
+                  const id = deleteTemplateId
+                  setDeleteTemplateId(null)
+                  await deleteRuleTemplate(id)
+                  toast.success("Template deleted")
+                  loadTemplates()
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

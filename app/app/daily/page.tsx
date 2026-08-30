@@ -11,6 +11,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Save, Loader2, ImageIcon, Upload, ChevronDown, ChevronUp, Link, Maximize2, ChevronRight, ArrowLeft, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 import { Trade } from "@/lib/types"
@@ -59,18 +69,16 @@ function JournalField({ title, colorClass, children, className }: { title: strin
   )
 }
 
-function ScreenshotGallery({ 
-  screenshots, 
-  onUpload, 
-  onView,
-  onDelete
-}: { 
-  screenshots: string[], 
-  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void, 
-  onView: (url: string) => void,
-  onDelete?: (index: number) => void
+function ScreenshotGallery({ screenshots, onUpload, onDelete, onView, uploading, id = "sc" }: {
+  screenshots: string[]
+  onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onDelete?: (idx: number) => void
+  onView: (url: string) => void
+  uploading?: boolean
+  id?: string
 }) {
-  const id = React.useId()
+  const [deleteIdx, setDeleteIdx] = useState<number | null>(null)
+
   return (
     <div className="mt-4">
       {screenshots.length === 0 ? (
@@ -79,7 +87,7 @@ function ScreenshotGallery({
           onClick={() => document.getElementById(`upload-${id}`)?.click()}
         >
           <div className="w-12 h-12 rounded-full bg-muted/50 border border-border flex items-center justify-center group-hover:border-primary/30 transition-colors">
-            <ImageIcon className="w-5 h-5 text-muted-foreground/50" />
+            {uploading ? <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" /> : <ImageIcon className="w-5 h-5 text-muted-foreground/50" />}
           </div>
           <div>
             <p className="text-sm font-semibold text-muted-foreground">Attach Chart Screenshot</p>
@@ -100,9 +108,7 @@ function ScreenshotGallery({
                 <button
                   onClick={e => {
                     e.stopPropagation()
-                    if (window.confirm("Are you sure you want to remove this screenshot?")) {
-                      onDelete(idx)
-                    }
+                    setDeleteIdx(idx)
                   }}
                   className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-all z-10"
                 >
@@ -115,12 +121,38 @@ function ScreenshotGallery({
             htmlFor={`upload-more-${id}`}
             className="aspect-video rounded-lg border-2 border-dashed border-border/40 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:border-primary/40 hover:bg-muted/20 transition-all group"
           >
-            <Upload className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />
+            {uploading ? <Loader2 className="w-5 h-5 text-muted-foreground animate-spin" /> : <Upload className="w-5 h-5 text-muted-foreground/40 group-hover:text-primary/60 transition-colors" />}
             <span className="text-[10px] text-muted-foreground/50 font-medium group-hover:text-muted-foreground transition-colors">Add more</span>
             <input id={`upload-more-${id}`} type="file" accept="image/*" multiple className="hidden" onChange={onUpload} />
           </label>
         </div>
       )}
+
+      {/* Delete Screenshot Confirmation Dialog */}
+      <AlertDialog open={deleteIdx !== null} onOpenChange={(open) => !open && setDeleteIdx(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Screenshot?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this screenshot from your daily journal?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteIdx(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteIdx !== null && onDelete) {
+                  onDelete(deleteIdx)
+                  setDeleteIdx(null)
+                }
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -13,6 +13,16 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ArrowLeft, Upload, Clipboard, Trash2, ImageIcon, Maximize2 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -219,11 +229,14 @@ export default function TradeDetailsPage() {
     }
     e.target.value = ""
   }
+
+  const [deleteScreenshotId, setDeleteScreenshotId] = useState<string | null>(null)
+
   const handleDeleteScreenshot = async (id: string) => {
-    if (!window.confirm("Are you sure you want to remove this screenshot?")) return;
     if (!trade) return
     await deleteScreenshot(trade.id, id)
     toast.success("Screenshot deleted")
+    setDeleteScreenshotId(null)
   }
 
   const handleSave = async () => {
@@ -644,7 +657,7 @@ export default function TradeDetailsPage() {
                     {/* Delete button */}
                     <button
                       className="absolute top-1.5 right-1.5 w-7 h-7 rounded-md bg-black/60 border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center hover:bg-destructive/80 z-10"
-                      onClick={e => { e.stopPropagation(); handleDeleteScreenshot(sc.id) }}
+                      onClick={e => { e.stopPropagation(); setDeleteScreenshotId(sc.id) }}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-white" />
                     </button>
@@ -690,6 +703,29 @@ export default function TradeDetailsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Screenshot Confirmation Dialog */}
+      <AlertDialog open={deleteScreenshotId !== null} onOpenChange={(open) => !open && setDeleteScreenshotId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Screenshot?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove this screenshot from the trade record?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteScreenshotId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteScreenshotId) handleDeleteScreenshot(deleteScreenshotId)
+              }}
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )

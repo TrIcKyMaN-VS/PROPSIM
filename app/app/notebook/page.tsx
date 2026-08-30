@@ -8,6 +8,16 @@ import { Textarea } from "@/components/ui/textarea"
 import { BookOpen, Plus, Trash2, Save, FileText } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const STORAGE_KEY = "propsim-notebook-notes"
 
@@ -123,14 +133,15 @@ export default function NotebookPage() {
     scheduleSave(title, e.target.value)
   }
 
-  function deleteNote() {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  function confirmDeleteNote() {
     if (!selectedId) return
-    const confirmed = window.confirm("Delete this note? This action cannot be undone.")
-    if (!confirmed) return
     const updated = notes.filter((n) => n.id !== selectedId)
     setNotes(updated)
     saveNotes(updated)
     toast.success("Note deleted")
+    setShowDeleteConfirm(false)
     if (updated.length > 0) {
       selectNote(updated[0])
     } else {
@@ -228,7 +239,7 @@ export default function NotebookPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={deleteNote}
+                  onClick={() => setShowDeleteConfirm(true)}
                   className="shrink-0 text-destructive hover:text-destructive hover:bg-destructive/10"
                   title="Delete note"
                 >
@@ -261,6 +272,27 @@ export default function NotebookPage() {
           </Card>
         )}
       </div>
+
+      {/* Delete Note Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Note?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this note? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setShowDeleteConfirm(false)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteNote}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
