@@ -254,9 +254,9 @@ export function ChallengeWizard() {
           <div className="space-y-6">
             <div>
               <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-                <Lock className="w-5 h-5 text-primary" /> Rule Enforcement Mode
+                <Lock className="w-5 h-5 text-primary" /> Rule Enforcement & Parameters Mode
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Choose between official firm specs or customize rule parameters.</p>
+              <p className="text-sm text-muted-foreground mt-1">Choose between official firm specs or customize all challenge rules & presets.</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -281,30 +281,62 @@ export function ChallengeWizard() {
               >
                 <Unlock className="w-5 h-5 text-amber-400 mb-2" />
                 <h3 className="font-bold text-foreground">Custom Rule Parameters</h3>
-                <p className="text-xs text-muted-foreground mt-1">Override drawdown, daily loss limit, or contract caps.</p>
+                <p className="text-xs text-muted-foreground mt-1">Override drawdown, daily loss limit, contracts, consistency, or days.</p>
               </button>
             </div>
 
             {!useOfficialRules && (
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/40 font-mono text-xs">
-                <div>
-                  <Label className="text-muted-foreground font-bold uppercase">Starting Balance ($)</Label>
-                  <Input value={customBalance} onChange={e => setCustomBalance(e.target.value)} className="mt-1 bg-muted/20" />
-                </div>
-                <div>
-                  <Label className="text-muted-foreground font-bold uppercase">Profit Target ($)</Label>
-                  <Input value={customTarget} onChange={e => setCustomTarget(e.target.value)} className="mt-1 bg-muted/20 text-emerald-400 font-bold" />
-                </div>
-                <div>
-                  <Label className="text-muted-foreground font-bold uppercase">Max Drawdown ($)</Label>
-                  <Input value={customDrawdown} onChange={e => setCustomDrawdown(e.target.value)} className="mt-1 bg-muted/20 text-rose-400 font-bold" />
-                </div>
-                <div>
-                  <Label className="text-muted-foreground font-bold uppercase">Daily Loss Limit ($)</Label>
-                  <Input value={customDailyLoss} onChange={e => setCustomDailyLoss(e.target.value)} className="mt-1 bg-muted/20" />
+              <div className="space-y-4 pt-4 border-t border-border/40 font-mono text-xs">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Starting Balance ($)</Label>
+                    <Input value={customBalance} onChange={e => setCustomBalance(e.target.value)} className="mt-1 bg-muted/20" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Profit Target ($)</Label>
+                    <Input value={customTarget} onChange={e => setCustomTarget(e.target.value)} className="mt-1 bg-muted/20 text-emerald-400 font-bold" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Max Drawdown ($)</Label>
+                    <Input value={customDrawdown} onChange={e => setCustomDrawdown(e.target.value)} className="mt-1 bg-muted/20 text-rose-400 font-bold" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Daily Loss Limit ($)</Label>
+                    <Input value={customDailyLoss} onChange={e => setCustomDailyLoss(e.target.value)} className="mt-1 bg-muted/20" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Max Contracts</Label>
+                    <Input value={customContracts} onChange={e => setCustomContracts(e.target.value)} className="mt-1 bg-muted/20" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Consistency Rule (%)</Label>
+                    <Input value={customConsistency} onChange={e => setCustomConsistency(e.target.value)} className="mt-1 bg-muted/20" placeholder="e.g. 50" />
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground font-bold uppercase">Min Trading Days</Label>
+                    <Input value={customMinDays} onChange={e => setCustomMinDays(e.target.value)} className="mt-1 bg-muted/20" placeholder="e.g. 5" />
+                  </div>
                 </div>
               </div>
             )}
+
+            {/* Rule Engine Preset Template Selector */}
+            <div className="pt-4 border-t border-border/40">
+              <Label className="text-muted-foreground font-bold uppercase text-xs font-mono">Automated Rule Engine Preset</Label>
+              <Select value={ruleTemplate || "official_default"} onValueChange={setRuleTemplate}>
+                <SelectTrigger className="mt-1.5 bg-muted/20 font-mono text-xs border-border/80">
+                  <SelectValue placeholder="Select Rule Engine Preset" />
+                </SelectTrigger>
+                <SelectContent className="font-mono text-xs">
+                  <SelectItem value="official_default">Official Automated Enforcement ({firm?.shortName})</SelectItem>
+                  <SelectItem value="strict_daily_loss">Strict Daily Loss Guard (Auto-lock at limit)</SelectItem>
+                  <SelectItem value="trailing_lock">EOD Trailing Drawdown Lock (Locks floor at initial balance)</SelectItem>
+                  {customTemplates.map(t => (
+                    <SelectItem key={t.id} value={`custom_${t.id}`}>Custom Preset: {t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         )}
 
@@ -314,7 +346,7 @@ export function ChallengeWizard() {
               <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
                 <ShieldAlert className="w-5 h-5 text-emerald-400" /> Challenge Telemetry Summary
               </h2>
-              <p className="text-sm text-muted-foreground mt-1">Review your challenge parameters before initializing.</p>
+              <p className="text-sm text-muted-foreground mt-1">Review your complete challenge parameters before initializing.</p>
             </div>
 
             <div className="p-5 rounded-2xl bg-muted/20 border border-border/60 space-y-3 font-mono text-xs">
@@ -334,9 +366,25 @@ export function ChallengeWizard() {
                 <span className="text-muted-foreground">MAX DRAWDOWN FLOOR:</span>
                 <strong className="text-rose-400 font-bold">{fmtCurrency(activeRules.maxDrawdown)} ({firm?.drawdownType})</strong>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between border-b border-border/40 pb-2">
+                <span className="text-muted-foreground">DAILY LOSS LIMIT:</span>
+                <strong className="text-foreground font-bold">{activeRules.dailyLossLimit > 0 ? fmtCurrency(activeRules.dailyLossLimit) : "None"}</strong>
+              </div>
+              <div className="flex justify-between border-b border-border/40 pb-2">
                 <span className="text-muted-foreground">MAX POSITION SIZE:</span>
                 <strong className="text-foreground font-bold">{activeRules.maxContracts} Max Contracts</strong>
+              </div>
+              <div className="flex justify-between border-b border-border/40 pb-2">
+                <span className="text-muted-foreground">CONSISTENCY RULE:</span>
+                <strong className="text-foreground font-bold">{activeRules.consistencyPct > 0 ? `${activeRules.consistencyPct}%` : "None"}</strong>
+              </div>
+              <div className="flex justify-between border-b border-border/40 pb-2">
+                <span className="text-muted-foreground">MIN TRADING DAYS:</span>
+                <strong className="text-foreground font-bold">{activeRules.minTradingDays} Days</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">RULE ENGINE PRESET:</span>
+                <strong className="text-primary font-bold">{ruleTemplate ? ruleTemplate.replace("_", " ").toUpperCase() : "OFFICIAL ENFORCEMENT"}</strong>
               </div>
             </div>
           </div>
