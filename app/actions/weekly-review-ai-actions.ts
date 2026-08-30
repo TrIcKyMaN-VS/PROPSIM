@@ -64,15 +64,29 @@ export async function generateWeeklyPatterns(weekOf: string) {
     catch { return raw }
   }
 
+  const formatNyTime = (ts: number | bigint | null | undefined): string => {
+    if (!ts) return "N/A"
+    const d = new Date(Number(ts))
+    if (isNaN(d.getTime())) return "N/A"
+    return `${d.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "America/New_York"
+    })} NY`
+  }
+
   // ── Build trade summary sections ───────────────────────────────────────────
   const formatTrade = (t: typeof weekTrades[0], idx: number) => {
-    const entryDate = new Date(Number(t.timestamp)).toISOString()
-    const exitDate = t.exitTime ? new Date(Number(t.exitTime)).toISOString() : "N/A"
+    const entryDate = formatNyTime(t.timestamp)
+    const exitDate = formatNyTime(t.exitTime)
     const holdMs = t.exitTime ? (Number(t.exitTime) - Number(t.timestamp)) : null
     const holdMins = holdMs ? (holdMs / 1000 / 60).toFixed(1) + " mins" : "N/A"
     
     const lines = [
-      `  Trade ${idx + 1} | ${t.instrument} ${t.direction.toUpperCase()} | PnL: $${t.pnl} | Net R: ${t.netR ? t.netR.toFixed(2) + "R" : "N/A"}`,
+      `  Trade ${idx + 1} | ${t.instrument} ${t.direction.toUpperCase()} | Date/Time: ${entryDate} | PnL: $${t.pnl} | Net R: ${t.netR ? t.netR.toFixed(2) + "R" : "N/A"}`,
       `    Execution: Entry @ ${t.entry ?? "N/A"}, Exit @ ${t.exit ?? "N/A"} | Size: ${t.contracts} | Session: ${(t as any).session ?? "N/A"}`,
       `    Timing: In @ ${entryDate} -> Out @ ${exitDate} (Hold: ${holdMins})`,
       `    Risk Management: StopLoss ${t.stopLoss ?? "N/A"}, Planned Risk $${t.plannedRisk ?? "N/A"}`
@@ -290,6 +304,11 @@ RULES FOR PATTERN DETECTION & CLASSIFICATION:
    - When evidence is limited but useful, classify it as "Observation:" or "Possible pattern:".
    - When evidence is sufficiently recurring, consistent, and meaningful relative to the available dataset, classify it as "Repeated pattern:".
    - Re-evaluate all pattern classifications whenever additional trades or journal entries become available. The classification must adapt as the dataset grows.
+
+14. TIME AND DATE FORMATTING IN OUTPUT
+   - Always format trade timestamps into New York Time (NY/EST/EDT) and include the date whenever citing specific trade examples or observations in insights.
+   - Example format when referencing specific trade examples: "Aug 28 at 09:36 AM NY" or "Aug 24 session".
+   - Never output raw UTC ISO strings (e.g. "2026-08-28T13:36:00.000Z").
 
 DATA TO ANALYZE:
 ${compiledText}`
