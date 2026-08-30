@@ -79,122 +79,131 @@ export function AppSidebar() {
   }
 
   return (
-    <aside
-      className={cn(
-        "sticky top-0 h-screen z-30 hidden md:flex shrink-0 flex-col border-r border-border bg-card/40 overflow-x-hidden select-none",
-        "transition-all duration-300 ease-in-out",
-        collapsed ? "w-[60px]" : "w-60"
-      )}
-    >
-      {/* ── Logo header ────────────────────────────────────────────────── */}
-      <div className={cn(
-        "flex h-14 items-center border-b border-border transition-all duration-300",
-        collapsed ? "justify-center px-2" : "px-4"
-      )}>
-        <VsxBrandLogo showText={!collapsed} iconSize={26} />
-      </div>
-
-      {/* ── Toggle chevron button ───────────────────────────────────────── */}
-      <button
-        onClick={toggle}
-        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+    <>
+      {/* Layout Spacer so page content offsets correctly */}
+      <div
         className={cn(
-          "absolute -right-3 top-[52px] z-50",
-          "flex h-6 w-6 items-center justify-center rounded-full",
-          "border border-border bg-background shadow-md",
-          "text-muted-foreground",
-          "hover:bg-secondary hover:text-foreground hover:shadow-lg",
-          "transition-all duration-150",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          "hidden md:block shrink-0 transition-all duration-300 ease-in-out pointer-events-none",
+          collapsed ? "w-[60px]" : "w-60"
+        )}
+      />
+
+      {/* Fixed Viewport Sidebar */}
+      <aside
+        className={cn(
+          "fixed top-0 left-0 bottom-0 h-screen z-40 hidden md:flex shrink-0 flex-col border-r border-border/80 bg-card/80 backdrop-blur-xl overflow-x-hidden select-none shadow-2xl",
+          "transition-all duration-300 ease-in-out",
+          collapsed ? "w-[60px]" : "w-60"
         )}
       >
-        {collapsed
-          ? <ChevronRight className="h-3 w-3" />
-          : <ChevronLeft  className="h-3 w-3" />
-        }
-      </button>
+        {/* ── Logo header ────────────────────────────────────────────────── */}
+        <div className={cn(
+          "flex h-14 items-center border-b border-border/80 transition-all duration-300 shrink-0",
+          collapsed ? "justify-center px-2" : "px-4"
+        )}>
+          <VsxBrandLogo showText={!collapsed} iconSize={26} />
+        </div>
 
-      {/* ── Nav items ──────────────────────────────────────────────────── */}
-      <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden p-2 scrollbar-none">
-        {nav.map((item) => {
-          const active = item.href === "/app"
-            ? pathname === "/app"
-            : pathname.startsWith(item.href)
+        {/* ── Toggle chevron button ───────────────────────────────────────── */}
+        <button
+          onClick={toggle}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={cn(
+            "absolute -right-3 top-[52px] z-50",
+            "flex h-6 w-6 items-center justify-center rounded-full",
+            "border border-border bg-background shadow-md",
+            "text-muted-foreground",
+            "hover:bg-secondary hover:text-foreground hover:shadow-lg",
+            "transition-all duration-150",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          )}
+        >
+          {collapsed
+            ? <ChevronRight className="h-3 w-3" />
+            : <ChevronLeft  className="h-3 w-3" />
+          }
+        </button>
 
-          return (
-            <SidebarTooltip key={item.href} label={item.label} collapsed={collapsed}>
-              <Link
-                href={item.href}
-                className={cn(
-                  "relative flex items-center rounded-lg px-2.5 py-2 text-sm font-medium",
-                  "transition-all duration-200",
-                  collapsed ? "justify-center" : "gap-3",
-                  active
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
-                )}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {/* Active dot when icon-only */}
-                {collapsed && active && (
-                  <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary" />
-                )}
-                <span className={cn(
-                  "whitespace-nowrap overflow-hidden transition-all duration-300",
-                  collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-                )}>
-                  {item.label}
-                </span>
-              </Link>
-            </SidebarTooltip>
-          )
-        })}
+        {/* ── Nav items ──────────────────────────────────────────────────── */}
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden p-2 scrollbar-none">
+          {nav.map((item) => {
+            const active = item.href === "/app"
+              ? pathname === "/app"
+              : pathname.startsWith(item.href)
 
-        {/* New Challenge */}
-        <SidebarTooltip label="New Challenge" collapsed={collapsed}>
-          <Link
-            href="/app/new"
-            className={cn(
-              "mt-1 flex items-center rounded-lg border border-dashed border-border",
-              "px-2.5 py-2 text-sm font-medium text-muted-foreground",
-              "transition-colors hover:border-primary/50 hover:text-foreground",
-              collapsed ? "justify-center" : "gap-3"
-            )}
-          >
-            <Plus className="h-4 w-4 shrink-0" />
-            <span className={cn(
-              "whitespace-nowrap overflow-hidden transition-all duration-300",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-            )}>
-              New Challenge
-            </span>
-          </Link>
-        </SidebarTooltip>
-      </nav>
+            return (
+              <SidebarTooltip key={item.href} label={item.label} collapsed={collapsed}>
+                <Link
+                  href={item.href}
+                  className={cn(
+                    "relative flex items-center rounded-lg px-2.5 py-2 text-sm font-medium",
+                    "transition-all duration-200",
+                    collapsed ? "justify-center" : "gap-3",
+                    active
+                      ? "bg-secondary text-foreground font-bold shadow-sm"
+                      : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                  )}
+                >
+                  <item.icon className="h-4 w-4 shrink-0 text-primary" />
+                  {/* Active dot when icon-only */}
+                  {collapsed && active && (
+                    <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
+                  )}
+                  <span className={cn(
+                    "whitespace-nowrap overflow-hidden transition-all duration-300",
+                    collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+                  )}>
+                    {item.label}
+                  </span>
+                </Link>
+              </SidebarTooltip>
+            )
+          })}
 
-      {/* ── Footer ─────────────────────────────────────────────────────── */}
-      <div className="border-t border-border p-2">
-        <SidebarTooltip label="Back to site" collapsed={collapsed}>
-          <Link
-            href="/"
-            className={cn(
-              "flex items-center rounded-lg px-2.5 py-2 text-sm",
-              "text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground",
-              collapsed ? "justify-center" : "gap-3"
-            )}
-          >
-            <Home className="h-4 w-4 shrink-0" />
-            <span className={cn(
-              "whitespace-nowrap overflow-hidden transition-all duration-300",
-              collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-            )}>
-              Back to site
-            </span>
-          </Link>
-        </SidebarTooltip>
-      </div>
-    </aside>
+          {/* New Challenge */}
+          <SidebarTooltip label="New Challenge" collapsed={collapsed}>
+            <Link
+              href="/app/new"
+              className={cn(
+                "mt-1 flex items-center rounded-lg border border-dashed border-border/80",
+                "px-2.5 py-2 text-sm font-medium text-muted-foreground",
+                "transition-colors hover:border-primary/50 hover:text-foreground",
+                collapsed ? "justify-center" : "gap-3"
+              )}
+            >
+              <Plus className="h-4 w-4 shrink-0 text-emerald-400" />
+              <span className={cn(
+                "whitespace-nowrap overflow-hidden transition-all duration-300",
+                collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              )}>
+                New Challenge
+              </span>
+            </Link>
+          </SidebarTooltip>
+        </nav>
+
+        {/* ── Footer ─────────────────────────────────────────────────────── */}
+        <div className="border-t border-border/80 p-2 shrink-0">
+          <SidebarTooltip label="Back to site" collapsed={collapsed}>
+            <Link
+              href="/"
+              className={cn(
+                "flex items-center rounded-lg px-2.5 py-2 text-sm",
+                "text-muted-foreground transition-colors hover:bg-secondary/60 hover:text-foreground",
+                collapsed ? "justify-center" : "gap-3"
+              )}
+            >
+              <Home className="h-4 w-4 shrink-0" />
+              <span className={cn(
+                "whitespace-nowrap overflow-hidden transition-all duration-300",
+                collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+              )}>
+                Back to site
+              </span>
+            </Link>
+          </SidebarTooltip>
+        </div>
+      </aside>
+    </>
   )
 }
-
-
