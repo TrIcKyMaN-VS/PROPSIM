@@ -19,10 +19,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login")
   }
   return (
-    <div className="flex min-h-screen bg-background overflow-x-hidden w-full max-w-full relative">
+    <div className="flex min-h-screen bg-background w-full max-w-full relative">
       <AppSidebar />
-      <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden max-w-full">
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-border bg-background/60 px-4 backdrop-blur-md md:px-6">
+      <div className="flex min-w-0 flex-1 flex-col max-w-full relative">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border/80 bg-background/80 px-4 backdrop-blur-xl md:px-6 shadow-sm">
           <div className="flex items-center gap-4 flex-1">
             <AccountSwitcher />
             <ChallengeStatusBar />
@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <UserProfileNav />
           </div>
         </header>
-        <main className="flex-1 px-4 pb-24 pt-6 md:px-6 md:pb-10 relative overflow-hidden">
+        <main className="flex-1 px-4 pb-24 pt-6 md:px-6 md:pb-10 relative">
           <StoreInit>
             <PageTransition>
               {children}
