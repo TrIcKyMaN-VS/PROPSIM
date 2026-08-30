@@ -80,11 +80,17 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
 export default function WeeklyReviewPage() {
   const [weekOf, setWeekOf] = useState(getCurrentWeekKey());
   const router = useRouter();
-  const allTrades = usePropStore(s => s.trades);
+  const rawTrades = usePropStore(s => s.trades);
   const tradePsychology = usePropStore(s => s.tradePsychology);
   const displayTimeMode = usePropStore(s => s.displayTimeMode);
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode);
   const activeAccountId = usePropStore(s => s.activeAccountId);
+
+  const allTrades = useMemo(() => {
+    if (!activeAccountId) return rawTrades
+    return rawTrades.filter(t => t.accountId === activeAccountId)
+  }, [rawTrades, activeAccountId]);
+
   const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId));
   const accountBalance = account?.rules?.startingBalance ?? 50000;
   const [openTrades, setOpenTrades] = useState<Record<string, boolean>>({});

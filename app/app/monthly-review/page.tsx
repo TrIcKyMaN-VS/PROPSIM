@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { getMonthlyRecap, saveMonthlyRecap } from "@/app/actions/journal-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -26,14 +26,25 @@ export default function MonthlyRecapPage() {
   const [saving, setSaving] = useState(false)
 
   const activeAccountId = usePropStore(s => s.activeAccountId)
-  const allTrades = usePropStore(s => s.tradesFor(activeAccountId!))
+  const trades = usePropStore(s => s.trades) || []
   const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
 
-  const monthTotalNetR = allTrades.filter(t => {
-    const d = new Date(t.timestamp)
-    const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    return mStr === month
-  }).reduce((sum, t) => sum + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0)
+  const allTrades = useMemo(() => {
+    if (!activeAccountId) return trades
+    return trades.filter(t => t.accountId === activeAccountId)
+  }, [trades, activeAccountId])
+
+  const monthTotalNetR = useMemo(() => {
+    return allTrades.filter(t => {
+      if (!t.timestamp) return false
+      const ts = Number(t.timestamp)
+      if (isNaN(ts)) return false
+      const d = new Date(ts)
+      if (isNaN(d.getTime())) return false
+      const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+      return mStr === month
+    }).reduce((sum, t) => sum + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0)
+  }, [allTrades, month, defaultPlannedRisk])
 
   // Header
   const [daysTradedCount, setDaysTradedCount] = useState("")

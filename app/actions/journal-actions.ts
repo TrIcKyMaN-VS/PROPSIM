@@ -159,11 +159,15 @@ export async function saveWeeklyReview(weekOf: string, data: any) {
 
 export async function getMonthlyRecap(month: string) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) throw new Error("Unauthorized")
+  if (!session?.user?.id) return null
   
-  return prisma.monthlyRecap.findUnique({
-    where: { userId_month: { userId: session.user.id, month } }
-  })
+  try {
+    return await prisma.monthlyRecap.findUnique({
+      where: { userId_month: { userId: session.user.id, month } }
+    })
+  } catch {
+    return null
+  }
 }
 
 export async function saveMonthlyRecap(month: string, data: any) {
