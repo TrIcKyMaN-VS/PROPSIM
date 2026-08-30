@@ -5,9 +5,10 @@ import { usePropStore } from "@/lib/store"
 import { getFirm } from "@/lib/firms"
 import { fmtCurrency } from "@/lib/format"
 import { Button } from "@/components/ui/button"
-import { Trash2, ArrowUp, ArrowDown } from "lucide-react"
+import { Trash2, ArrowUp, ArrowDown, NotebookPen, Sparkles, Filter, Plus, Shield, TrendingUp, TrendingDown, Layers } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
+import { Card, CardContent } from "@/components/ui/card"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +18,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 export function JournalView() {
@@ -31,90 +31,165 @@ export function JournalView() {
   const account = accounts.find((a) => a.id === activeId)
   const firm = account ? getFirm(account.firmId) : undefined
 
-  const rows = useMemo(() => {
+  const accountTrades = useMemo(() => {
     if (!account) return []
-    return trades
-      .filter((t) => t.accountId === account.id)
+    return trades.filter((t) => t.accountId === account.id)
+  }, [trades, account])
+
+  const rows = useMemo(() => {
+    return accountTrades
       .filter((t) => (filter === "all" ? true : filter === "win" ? t.pnl >= 0 : t.pnl < 0))
       .sort((a, b) => b.timestamp - a.timestamp)
-  }, [trades, account, filter])
+  }, [accountTrades, filter])
+
+  const stats = useMemo(() => {
+    const total = accountTrades.length
+    const wins = accountTrades.filter(t => t.pnl > 0).length
+    const winRate = total ? (wins / total) * 100 : 0
+    const netPnl = accountTrades.reduce((sum, t) => sum + t.pnl, 0)
+    return { total, wins, winRate, netPnl }
+  }, [accountTrades])
 
   if (!account) {
     return (
-      <div className="mx-auto max-w-5xl">
-        <h1 className="text-2xl font-semibold tracking-tight">Journal</h1>
-        <div className="mt-6 rounded-xl border border-dashed border-border py-20 text-center text-sm text-muted-foreground">
-          No active account. Start a challenge to begin journaling.
-        </div>
+      <div className="max-w-5xl mx-auto py-12 text-center">
+        <Card className="border-dashed border-border/80 bg-card/40 backdrop-blur-xl p-12 space-y-4">
+          <div className="h-12 w-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+            <NotebookPen className="h-6 w-6" />
+          </div>
+          <h2 className="text-xl font-bold text-foreground">No active account selected</h2>
+          <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            Select or start a challenge to log and journal your trades in real time.
+          </p>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="max-w-5xl mx-auto space-y-6 pb-16 animate-in fade-in duration-300">
+      
+      {/* Top Header Row */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Trade journal</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {account.name || `${firm?.name} · ${account.sizeLabel}`} · {rows.length} trades
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-3xl font-extrabold tracking-tight">Trade Journal</h1>
+            <span className="px-2.5 py-0.5 text-xs font-bold font-mono rounded-full bg-primary/10 text-primary border border-primary/20">
+              {account.name || `${firm?.name} · ${account.sizeLabel}`}
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm mt-1">
+            Complete execution ledger with real-time rule telemetry and P&amp;L analysis.
           </p>
         </div>
-        <div className="flex gap-1.5">
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-2 bg-card/80 p-1 rounded-xl border border-border/60">
           {(["all", "win", "loss"] as const).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "rounded-lg border px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                filter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground",
+                "rounded-lg px-3.5 py-1.5 text-xs font-black uppercase tracking-wider transition-all font-mono",
+                filter === f
+                  ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/40",
               )}
             >
-              {f}
+              {f} ({f === "all" ? stats.total : f === "win" ? stats.wins : stats.total - stats.wins})
             </button>
           ))}
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-xl border border-border">
+      {/* Stats Summary HUD Banner */}
+      <div className="grid grid-cols-3 gap-3 md:gap-4">
+        <Card className="bg-card/50 backdrop-blur-md border-border/60">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Trades</p>
+              <h3 className="text-2xl font-black font-mono text-foreground mt-1">{stats.total}</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+              <Layers className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-card/50 backdrop-blur-md border-emerald-500/20">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">Win Rate</p>
+              <h3 className="text-2xl font-black font-mono text-emerald-400 mt-1">{stats.winRate.toFixed(0)}%</h3>
+            </div>
+            <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={cn("bg-card/50 backdrop-blur-md", stats.netPnl >= 0 ? "border-emerald-500/20" : "border-rose-500/20")}>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Net Realized P&amp;L</p>
+              <h3 className={cn("text-2xl font-black font-mono mt-1", stats.netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                {fmtCurrency(stats.netPnl, { sign: true })}
+              </h3>
+            </div>
+            <div className={cn("p-2.5 rounded-xl", stats.netPnl >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400")}>
+              {stats.netPnl >= 0 ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Cybernetic Table Data Grid */}
+      <div className="rounded-2xl border border-border/80 bg-card/60 backdrop-blur-xl overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-card text-xs uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-muted/40 text-xs font-black uppercase tracking-wider text-muted-foreground border-b border-border/60 font-mono">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Day</th>
-                <th className="px-4 py-3 text-left font-medium">Instrument</th>
-                <th className="px-4 py-3 text-left font-medium">Side</th>
-                <th className="px-4 py-3 text-right font-medium">Contracts</th>
-                <th className="px-4 py-3 text-left font-medium">Session</th>
-                <th className="px-4 py-3 text-right font-medium">P&amp;L</th>
-                <th className="px-4 py-3" />
+                <th className="px-4 py-3.5 text-left">Day</th>
+                <th className="px-4 py-3.5 text-left">Instrument</th>
+                <th className="px-4 py-3.5 text-left">Side</th>
+                <th className="px-4 py-3.5 text-right">Contracts</th>
+                <th className="px-4 py-3.5 text-left">Session</th>
+                <th className="px-4 py-3.5 text-right">P&amp;L</th>
+                <th className="px-4 py-3.5 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border/40 font-mono">
               {rows.map((t) => (
-                <tr key={t.id} className="bg-background hover:bg-card/60">
-                  <td className="px-4 py-3 text-muted-foreground">Day {t.day}</td>
-                  <td className="px-4 py-3 font-medium">{t.instrument}</td>
-                  <td className="px-4 py-3">
+                <tr key={t.id} className="group bg-card/20 hover:bg-primary/5 transition-colors duration-150">
+                  <td className="px-4 py-3.5 text-xs text-muted-foreground font-bold">DAY #{t.day}</td>
+                  <td className="px-4 py-3.5">
+                    <span className="px-2.5 py-1 rounded-md bg-muted/60 border border-border text-xs font-bold text-foreground font-mono">
+                      {t.instrument}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5">
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium",
-                        t.direction === "long" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive",
+                        "inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-bold uppercase tracking-wider border",
+                        t.direction === "long"
+                          ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.15)]"
+                          : "bg-rose-500/15 text-rose-400 border-rose-500/30 shadow-[0_0_10px_rgba(244,63,94,0.15)]",
                       )}
                     >
-                      {t.direction === "long" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                      {t.direction === "long" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
                       {t.direction}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">{t.contracts}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{t.session}</td>
-                  <td className={cn("px-4 py-3 text-right font-medium tabular-nums", t.pnl >= 0 ? "text-success" : "text-destructive")}>
+                  <td className="px-4 py-3.5 text-right tabular-nums text-foreground font-bold">{t.contracts}</td>
+                  <td className="px-4 py-3.5 text-xs text-muted-foreground">{t.session}</td>
+                  <td className={cn("px-4 py-3.5 text-right font-black tabular-nums text-base", t.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                     {fmtCurrency(t.pnl, { sign: true })}
                   </td>
-                   <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3.5 text-right">
                     <button
                       onClick={() => setDeleteTradeId(t.id)}
-                      className="text-muted-foreground transition-colors hover:text-destructive"
-                      aria-label="Delete trade"
+                      className="p-1.5 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all"
+                      title="Delete Trade"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -124,8 +199,16 @@ export function JournalView() {
             </tbody>
           </table>
         </div>
+
+        {/* Empty Filter State */}
         {rows.length === 0 && (
-          <div className="bg-background py-16 text-center text-sm text-muted-foreground">No trades match this filter.</div>
+          <div className="py-16 text-center text-sm text-muted-foreground space-y-3">
+            <NotebookPen className="w-8 h-8 mx-auto text-muted-foreground/40" />
+            <p className="font-bold text-foreground">No trades match this filter.</p>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Simulate or sync trades from NinjaTrader to see your journal populated.
+            </p>
+          </div>
         )}
       </div>
 
@@ -154,7 +237,7 @@ export function JournalView() {
                     })
                 }
               }}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
             >
               Delete
             </AlertDialogAction>

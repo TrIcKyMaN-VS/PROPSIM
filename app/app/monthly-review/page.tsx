@@ -7,18 +7,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { Save, Loader2 } from "lucide-react"
+import { Save, Loader2, Trophy, AlertTriangle, ShieldCheck, TrendingUp, Sparkles, Calendar } from "lucide-react"
 import { toast } from "sonner"
 import { usePropStore } from "@/lib/store"
+import { cn } from "@/lib/utils"
 
 const currentMonth = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
 }
 
-const textCls = "min-h-[90px] text-sm mt-1"
-const inputCls = "h-9 text-sm mt-1"
-const labelCls = "text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+const textCls = "min-h-[90px] text-sm mt-1.5 bg-muted/20 border-border/80 focus:border-primary resize-none rounded-xl"
+const labelCls = "text-xs font-bold uppercase tracking-wider text-muted-foreground"
 
 export default function MonthlyRecapPage() {
   const [month, setMonth] = useState(currentMonth())
@@ -115,143 +115,160 @@ export default function MonthlyRecapPage() {
         overallDisciplineImproved, overallFollowedRulesMore, overallConsistentJournaling, overallCommitNextMonth,
         monthVsMonthRepeatedMistakes, monthVsMonthCommitmentsKept, monthVsMonthHighestLeverage,
       })
-      toast.success("Monthly recap saved!")
+      toast.success("Monthly recap saved successfully!")
     } catch {
-      toast.error("Failed to save")
+      toast.error("Failed to save recap")
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 pb-16">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="max-w-4xl mx-auto space-y-8 pb-16 animate-in fade-in duration-300">
+      
+      {/* Top Header Banner */}
+      <div className="flex items-center justify-between flex-wrap gap-4 border-b border-border/60 pb-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Monthly Recap</h1>
-          <p className="text-muted-foreground text-sm">End-of-month performance review</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-3xl font-extrabold tracking-tight">Monthly Recap</h1>
+            <span className="px-2.5 py-0.5 text-xs font-bold font-mono rounded-full bg-primary/10 text-primary border border-primary/20">
+              EXECUTIVE SUMMARY
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm mt-1">
+            Comprehensive end-of-month execution review and strategic behavioral audit.
+          </p>
         </div>
+
         <div className="flex items-center gap-3 flex-wrap">
           <input
             type="month"
             value={month}
             onChange={e => setMonth(e.target.value)}
-            className="h-9 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            className="h-10 px-3 rounded-xl border border-border/80 bg-card text-xs font-bold font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer"
           />
           <Input
-            className="h-9 text-sm w-28"
+            className="h-10 text-xs font-bold font-mono w-28 bg-card border-border/80"
             type="number"
             placeholder="Days traded"
             value={daysTradedCount}
             onChange={e => setDaysTradedCount(e.target.value)}
           />
           <Input
-            className="h-9 text-sm w-32 bg-muted/50 cursor-not-allowed"
+            className={cn("h-10 text-xs font-black font-mono w-32 bg-card/80 border-border/80 cursor-not-allowed", monthTotalNetR >= 0 ? "text-emerald-400" : "text-rose-400")}
             placeholder="Net R"
-            value={`${monthTotalNetR > 0 ? "+" : ""}${monthTotalNetR.toFixed(2)}R`}
+            value={`${monthTotalNetR >= 0 ? "+" : ""}${monthTotalNetR.toFixed(2)}R`}
             readOnly
           />
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} size="lg" className="shadow-lg shadow-primary/20 font-bold">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Save
+            Save Recap
           </Button>
         </div>
       </div>
 
-      {loading && <p className="text-muted-foreground text-sm">Loading…</p>}
+      {loading && <p className="text-muted-foreground text-sm font-mono">Loading month data...</p>}
 
       {/* ── WINNING TRADES ───────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3 border-b border-border/60">
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Winning Trades —</CardTitle>
+      <Card className="bg-card/60 backdrop-blur-xl border-emerald-500/20 shadow-[0_0_20px_rgba(16,185,129,0.04)]">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-emerald-400">
+            <Trophy className="w-4 h-4" /> Winning Trades Analysis
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-5 space-y-5">
           <div>
             <Label className={labelCls}>Which setups made the most impact? Are they repeatable?</Label>
-            <Textarea className={textCls} value={winsImpactfulSetups} onChange={e => setWinsImpactfulSetups(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={winsImpactfulSetups} onChange={e => setWinsImpactfulSetups(e.target.value)} placeholder="e.g. NQ Opening Range Breakouts after 9:30 AM open..." />
           </div>
           <div>
             <Label className={labelCls}>Did I maximise winning days over losing days?</Label>
-            <Textarea className={textCls} value={winsMaximisedDays} onChange={e => setWinsMaximisedDays(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={winsMaximisedDays} onChange={e => setWinsMaximisedDays(e.target.value)} placeholder="e.g. Scaled size when daily trend aligned..." />
           </div>
           <div>
             <Label className={labelCls}>What did my best trades have in common?</Label>
-            <Textarea className={textCls} value={winsBestTradesCommon} onChange={e => setWinsBestTradesCommon(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={winsBestTradesCommon} onChange={e => setWinsBestTradesCommon(e.target.value)} placeholder="e.g. High patience, waited for VWAP retest before entry..." />
           </div>
           <div>
             <Label className={labelCls}>How did these wins affect my confidence and process?</Label>
-            <Textarea className={textCls} value={winsAffectedConfidence} onChange={e => setWinsAffectedConfidence(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={winsAffectedConfidence} onChange={e => setWinsAffectedConfidence(e.target.value)} placeholder="e.g. Maintained discipline without over-leveraging next trade..." />
           </div>
         </CardContent>
       </Card>
 
       {/* ── LOSING TRADES ────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3 border-b border-border/60">
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Losing Trades —</CardTitle>
+      <Card className="bg-card/60 backdrop-blur-xl border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.04)]">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-rose-400">
+            <AlertTriangle className="w-4 h-4" /> Losing Trades Audit
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-5 space-y-5">
           <div>
             <Label className={labelCls}>Were my losses within planned risk? Did I oversize or overtrade?</Label>
-            <Textarea className={textCls} value={lossesWithinRisk} onChange={e => setLossesWithinRisk(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={lossesWithinRisk} onChange={e => setLossesWithinRisk(e.target.value)} placeholder="e.g. Kept stop loss at 20 ticks, no revenge sizing..." />
           </div>
           <div>
             <Label className={labelCls}>Did I follow my rules on losing trades?</Label>
-            <Textarea className={textCls} value={lossesFollowedRules} onChange={e => setLossesFollowedRules(e.target.value)} placeholder="…" />
+            <Textarea className={textCls} value={lossesFollowedRules} onChange={e => setLossesFollowedRules(e.target.value)} placeholder="e.g. Accepted stop loss gracefully without moving it..." />
           </div>
           <div>
-            <Label className={labelCls}>What patterns show up in my losing trades?</Label>
-            <Textarea className={textCls} value={lossesPatterns} onChange={e => setLossesPatterns(e.target.value)} placeholder="…" />
+            <Label className={labelCls}>What recurring loss patterns emerged this month?</Label>
+            <Textarea className={textCls} value={lossesPatterns} onChange={e => setLossesPatterns(e.target.value)} placeholder="e.g. Chasing chop during 11:30 AM - 1:30 PM lunch hour..." />
           </div>
           <div>
-            <Label className={labelCls}>Did I learn from my losses, or repeat the same mistakes?</Label>
-            <Textarea className={textCls} value={lossesLearnedOrRepeated} onChange={e => setLossesLearnedOrRepeated(e.target.value)} placeholder="…" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── OVERALL ──────────────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3 border-b border-border/60">
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Overall —</CardTitle>
-        </CardHeader>
-        <CardContent className="pt-5 space-y-5">
-          <div>
-            <Label className={labelCls}>Did my discipline, consistency and mindset improve vs last month?</Label>
-            <Textarea className={textCls} value={overallDisciplineImproved} onChange={e => setOverallDisciplineImproved(e.target.value)} placeholder="…" />
-          </div>
-          <div>
-            <Label className={labelCls}>Did I follow my rules more than last month? (rule breaks: X vs Y)</Label>
-            <Textarea className={textCls} value={overallFollowedRulesMore} onChange={e => setOverallFollowedRulesMore(e.target.value)} placeholder="…" />
-          </div>
-          <div>
-            <Label className={labelCls}>Was I consistent with journaling and weekly reviews?</Label>
-            <Input className={inputCls} value={overallConsistentJournaling} onChange={e => setOverallConsistentJournaling(e.target.value)} placeholder="Yes / No / Partially" />
-          </div>
-          <div>
-            <Label className={labelCls}>What 1–2 changes will I commit to next month?</Label>
-            <Textarea className={textCls} value={overallCommitNextMonth} onChange={e => setOverallCommitNextMonth(e.target.value)} placeholder="…" />
+            <Label className={labelCls}>Lessons learned vs repeated mistakes</Label>
+            <Textarea className={textCls} value={lossesLearnedOrRepeated} onChange={e => setLossesLearnedOrRepeated(e.target.value)} placeholder="e.g. Eliminated FOMO entry after 10:30 AM..." />
           </div>
         </CardContent>
       </Card>
 
-      {/* ── MONTH VS MONTH ───────────────────────────────────────────────── */}
-      <Card>
-        <CardHeader className="pb-3 border-b border-border/60">
-          <CardTitle className="text-xs font-bold uppercase tracking-widest text-muted-foreground">— Month vs Month —</CardTitle>
+      {/* ── OVERALL DISCIPLINE ────────────────────────────────────────────── */}
+      <Card className="bg-card/60 backdrop-blur-xl border-primary/20">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-primary">
+            <ShieldCheck className="w-4 h-4" /> Overall Discipline &amp; Process Score
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-5 space-y-5">
           <div>
-            <Label className={labelCls}>Repeated mistakes found vs previous month</Label>
-            <Textarea className={textCls} value={monthVsMonthRepeatedMistakes} onChange={e => setMonthVsMonthRepeatedMistakes(e.target.value)} placeholder="…" />
+            <Label className={labelCls}>Has overall discipline improved compared to last month?</Label>
+            <Textarea className={textCls} value={overallDisciplineImproved} onChange={e => setOverallDisciplineImproved(e.target.value)} placeholder="e.g. Followed risk management 95% of trading days..." />
           </div>
           <div>
-            <Label className={labelCls}>Commitments from last month I actually kept</Label>
-            <Textarea className={textCls} value={monthVsMonthCommitmentsKept} onChange={e => setMonthVsMonthCommitmentsKept(e.target.value)} placeholder="…" />
+            <Label className={labelCls}>Did I follow prop firm rules strictly?</Label>
+            <Textarea className={textCls} value={overallFollowedRulesMore} onChange={e => setOverallFollowedRulesMore(e.target.value)} placeholder="e.g. Zero daily loss limit breaches..." />
           </div>
           <div>
-            <Label className={labelCls}>Highest-leverage change for next month</Label>
-            <Textarea className={textCls} value={monthVsMonthHighestLeverage} onChange={e => setMonthVsMonthHighestLeverage(e.target.value)} placeholder="…" />
+            <Label className={labelCls}>Consistency in journaling &amp; state checks</Label>
+            <Textarea className={textCls} value={overallConsistentJournaling} onChange={e => setOverallConsistentJournaling(e.target.value)} placeholder="e.g. Logged 100% of trades with entry notes..." />
+          </div>
+          <div>
+            <Label className={labelCls}>Non-negotiable commitment for next month</Label>
+            <Textarea className={textCls} value={overallCommitNextMonth} onChange={e => setOverallCommitNextMonth(e.target.value)} placeholder="e.g. No trading during major 8:30 AM CPI / NFP news releases..." />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── MONTH VS MONTH COMPARISON ───────────────────────────────────── */}
+      <Card className="bg-card/60 backdrop-blur-xl border-amber-500/20">
+        <CardHeader className="pb-3 border-b border-border/40">
+          <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-amber-400">
+            <TrendingUp className="w-4 h-4" /> Month-Over-Month Progression
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-5 space-y-5">
+          <div>
+            <Label className={labelCls}>Did I repeat any mistakes from last month?</Label>
+            <Textarea className={textCls} value={monthVsMonthRepeatedMistakes} onChange={e => setMonthVsMonthRepeatedMistakes(e.target.value)} placeholder="..." />
+          </div>
+          <div>
+            <Label className={labelCls}>Which previous commitments were successfully kept?</Label>
+            <Textarea className={textCls} value={monthVsMonthCommitmentsKept} onChange={e => setMonthVsMonthCommitmentsKept(e.target.value)} placeholder="..." />
+          </div>
+          <div>
+            <Label className={labelCls}>Highest-leverage adjustment for the upcoming month</Label>
+            <Textarea className={textCls} value={monthVsMonthHighestLeverage} onChange={e => setMonthVsMonthHighestLeverage(e.target.value)} placeholder="..." />
           </div>
         </CardContent>
       </Card>
