@@ -272,12 +272,43 @@ RULES FOR PATTERN DETECTION & CLASSIFICATION:
    - Prefer "Possible pattern" over falsely claiming a confirmed pattern.
    - Never manufacture a pattern just to fill the section.
 
+13. DYNAMIC PATTERN DETECTION
+   - Pattern detection MUST be dynamic. Do NOT use fixed occurrence thresholds such as "3 trades = pattern" or "5 trades = pattern".
+   - Determine pattern strength relative to the size of the available dataset.
+   - Evaluate:
+     1. Frequency of the behavior/condition
+     2. Percentage of relevant trades in which it occurs
+     3. Consistency of the behavior across the dataset
+     4. Relationship with the outcome (win/loss, P&L, R:R, execution quality, etc.)
+     5. Relevance and practical significance
+     6. Whether the same relationship appears across different trades or journal entries
+   - A behavior does NOT need to appear in every trade to be a pattern.
+   - A behavior appearing frequently within a small dataset may be a meaningful pattern.
+   - A behavior appearing only rarely within a large dataset should generally be treated as an observation.
+   - The threshold for "Repeated pattern" must adapt automatically as the amount of available data changes.
+   - Do NOT hardcode percentages, trade counts, or minimum sample sizes. The classification must be context-dependent and data-driven.
+   - When evidence is limited but potentially useful, use "Observation:" or "Possible pattern:" rather than hiding it.
+   - When evidence is strong and recurring relative to the available dataset, use "Repeated pattern:".
+   - Never classify something as a pattern merely because the same value appears multiple times; the relationship must be meaningful.
+
 DATA TO ANALYZE:
 ${compiledText}`
     })
 
     if (usage?.totalTokens) {
       await trackAiUsage(session.user.id, usage.totalTokens, providerInfo.provider)
+    }
+
+    const cleanStr = (s: string) => {
+      if (!s) return s
+      return s
+        .replace(/\\u2019/g, "'")
+        .replace(/\\u2018/g, "'")
+        .replace(/\\u201c/g, '"')
+        .replace(/\\u201d/g, '"')
+        .replace(/\\'/g, "'")
+        .replace(/\\"/g, '"')
+        .replace(/\\/g, '')
     }
 
     // ── Format output with dual headings ──────────────────────────────────
@@ -287,12 +318,15 @@ ${compiledText}`
       noTradesLabel: string,
       noContextLabel: string
     ) => {
-      const tradesPart = fromTrades.length > 0
-        ? `📊 From Trade Records:\n${fromTrades.map(s => `- ${s}`).join("\n\n")}`
+      const cleanTrades = (fromTrades || []).map(cleanStr)
+      const cleanContext = (fromContext || []).map(cleanStr)
+
+      const tradesPart = cleanTrades.length > 0
+        ? `📊 From Trade Records:\n${cleanTrades.map(s => `- ${s}`).join("\n\n")}`
         : `📊 From Trade Records:\n${noTradesLabel}`
 
-      const contextPart = fromContext.length > 0
-        ? `📓 From Journal Context:\n${fromContext.map(s => `- ${s}`).join("\n\n")}`
+      const contextPart = cleanContext.length > 0
+        ? `📓 From Journal Context:\n${cleanContext.map(s => `- ${s}`).join("\n\n")}`
         : `📓 From Journal Context:\n${noContextLabel}`
 
       return `${tradesPart}\n\n${contextPart}`

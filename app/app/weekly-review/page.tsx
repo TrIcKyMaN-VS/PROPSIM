@@ -478,13 +478,25 @@ export default function WeeklyReviewPage() {
     }
   };
 
+const cleanUnicodeEscapes = (str: string) => {
+  if (!str) return str;
+  return str
+    .replace(/\\u2019/g, "'")
+    .replace(/\\u2018/g, "'")
+    .replace(/\\u201c/g, '"')
+    .replace(/\\u201d/g, '"')
+    .replace(/\\'/g, "'")
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+};
+
   const handleAutoFillPatterns = async () => {
     try {
       setIsGenerating(true)
       const res = await generateWeeklyPatterns(weekOf)
-      setRepeatedMistakes(res.repeatedMistakes || "")
-      setRepeatedWinConditions(res.repeatedWinConditions || "")
-      setEmotionalTimingPatterns(res.emotionalTimingPatterns || "")
+      setRepeatedMistakes(cleanUnicodeEscapes(res.repeatedMistakes || ""))
+      setRepeatedWinConditions(cleanUnicodeEscapes(res.repeatedWinConditions || ""))
+      setEmotionalTimingPatterns(cleanUnicodeEscapes(res.emotionalTimingPatterns || ""))
       toast.success("Successfully summarized daily journals!")
     } catch (err: any) {
       toast.error(err.message || "Failed to generate patterns")
@@ -505,9 +517,9 @@ export default function WeeklyReviewPage() {
         if (data) {
           setDaysTradedCount(data.daysTradedCount ?? "");
           setNetR(data.netR ?? "");
-          setRepeatedMistakes(data.repeatedMistakes ?? "");
-          setRepeatedWinConditions(data.repeatedWinConditions ?? "");
-          setEmotionalTimingPatterns(data.emotionalTimingPatterns ?? "");
+          setRepeatedMistakes(cleanUnicodeEscapes(data.repeatedMistakes ?? ""));
+          setRepeatedWinConditions(cleanUnicodeEscapes(data.repeatedWinConditions ?? ""));
+          setEmotionalTimingPatterns(cleanUnicodeEscapes(data.emotionalTimingPatterns ?? ""));
 
           if (data.rulesBuilt) {
             try {
