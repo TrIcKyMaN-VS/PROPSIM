@@ -13,6 +13,7 @@ import { usePropStore } from "@/lib/store"
 import { Target, FileText, ChevronUp, ChevronDown } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { fmtPnl } from "@/lib/format"
 
 export function DailyReplaySheet({
   open,
@@ -26,6 +27,10 @@ export function DailyReplaySheet({
   const router = useRouter()
   const trades = usePropStore(s => s.trades)
   const displayTimeMode = usePropStore(s => s.displayTimeMode)
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const activeAccountId = usePropStore(s => s.activeAccountId)
+  const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId))
+  const accountBalance = account?.balance ?? 0
   
   // For trade toggles
   const [openTrades, setOpenTrades] = React.useState<Record<string, boolean>>({})
@@ -177,15 +182,7 @@ export function DailyReplaySheet({
                               </span>
                             )}
                             <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
-                              {(() => {
-                                const tNetR = t.netR ?? (t.pnl / defaultPlannedRisk)
-                                return (
-                                  <>
-                                    {tNetR !== 0 && <span className="opacity-80 mr-1.5">{tNetR > 0 ? "+" : ""}{tNetR.toFixed(2)}R |</span>}
-                                    {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
-                                  </>
-                                )
-                              })()}
+                              {fmtPnl(t.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                             </span>
                             {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                           </div>

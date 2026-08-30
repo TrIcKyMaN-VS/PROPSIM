@@ -33,6 +33,7 @@ import {
 import { usePropStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { fmtPnl } from "@/lib/format";
 
 const getCurrentWeekKey = () => {
   const d = new Date();
@@ -82,6 +83,10 @@ export default function WeeklyReviewPage() {
   const allTrades = usePropStore(s => s.trades);
   const tradePsychology = usePropStore(s => s.tradePsychology);
   const displayTimeMode = usePropStore(s => s.displayTimeMode);
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode);
+  const activeAccountId = usePropStore(s => s.activeAccountId);
+  const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId));
+  const accountBalance = account?.balance ?? 0;
   const [openTrades, setOpenTrades] = useState<Record<string, boolean>>({});
   const toggleTradeDetail = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }));
   const [tradeViewImage, setTradeViewImage] = useState<string | null>(null);
@@ -787,8 +792,7 @@ export default function WeeklyReviewPage() {
               <Badge variant="secondary" className="font-mono">{weekTotalTrades} trades</Badge>
               <span>•</span>
               <span className={weekTotalPnl >= 0 ? "text-success font-bold" : "text-destructive font-bold"}>
-                {weekTotalNetR !== 0 && <span className="opacity-80 mr-1.5">{weekTotalNetR > 0 ? "+" : ""}{weekTotalNetR.toFixed(2)}R |</span>}
-                {weekTotalPnl >= 0 ? "+" : "-"}${Math.abs(weekTotalPnl).toFixed(2)}
+                {fmtPnl(weekTotalPnl, pnlDisplayMode, accountBalance, { sign: true })}
               </span>
               <span>•</span>
               <span className="text-xs">{weekWins}W {weekLosses}L</span>
@@ -831,8 +835,7 @@ export default function WeeklyReviewPage() {
                         "text-xs font-bold font-mono px-2.5 py-1 rounded-md border", 
                         dayPnl >= 0 ? "bg-success/10 text-success border-success/20" : "bg-destructive/10 text-destructive border-destructive/20"
                       )}>
-                        {dayNetR !== 0 && <span className="opacity-70 mr-2">{dayNetR > 0 ? "+" : ""}{dayNetR.toFixed(2)}R |</span>}
-                        {dayPnl >= 0 ? "+" : "-"}${Math.abs(dayPnl).toFixed(2)}
+                        {fmtPnl(dayPnl, pnlDisplayMode, accountBalance, { sign: true })}
                       </span>
                     </div>
                     
@@ -866,15 +869,7 @@ export default function WeeklyReviewPage() {
                                 </span>
                               )}
                               <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
-                                {(() => {
-                                  const tNetR = t.netR ?? (t.pnl / defaultPlannedRisk)
-                                  return (
-                                    <>
-                                      {tNetR !== 0 && <span className="opacity-80 mr-1.5">{tNetR > 0 ? "+" : ""}{tNetR.toFixed(2)}R |</span>}
-                                      {t.pnl >= 0 ? "+" : "-"}${Math.abs(t.pnl).toFixed(2)}
-                                    </>
-                                  )
-                                })()}
+                                {fmtPnl(t.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                               </span>
                               <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "-rotate-180")} />
                             </div>

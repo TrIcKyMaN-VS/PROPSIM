@@ -167,6 +167,24 @@ export default function TradeDetailsPage() {
 
   const [uploadingImg, setUploadingImg] = useState(false)
   
+  // Auto-calculate expectedRR when entry, SL, and TP change
+  useEffect(() => {
+    const tp = parseFloat(riskForm.takeProfit)
+    const sl = parseFloat(riskForm.stopLoss)
+    const ep = parseFloat(execForm.entry)
+    if (!isNaN(tp) && !isNaN(sl) && !isNaN(ep) && Math.abs(ep - sl) > 0) {
+      const risk = Math.abs(ep - sl)
+      const reward = Math.abs(tp - ep)
+      const rr = (reward / risk).toFixed(2)
+      setStratForm(f => {
+        if (f.expectedRR !== rr) {
+          return { ...f, expectedRR: rr }
+        }
+        return f
+      })
+    }
+  }, [riskForm.takeProfit, riskForm.stopLoss, execForm.entry])
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0 || !trade) return
