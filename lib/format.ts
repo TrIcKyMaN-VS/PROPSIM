@@ -36,8 +36,10 @@ export function fmtPnl(
     return `${sign}${r.toFixed(digits)}R`
   }
   if (mode === "percentage") {
-    if (!accountBalance || accountBalance === 0) return "N/A"
-    const pct = (pnl / accountBalance) * 100
+    const store = usePropStore.getState()
+    const activeAcc = store.accounts.find(a => a.id === store.activeAccountId) || store.accounts[0]
+    const bal = (accountBalance && accountBalance > 0) ? accountBalance : (activeAcc?.rules?.startingBalance || 50000)
+    const pct = (pnl / bal) * 100
     const digits = opts?.digits ?? 2
     const sign = pct > 0 ? "+" : ""
     return `${sign}${pct.toFixed(digits)}%`

@@ -15,6 +15,7 @@ import { Save, Loader2, ImageIcon, Upload, ChevronDown, ChevronUp, Link, Maximiz
 import { toast } from "sonner"
 import { Trade } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { fmtPnl } from "@/lib/format"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   const [val, setVal] = useState(props.value || '')
@@ -136,10 +137,16 @@ function SectionHeader({ title }: { title: string }) {
 
 const today = () => new Date().toISOString().split("T")[0]
 
-// ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ PDF-style per-trade accordion ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
 function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (id: string) => setOpen(s => ({ ...s, [id]: !s[id] }))
+
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const activeAccountId = usePropStore(s => s.activeAccountId)
+  const accounts = usePropStore(s => s.accounts)
+  const activeAcc = accounts.find(a => a.id === activeAccountId) || accounts[0]
+  const accountBalance = activeAcc?.rules?.startingBalance ?? 50000
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
 
   const gradeColor = (g?: string) => {
     if (!g) return "border-border text-muted-foreground"
@@ -150,7 +157,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
   }
 
   const [viewImage, setViewImage] = useState<string | null>(null)
-  const [isZoomed, setIsZoomed] = useState(false)
 
   return (
       <>
@@ -165,7 +171,8 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                 const setupName = t.playbookName ?? t.instrument
                 const grade = t.psychology?.executionGrade
                 const isOpen = !!open[t.id]
-                const rMultiple = t.expectedRR
+                const calcNetR = t.netR ?? (t.pnl / defaultPlannedRisk)
+                const displayR = t.expectedRR ? `${t.expectedRR}R` : (calcNetR !== 0 ? `${calcNetR > 0 ? "+" : ""}${calcNetR.toFixed(2)}R` : "-")
 
                 const reasoning = t.reasonForEntry
                 const expectation = (t as any).resultVsExpectation
@@ -174,7 +181,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
 
                 return (
                   <div key={t.id} className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
-                    {/* ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Header row (always visible) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ */}
                     <button
                       type="button"
                       onClick={() => toggle(t.id)}
@@ -190,17 +196,15 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                             {grade} Grade
                           </span>
                         )}
-                        <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-green-400" : "text-red-400")}>
-                          {t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(2)}
+                        <span className={cn("font-mono font-bold text-[15px]", t.pnl >= 0 ? "text-success" : "text-destructive")}>
+                          {fmtPnl(t.pnl, pnlDisplayMode, accountBalance, { sign: true })}
                         </span>
                         {isOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                       </div>
                     </button>
 
-                    {/* ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ Expanded detail (PDF template) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ */}
                     {isOpen && (
                       <div className="border-t border-border/60 p-4 space-y-4 bg-muted/5 font-mono text-sm">
-                        {/* Screenshot */}
                         {t.screenshots && t.screenshots.length > 0 && (
                           <div 
                             className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/20 cursor-pointer"
@@ -215,7 +219,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                         )}
 
                         <div className="space-y-3 font-sans">
-                          {/* Reasoning */}
                           <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-400/70" /> Reasoning / logic / confirmation
@@ -225,7 +228,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                             </div>
                           </div>
 
-                          {/* Expectation */}
                           <div className="p-3 rounded-lg bg-muted/20 border border-border/40">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-purple-400/70" /> Result vs expectation
@@ -235,7 +237,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                             </div>
                           </div>
 
-                          {/* Mistakes */}
                           <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-destructive/70 mb-1.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-destructive/70" /> Mistakes
@@ -245,7 +246,6 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                             </div>
                           </div>
 
-                          {/* Improvement */}
                           <div className="p-3 rounded-lg bg-warning/5 border border-warning/20">
                             <div className="text-[10px] font-bold uppercase tracking-widest text-warning/70 mb-1.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-warning/70" /> How execution could improve
@@ -256,12 +256,11 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                           </div>
                         </div>
 
-                        {/* Footer stats */}
                         <div className="flex items-center justify-between pt-3 border-t border-border/40 font-sans mt-4">
                           <div className="flex items-center gap-2">
                             <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">R-Multiple:</span>
-                            <span className={cn("font-bold font-mono text-sm", rMultiple ? "text-foreground" : "text-muted-foreground")}>
-                              {rMultiple ? rMultiple : "ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â"}
+                            <span className={cn("font-bold font-mono text-sm", calcNetR >= 0 ? "text-success" : "text-destructive")}>
+                              {displayR}
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
@@ -304,6 +303,18 @@ export default function DailyJournalPage() {
     const d = new Date(Number(t.timestamp)).toISOString().split("T")[0]
     return d === date
   })
+
+  const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const accounts = usePropStore(s => s.accounts)
+  const activeAcc = accounts.find(a => a.id === activeAccountId) || accounts[0]
+  const accountBalance = activeAcc?.rules?.startingBalance ?? 50000
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
+
+  const dayTotalPnl = useMemo(() => dayTrades.reduce((s, t) => s + t.pnl, 0), [dayTrades])
+  const dayTotalNetR = useMemo(() => dayTrades.reduce((s, t) => s + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0), [dayTrades, defaultPlannedRisk])
+  const dayWins = useMemo(() => dayTrades.filter(t => t.pnl > 0).length, [dayTrades])
+  const dayLosses = useMemo(() => dayTrades.filter(t => t.pnl < 0).length, [dayTrades])
+  const dayWinRate = dayTrades.length > 0 ? Math.round((dayWins / dayTrades.length) * 100) : 0
 
   // ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ form state (maps 1:1 to DailyJournal model) ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã‚ÂÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬
   const [session, setSession] = useState("NY")
@@ -474,25 +485,62 @@ export default function DailyJournalPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-16">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Daily Journal</h1>
-          <p className="text-muted-foreground text-sm">Pre-market plan + post-session review</p>
+      {/* Header & Daily Summary */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold tracking-tight">Daily Journal</h1>
+              {dayTrades.length > 0 && (
+                <Badge variant={dayTotalPnl >= 0 ? "default" : "destructive"} className="text-xs font-mono font-bold px-2.5 py-0.5">
+                  {dayTotalPnl >= 0 ? "GREEN DAY" : "RED DAY"}
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground text-sm">Pre-market plan + post-session review</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <DatePicker value={date} onChange={setDate} className="w-[180px] bg-background" />
+            <select value={session} onChange={e => setSession(e.target.value)}
+              className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring">
+              <option>NY</option>
+              <option>London</option>
+              <option>Asia</option>
+            </select>
+            <Input className="h-10 text-sm w-36" placeholder="Instrument" value={instrument} onChange={e => setInstrument(e.target.value)} />
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+              Save
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <DatePicker value={date} onChange={setDate} className="w-[180px] bg-background" />
-          <select value={session} onChange={e => setSession(e.target.value)}
-            className="h-10 px-3 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-1 focus:ring-ring">
-            <option>NY</option>
-            <option>London</option>
-            <option>Asia</option>
-          </select>
-          <Input className="h-10 text-sm w-36" placeholder="Instrument" value={instrument} onChange={e => setInstrument(e.target.value)} />
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Save
-          </Button>
+
+        {/* Daily Stats Summary Banner */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl border border-border/60 bg-card/60 backdrop-blur-sm shadow-sm">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">DAY P&L ({pnlDisplayMode === "r_multiple" ? "R" : pnlDisplayMode === "percentage" ? "%" : "$"})</p>
+            <p className={cn("text-xl font-extrabold font-mono mt-0.5", dayTotalPnl >= 0 ? "text-success" : "text-destructive")}>
+              {dayTrades.length > 0 ? fmtPnl(dayTotalPnl, pnlDisplayMode, accountBalance, { sign: true }) : "$0.00"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TOTAL NET R</p>
+            <p className={cn("text-xl font-extrabold font-mono mt-0.5", dayTotalNetR >= 0 ? "text-success" : "text-destructive")}>
+              {dayTrades.length > 0 ? `${dayTotalNetR >= 0 ? "+" : ""}${dayTotalNetR.toFixed(2)}R` : "0.00R"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">WIN RATE</p>
+            <p className="text-xl font-extrabold font-mono mt-0.5 text-foreground">
+              {dayWinRate}% <span className="text-xs font-normal text-muted-foreground">({dayWins}W-{dayLosses}L)</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TOTAL TRADES</p>
+            <p className="text-xl font-extrabold font-mono mt-0.5 text-foreground">
+              {dayTrades.length} <span className="text-xs font-normal text-muted-foreground">logged</span>
+            </p>
+          </div>
         </div>
       </div>
 

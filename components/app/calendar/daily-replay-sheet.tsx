@@ -30,7 +30,7 @@ export function DailyReplaySheet({
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId))
-  const accountBalance = account?.balance ?? 0
+  const accountBalance = account?.rules?.startingBalance ?? 50000
   
   // For trade toggles
   const [openTrades, setOpenTrades] = React.useState<Record<string, boolean>>({})

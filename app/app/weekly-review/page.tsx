@@ -86,7 +86,7 @@ export default function WeeklyReviewPage() {
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode);
   const activeAccountId = usePropStore(s => s.activeAccountId);
   const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId));
-  const accountBalance = account?.balance ?? 0;
+  const accountBalance = account?.rules?.startingBalance ?? 50000;
   const [openTrades, setOpenTrades] = useState<Record<string, boolean>>({});
   const toggleTradeDetail = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }));
   const [tradeViewImage, setTradeViewImage] = useState<string | null>(null);
