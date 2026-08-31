@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Archive, Copy, RefreshCw, Trash2, ShieldAlert, Pencil } from "lucide-react"
+import { Archive, Copy, RefreshCw, Trash2, ShieldAlert, Pencil, History, Layers } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 export function HistoryView() {
   const accounts = usePropStore((s) => s.accounts)
@@ -42,7 +43,7 @@ export function HistoryView() {
 
   const filteredAccounts = accounts.filter(acc => {
     if (activeTab === "archived") return !!acc.archivedAt
-    if (acc.archivedAt) return false // other tabs hide archived
+    if (acc.archivedAt) return false
     return acc.status === activeTab
   }).sort((a, b) => b.createdAt - a.createdAt)
 
@@ -57,32 +58,45 @@ export function HistoryView() {
   }
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-in fade-in duration-300">
+      
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/60 pb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Challenge History</h1>
-          <p className="text-muted-foreground text-sm">Review your past challenges, statistics, and clone rulesets.</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-3xl font-extrabold tracking-tight">Challenge History</h1>
+            <span className="px-2.5 py-0.5 text-xs font-bold font-mono rounded-full bg-primary/10 text-primary border border-primary/20">
+              LEDGER AUDIT
+            </span>
+          </div>
+          <p className="text-muted-foreground text-sm mt-1">
+            Review past challenge performances, statistics, and clone custom rulesets.
+          </p>
         </div>
+
         {hasFailedAccounts && (
-          <Button variant="outline" onClick={() => archiveAllFailedChallenges()}>
+          <Button variant="outline" onClick={() => archiveAllFailedChallenges()} className="font-mono text-xs font-bold border-rose-500/30 text-rose-400 hover:bg-rose-500/10">
             <Archive className="mr-2 h-4 w-4" />
             Archive All Failed
           </Button>
         )}
       </div>
 
+      {/* Glass Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
-          <TabsTrigger value="active">Active</TabsTrigger>
-          <TabsTrigger value="passed">Passed</TabsTrigger>
-          <TabsTrigger value="failed">Failed</TabsTrigger>
-          <TabsTrigger value="archived">Archived</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 lg:w-[460px] bg-card/80 p-1 border border-border/80 rounded-xl font-mono text-xs">
+          <TabsTrigger value="active" className="font-bold">Active ({accounts.filter(a => a.status === 'active' && !a.archivedAt).length})</TabsTrigger>
+          <TabsTrigger value="passed" className="font-bold">Passed ({accounts.filter(a => a.status === 'passed' && !a.archivedAt).length})</TabsTrigger>
+          <TabsTrigger value="failed" className="font-bold">Failed ({accounts.filter(a => a.status === 'failed' && !a.archivedAt).length})</TabsTrigger>
+          <TabsTrigger value="archived" className="font-bold">Archived ({accounts.filter(a => !!a.archivedAt).length})</TabsTrigger>
         </TabsList>
         
         <div className="mt-6">
           {filteredAccounts.length === 0 ? (
-            <div className="text-center p-12 border border-dashed rounded-lg bg-card/50">
-              <p className="text-muted-foreground">No {activeTab} challenges found.</p>
+            <div className="text-center py-16 border border-dashed rounded-2xl border-border/80 bg-card/40 backdrop-blur-xl space-y-3">
+              <History className="w-10 h-10 mx-auto text-muted-foreground/40" />
+              <p className="text-sm font-bold text-foreground">No {activeTab} challenges found.</p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">Start a new challenge or import trades to populate your challenge history ledger.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -92,139 +106,102 @@ export function HistoryView() {
 
                 const accTrades = trades.filter(t => t.accountId === acc.id)
                 const winCount = accTrades.filter(t => t.pnl > 0).length
-                const lossCount = accTrades.filter(t => t.pnl <= 0).length
                 const winRate = accTrades.length > 0 ? (winCount / accTrades.length) * 100 : 0
                 const netPnl = accTrades.reduce((sum, t) => sum + t.pnl, 0)
                 
                 const grossProfit = accTrades.filter(t => t.pnl > 0).reduce((s, t) => s + t.pnl, 0)
                 const grossLoss = Math.abs(accTrades.filter(t => t.pnl < 0).reduce((s, t) => s + t.pnl, 0))
-                const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99 : 0) : grossProfit / grossLoss
+                const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? 99.99 : 0) : grossProfit / grossLoss
 
                 return (
-                  <Card key={acc.id} className="flex flex-col">
-                    <CardHeader className="pb-3">
+                  <Card key={acc.id} className="bg-card/60 backdrop-blur-xl border-border/80 shadow-xl flex flex-col justify-between rounded-2xl overflow-hidden group">
+                    <CardHeader className="pb-3 border-b border-border/40">
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle className="flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-base font-bold">
                             <span
-                              className="flex h-6 w-6 items-center justify-center rounded text-xs font-bold"
-                              style={{ backgroundColor: `${firm.color}1a`, color: firm.color }}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-xs font-black border"
+                              style={{ backgroundColor: `${firm.color}20`, color: firm.color, borderColor: `${firm.color}40` }}
                             >
                               {firm.shortName.slice(0, 2).toUpperCase()}
                             </span>
-                            {acc.name || firm.name}
+                            <span className="truncate max-w-[150px]">{acc.name || firm.name}</span>
                           </CardTitle>
-                          <CardDescription className="mt-1 font-medium text-foreground">
-                            {acc.sizeLabel} Challenge
-                            <span className={`ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase ${acc.challengeType === "CUSTOM" ? "bg-amber-500/15 text-amber-500 border border-amber-500/25" : "bg-blue-600/15 text-blue-500 border border-blue-500/25"}`}>
+                          <CardDescription className="mt-1.5 font-mono text-xs font-bold text-foreground flex items-center gap-2">
+                            <span>{acc.sizeLabel} Challenge</span>
+                            <span className={cn(
+                              "text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase border",
+                              acc.challengeType === "CUSTOM" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : "bg-blue-500/15 text-blue-400 border-blue-500/30"
+                            )}>
                               {acc.challengeType === "CUSTOM" ? "CUSTOM" : "OFFICIAL"}
                             </span>
                           </CardDescription>
                         </div>
-                        <Badge variant={acc.status === "passed" ? "default" : acc.status === "failed" ? "destructive" : "outline"}
-                          className={acc.status === "passed" ? "bg-green-600/15 text-green-600 border border-green-600/25 hover:bg-green-600/25" : ""}
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "font-mono text-xs font-bold uppercase tracking-wider border",
+                            acc.status === "passed"
+                              ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                              : acc.status === "failed"
+                              ? "bg-rose-500/20 text-rose-400 border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]"
+                              : "bg-blue-500/20 text-blue-400 border-blue-500/40"
+                          )}
                         >
-                          {acc.status.toUpperCase()}
+                          {acc.status}
                         </Badge>
                       </div>
                     </CardHeader>
-                    <CardContent className="text-sm grid grid-cols-2 gap-y-3 gap-x-4 flex-1">
-                      <div className="flex flex-col">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Net PnL</span>
-                        <span className={`font-semibold ${netPnl > 0 ? "text-success" : netPnl < 0 ? "text-destructive" : ""}`}>
+
+                    <CardContent className="p-4 grid grid-cols-2 gap-3 font-mono text-xs">
+                      <div className="p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Net PnL</span>
+                        <div className={cn("font-black text-sm mt-0.5", netPnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                           {fmtPnl(netPnl, pnlDisplayMode, acc.rules?.startingBalance ?? 100000, { sign: true })}
-                        </span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Win Rate</span>
-                        <span className="font-semibold">{winRate.toFixed(1)}%</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Trades</span>
-                        <span className="font-semibold">{accTrades.length}</span>
-                      </div>
-                      <div className="flex flex-col">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Profit Factor</span>
-                        <span className="font-semibold">{profitFactor.toFixed(2)}</span>
-                      </div>
-
-                      <div className="col-span-2 flex flex-col pt-2 border-t mt-1">
-                        <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Created</span>
-                        <span>{formatDisplayDateTime(acc.createdAt)}</span>
-                      </div>
-
-                      {acc.archivedAt && (
-                        <div className="col-span-2 flex flex-col">
-                          <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider">Archived</span>
-                          <span>{formatDisplayDateTime(Number(acc.archivedAt))}</span>
                         </div>
-                      )}
+                      </div>
 
-                      {acc.status === "failed" && acc.failReason && (
-                        <div className="col-span-2 flex flex-col mt-1 bg-destructive/10 p-2 rounded-md border border-destructive/20">
-                          <span className="text-destructive text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
-                            <ShieldAlert className="w-3 h-3" /> Failure Reason
-                          </span>
-                          <span className="text-xs text-destructive mt-0.5">{acc.failReason}</span>
-                        </div>
-                      )}
+                      <div className="p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Win Rate</span>
+                        <div className="font-extrabold text-foreground text-sm mt-0.5">{winRate.toFixed(1)}%</div>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Trades</span>
+                        <div className="font-extrabold text-foreground text-sm mt-0.5">{accTrades.length}</div>
+                      </div>
+
+                      <div className="p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                        <span className="text-muted-foreground text-[10px] uppercase font-bold">Profit Factor</span>
+                        <div className="font-extrabold text-foreground text-sm mt-0.5">{profitFactor.toFixed(2)}</div>
+                      </div>
                     </CardContent>
-                    <CardFooter className="pt-3 border-t flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm" onClick={() => {
-                        setRenameId(acc.id)
-                        setRenameText(acc.name || "")
-                      }}>
-                        <Pencil className="h-3.5 w-3.5 mr-1.5" /> Rename
-                      </Button>
 
-                      <Button variant="outline" size="sm" onClick={() => cloneAccount(acc.id)}>
-                        <Copy className="h-3.5 w-3.5 mr-1.5" /> Clone
-                      </Button>
-                      
-                      {!acc.archivedAt ? (
-                        <Button variant="outline" size="sm" onClick={() => archiveAccount(acc.id)}>
-                          <Archive className="h-3.5 w-3.5 mr-1.5" /> Archive
+                    <CardFooter className="p-3 border-t border-border/40 bg-muted/20 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <Button variant="ghost" size="sm" onClick={() => cloneAccount(acc.id)} className="h-8 text-xs font-mono font-bold">
+                          <Copy className="w-3.5 h-3.5 mr-1" /> Clone
                         </Button>
-                      ) : (
-                        <Button variant="outline" size="sm" onClick={() => restoreAccount(acc.id)}>
-                          <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Restore
-                        </Button>
-                      )}
+                        {!acc.archivedAt ? (
+                          <Button variant="ghost" size="sm" onClick={() => archiveAccount(acc.id)} className="h-8 text-xs font-mono font-bold text-muted-foreground hover:text-foreground">
+                            <Archive className="w-3.5 h-3.5 mr-1" /> Archive
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" onClick={() => restoreAccount(acc.id)} className="h-8 text-xs font-mono font-bold text-emerald-400">
+                            <RefreshCw className="w-3.5 h-3.5 mr-1" /> Restore
+                          </Button>
+                        )}
+                      </div>
 
-                      <AlertDialog open={deleteId === acc.id} onOpenChange={(open) => !open && setDeleteId(null)}>
-                        <AlertDialogTrigger className={buttonVariants({ variant: "ghost", size: "sm", className: "text-muted-foreground hover:text-destructive hover:bg-destructive/10 ml-auto" })} onClick={() => setDeleteId(acc.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Permanently delete challenge?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. All trades, screenshots, psychology logs, and analytics attached to this challenge will be permanently erased.
-                              <br /><br />
-                              Please type <strong>DELETE</strong> to confirm.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <div className="py-2">
-                            <Input 
-                              value={deleteConfirmText} 
-                              onChange={(e) => setDeleteConfirmText(e.target.value)} 
-                              placeholder="Type DELETE" 
-                              className="w-full"
-                            />
-                          </div>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction 
-                              onClick={handleDelete} 
-                              disabled={deleteConfirmText !== "DELETE"}
-                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                            >
-                              Permanently Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => { setDeleteId(acc.id); setDeleteConfirmText("") }}
+                        className="h-8 w-8 text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 rounded-lg"
+                        title="Delete permanently"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </CardFooter>
                   </Card>
                 )
@@ -234,36 +211,38 @@ export function HistoryView() {
         </div>
       </Tabs>
 
-      {/* Rename Dialog */}
-      <Dialog open={renameId !== null} onOpenChange={(open) => !open && setRenameId(null)}>
-        <DialogContent className="sm:max-w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Rename Challenge</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <label htmlFor="name" className="text-xs font-semibold text-muted-foreground">Challenge Name</label>
-              <Input
-                id="name"
-                value={renameText}
-                onChange={(e) => setRenameText(e.target.value)}
-                placeholder="e.g. Lucid Trading Fund"
-                className="w-full"
-              />
-            </div>
+      {/* Delete Account Dialog */}
+      <AlertDialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent className="bg-card/95 backdrop-blur-xl border-border/80">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold flex items-center gap-2 text-rose-400">
+              <ShieldAlert className="w-5 h-5" /> Permanently Delete Challenge?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground space-y-2">
+              <p>This action will permanently delete this challenge and all of its associated trade records from your database. This action cannot be undone.</p>
+              <p className="font-mono font-bold text-foreground">Type <span className="text-rose-400">DELETE</span> to confirm:</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder="Type DELETE..."
+              className="font-mono text-sm bg-muted/30 border-border"
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRenameId(null)}>Cancel</Button>
-            <Button size="sm" onClick={async () => {
-              if (renameId) {
-                await renameAccount(renameId, renameText)
-                setRenameId(null)
-                setRenameText("")
-              }
-            }}>Save Name</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-bold">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteConfirmText !== "DELETE"}
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
+            >
+              Delete Permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

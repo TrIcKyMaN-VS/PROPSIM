@@ -43,7 +43,7 @@ function DebouncedTextarea(props: React.ComponentProps<typeof Textarea>) {
   const [val, setVal] = useState(props.value || '')
   useEffect(() => { setVal(props.value || '') }, [props.value])
   return (
-    <DebouncedTextarea 
+    <Textarea 
       {...props} 
       value={val}
       onChange={e => setVal(e.target.value)}
@@ -212,7 +212,7 @@ export default function NewManualTradePage() {
 
       <Card>
         <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Part B ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¯ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¿ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â½ Trade breakdown</CardTitle>
+          <CardTitle className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Part B · Trade breakdown</CardTitle>
         </CardHeader>
         <CardContent className="pt-6 space-y-8">
           

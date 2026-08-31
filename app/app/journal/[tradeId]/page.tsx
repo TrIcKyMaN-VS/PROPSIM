@@ -61,7 +61,7 @@ const GRADE_COLORS: Record<string, string> = {
   "D": "bg-destructive text-destructive-foreground border-destructive",
 }
 
-// Conviction score ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ label
+// Conviction score label
 function convictionLabel(score: number) {
   if (score <= 3) return "Low"
   if (score <= 6) return "Medium"
