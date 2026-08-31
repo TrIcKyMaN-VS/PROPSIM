@@ -468,14 +468,20 @@ export default function TradeDetailsPage() {
               {/* Auto-calculated */}
               <div className="pt-3 mt-1 border-t border-border/50 grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">RISK %</p>
-                  <p className="text-sm font-bold mt-0.5 text-foreground">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">RISK %</p>
+                    <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold">AUTO</Badge>
+                  </div>
+                  <p className="text-sm font-bold font-mono mt-0.5 text-foreground">
                       {riskPct != null ? `${riskPct.toFixed(2)}%` : "--"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">R-MULTIPLE</p>
-                  <p className={cn("text-sm font-bold mt-0.5",
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">R-MULTIPLE</p>
+                    <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold">AUTO</Badge>
+                  </div>
+                  <p className={cn("text-sm font-bold font-mono mt-0.5",
                     rMultiple == null ? "text-muted-foreground" :
                     rMultiple >= 0 ? "text-success" : "text-destructive"
                   )}>
@@ -554,10 +560,15 @@ export default function TradeDetailsPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl border border-border/60 bg-card overflow-hidden p-4 flex flex-col justify-center">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">R</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Expected R:R / Multiple</Label>
+                <Badge variant="outline" className="font-mono text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold">
+                  AUTO
+                </Badge>
+              </div>
               <Input value={stratForm.expectedRR}
                 onChange={e => setStratForm(f => ({ ...f, expectedRR: e.target.value }))}
-                placeholder="e.g. 2.5 or 1:3" className="text-sm font-bold" />
+                placeholder="e.g. 2.5 or 1:3" className="text-sm font-bold font-mono text-cyan-400" />
             </div>
             <div className="rounded-xl border border-border/60 bg-card overflow-hidden p-4 flex flex-col justify-center">
               <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Process Grade</Label>

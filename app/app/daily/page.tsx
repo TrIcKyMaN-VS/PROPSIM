@@ -556,8 +556,11 @@ export default function DailyJournalPage() {
             </p>
           </div>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TOTAL NET R</p>
-            <p className={cn("text-xl font-extrabold font-mono mt-0.5", dayTotalNetR >= 0 ? "text-success" : "text-destructive")}>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">TOTAL NET R</p>
+              <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold">AUTO</Badge>
+            </div>
+            <p className={cn("text-xl font-extrabold font-mono mt-0.5", dayTotalNetR >= 0 ? "text-cyan-400" : "text-destructive")}>
               {dayTrades.length > 0 ? `${dayTotalNetR >= 0 ? "+" : ""}${dayTotalNetR.toFixed(2)}R` : "0.00R"}
             </p>
           </div>

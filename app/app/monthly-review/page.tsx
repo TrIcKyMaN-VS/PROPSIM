@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { getMonthlyRecap, saveMonthlyRecap } from "@/app/actions/journal-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
@@ -154,12 +155,17 @@ export default function MonthlyRecapPage() {
             value={daysTradedCount}
             onChange={e => setDaysTradedCount(e.target.value)}
           />
-          <Input
-            className={cn("h-10 text-xs font-black font-mono w-32 bg-card/80 border-border/80 cursor-not-allowed", monthTotalNetR >= 0 ? "text-emerald-400" : "text-rose-400")}
-            placeholder="Net R"
-            value={`${monthTotalNetR >= 0 ? "+" : ""}${monthTotalNetR.toFixed(2)}R`}
-            readOnly
-          />
+          <div className="relative">
+            <Input
+              className={cn("h-10 text-xs font-black font-mono w-36 bg-card/80 border-border/80 cursor-not-allowed pr-12", monthTotalNetR >= 0 ? "text-cyan-400" : "text-rose-400")}
+              placeholder="Net R"
+              value={`${monthTotalNetR >= 0 ? "+" : ""}${monthTotalNetR.toFixed(2)}R`}
+              readOnly
+            />
+            <Badge variant="outline" className="absolute right-2 top-2.5 font-mono text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 uppercase font-bold">
+              AUTO
+            </Badge>
+          </div>
           <Button onClick={handleSave} disabled={saving} size="lg" className="shadow-lg shadow-primary/20 font-bold">
             {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
             Save Recap

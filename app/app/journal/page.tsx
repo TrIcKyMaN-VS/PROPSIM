@@ -382,6 +382,7 @@ export default function JournalPage() {
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Direction</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Session</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Grade</TableHead>
+                  <TableHead className="font-mono text-xs font-bold uppercase text-cyan-400">Net R</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground text-right">P&amp;L</TableHead>
                   <TableHead className="w-[50px]"></TableHead>
                 </TableRow>
@@ -389,7 +390,7 @@ export default function JournalPage() {
               <TableBody className="divide-y divide-border/40 font-mono text-xs">
                 {filteredTrades.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-12">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
                       {search || activeFilters > 0 ? "No trades match your filters." : "No trades found. Import a CSV or add a manual entry to get started."}
                     </TableCell>
                   </TableRow>
@@ -406,6 +407,7 @@ export default function JournalPage() {
                   
                   const psy = tradePsychology.find(p => p.tradeId === trade.id)
                   const grade = psy?.executionGrade || ""
+                  const tradeNetR = trade.netR != null ? trade.netR : (trade.pnl / 100)
 
                   return (
                     <TableRow
@@ -454,6 +456,25 @@ export default function JournalPage() {
                           </span>
                         ) : (
                           <span className="text-muted-foreground/40 text-xs">—</span>
+                        )}
+                      </TableCell>
+
+                      {/* Net R (Auto) */}
+                      <TableCell className="py-3.5">
+                        {open ? (
+                          <span className="text-muted-foreground/40 text-xs">—</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5">
+                            <span className={cn(
+                              "font-bold font-mono text-xs",
+                              tradeNetR >= 0 ? "text-cyan-400" : "text-rose-400"
+                            )}>
+                              {tradeNetR >= 0 ? "+" : ""}{tradeNetR.toFixed(2)}R
+                            </span>
+                            <Badge variant="outline" className="font-mono text-[9px] px-1 py-0 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 uppercase font-bold">
+                              AUTO
+                            </Badge>
+                          </div>
                         )}
                       </TableCell>
 

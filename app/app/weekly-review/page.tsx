@@ -783,11 +783,16 @@ const cleanUnicodeEscapes = (str: string) => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Net R (Auto-Calculated)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Net R</Label>
+                <Badge variant="outline" className="font-mono text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold uppercase">
+                  AUTO
+                </Badge>
+              </div>
               <Input
                 value={`${weekTotalNetR > 0 ? "+" : ""}${weekTotalNetR.toFixed(2)}R`}
                 readOnly
-                className="bg-muted/50 cursor-not-allowed"
+                className="bg-muted/50 cursor-not-allowed font-mono font-bold text-cyan-400"
               />
             </div>
           </div>
@@ -1440,11 +1445,17 @@ const cleanUnicodeEscapes = (str: string) => {
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-2">
-              <Label>Actual Net R</Label>
+              <div className="flex items-center justify-between">
+                <Label>Actual Net R</Label>
+                <Badge variant="outline" className="font-mono text-[9px] px-1.5 py-0.5 bg-cyan-500/10 text-cyan-400 border-cyan-500/30 font-bold uppercase">
+                  AUTO
+                </Badge>
+              </div>
               <Input
-                value={actualNetR}
+                value={actualNetR !== "" ? actualNetR : (weekTotalNetR !== 0 ? `${weekTotalNetR > 0 ? "+" : ""}${weekTotalNetR.toFixed(2)}R` : "")}
                 onChange={(e) => setActualNetR(e.target.value)}
                 placeholder="e.g. -2R"
+                className="font-mono font-bold text-cyan-400"
               />
             </div>
             <div className="space-y-2">

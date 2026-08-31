@@ -6,6 +6,7 @@ import { usePropStore } from "@/lib/store"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
@@ -241,10 +242,15 @@ export default function NewManualTradePage() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Result</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Result (R-Multiple)</Label>
+                <Badge variant="outline" className="font-mono text-[10px] bg-cyan-500/10 text-cyan-400 border-cyan-500/30 uppercase font-bold">
+                  Auto
+                </Badge>
+              </div>
               <div className="flex items-center gap-2">
-                <Input type="number" step="0.1" className="bg-muted/20 flex-1" value={form.netR} onChange={e => setForm({...form, netR: e.target.value})} placeholder="e.g. 2.5" />
-                <span className="text-sm font-bold text-muted-foreground">R</span>
+                <Input type="number" step="0.01" className="bg-muted/20 flex-1 font-mono font-bold text-cyan-400" value={form.netR} onChange={e => setForm({...form, netR: e.target.value})} placeholder="e.g. 2.50" />
+                <span className="text-sm font-bold font-mono text-cyan-400">R</span>
               </div>
             </div>
           </div>
