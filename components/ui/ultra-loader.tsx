@@ -1,9 +1,37 @@
 "use client"
 
-import React from "react"
-import { ShieldCheck, Cpu, Zap } from "lucide-react"
+import React, { useState, useEffect } from "react"
+import { ShieldCheck, Cpu, Zap, CheckCircle2 } from "lucide-react"
 
-export function UltraLoader({ label = "Syncing VSX Engine..." }: { label?: string }) {
+const STAGES = [
+  "Initializing VSX Engine...",
+  "Fetching Trade Ledger...",
+  "Evaluating Prop Rules...",
+  "Calculating Risk & Expectancy...",
+  "Finalizing Telemetry..."
+]
+
+export function UltraLoader({ label = "Syncing your trading data..." }: { label?: string }) {
+  const [progress, setProgress] = useState(5)
+  const [stageIndex, setStageIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 95) {
+          clearInterval(timer)
+          return 98
+        }
+        const diff = Math.floor(Math.random() * 15) + 6
+        const next = Math.min(prev + diff, 95)
+        setStageIndex(Math.min(Math.floor((next / 100) * STAGES.length), STAGES.length - 1))
+        return next
+      })
+    }, 180)
+
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[65vh] w-full p-6 relative overflow-hidden select-none animate-in fade-in duration-500">
       {/* Background Cyber Grid Glow */}
@@ -12,17 +40,34 @@ export function UltraLoader({ label = "Syncing VSX Engine..." }: { label?: strin
       {/* Main Floating Glassmorphic HUD Container */}
       <div className="relative flex flex-col items-center p-8 md:p-10 rounded-3xl border border-blue-500/20 bg-card/60 backdrop-blur-2xl shadow-[0_0_80px_rgba(59,130,246,0.15)] max-w-md w-full text-center space-y-7">
         
-        {/* Animated HUD Orb & Radar Wave */}
+        {/* Animated HUD Orb & SVG Radar Ring */}
         <div className="relative flex items-center justify-center">
           {/* Outer Pulsing Blue Halo */}
           <div className="absolute w-28 h-28 rounded-full bg-blue-500/20 blur-xl animate-ping" style={{ animationDuration: "3s" }} />
           <div className="absolute w-24 h-24 rounded-full bg-cyan-500/15 blur-lg animate-pulse" />
 
-          {/* Outer Spinning Dash Ring */}
-          <div 
-            className="w-20 h-20 rounded-full border-2 border-dashed border-blue-500/40 animate-spin" 
-            style={{ animationDuration: "10s" }} 
-          />
+          {/* SVG Circular Progress Ring */}
+          <svg className="w-24 h-24 -rotate-90 transform" viewBox="0 0 100 100">
+            <circle
+              cx="50"
+              cy="50"
+              r="42"
+              className="stroke-blue-500/20"
+              strokeWidth="6"
+              fill="transparent"
+            />
+            <circle
+              cx="50"
+              cy="50"
+              r="42"
+              className="stroke-cyan-400 transition-all duration-300 ease-out"
+              strokeWidth="6"
+              strokeDasharray={264}
+              strokeDashoffset={264 - (264 * progress) / 100}
+              strokeLinecap="round"
+              fill="transparent"
+            />
+          </svg>
 
           {/* Counter-Spinning Tech Arc */}
           <div 
@@ -50,23 +95,23 @@ export function UltraLoader({ label = "Syncing VSX Engine..." }: { label?: strin
             {label}
           </h3>
 
-          <p className="text-xs text-muted-foreground/70 flex items-center gap-1.5 font-mono">
+          <p className="text-xs text-muted-foreground/70 flex items-center gap-1.5 font-mono h-5">
             <Cpu className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-            <span>Calculating Risk, PnL & Rules...</span>
+            <span>{STAGES[stageIndex]}</span>
           </p>
         </div>
 
-        {/* Ultra-Modern Glowing Shimmer Progress Bar */}
+        {/* Ultra-Modern Dynamic Progress Bar */}
         <div className="w-full space-y-2">
-          <div className="w-full h-1.5 bg-muted/40 rounded-full overflow-hidden relative border border-white/5">
+          <div className="w-full h-2 bg-muted/40 rounded-full overflow-hidden relative border border-white/5 p-0.5">
             <div 
-              className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-blue-400 rounded-full animate-pulse shadow-[0_0_12px_rgba(59,130,246,0.8)]" 
-              style={{ width: "85%" }} 
+              className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-sky-400 rounded-full transition-all duration-300 ease-out shadow-[0_0_15px_rgba(56,189,248,0.8)]" 
+              style={{ width: `${progress}%` }} 
             />
           </div>
-          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/60 px-1">
+          <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground/80 px-1">
             <span>SYNC STATUS</span>
-            <span className="text-cyan-400 font-semibold">AUTHENTICATED</span>
+            <span className="text-cyan-400 font-bold tracking-wider font-mono">{progress}% COMPLETE</span>
           </div>
         </div>
 
