@@ -84,6 +84,16 @@ export default function NewManualTradePage() {
   })
 
   const [screenshots, setScreenshots] = useState<string[]>([])
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
+
+  // Auto-calculate Net R when PnL changes
+  useEffect(() => {
+    const pnlNum = parseFloat(form.pnl)
+    if (!isNaN(pnlNum) && pnlNum !== 0) {
+      const calcR = (pnlNum / defaultPlannedRisk).toFixed(2)
+      setForm(f => ({ ...f, netR: calcR }))
+    }
+  }, [form.pnl, defaultPlannedRisk])
   
   useEffect(() => {
       const handlePaste = async (e: ClipboardEvent) => {

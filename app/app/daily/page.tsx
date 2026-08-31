@@ -738,8 +738,18 @@ export default function DailyJournalPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_3fr] gap-4">
-          <JournalField title="Net R">
-            <Input className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-2xl font-bold font-mono h-auto" value={netR} onChange={e => setNetR(e.target.value)} placeholder="-" />
+          <JournalField title="Net R (Total R-Multiple)" colorClass="bg-cyan-400">
+            <div className="flex items-center gap-2">
+              <Input
+                className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-2xl font-bold font-mono h-auto text-cyan-400 flex-1"
+                value={netR !== "" ? netR : dayTotalNetR !== 0 ? `${dayTotalNetR >= 0 ? "+" : ""}${dayTotalNetR.toFixed(2)}` : "0.00"}
+                onChange={e => setNetR(e.target.value)}
+                placeholder="0.00"
+              />
+              <Badge variant="outline" className="font-mono text-[10px] bg-cyan-500/10 text-cyan-400 border-cyan-500/30 shrink-0 uppercase font-bold">
+                Auto
+              </Badge>
+            </div>
           </JournalField>
           <JournalField title="Rules Broken" className="md:col-span-1">
             <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={rulesBroken} onChange={e => setRulesBroken(e.target.value)} placeholder="Did you break any rules?" />
