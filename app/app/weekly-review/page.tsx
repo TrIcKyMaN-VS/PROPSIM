@@ -24,7 +24,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil, Target } from "lucide-react";
+import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil, Target, CheckCircle2, Circle } from "lucide-react";
 import {
   getRuleBookEntries,
   createRuleBookEntry,
@@ -206,7 +206,7 @@ export default function WeeklyReviewPage() {
 
   // Available rules for selection when checking "Filtered by Rule"
   const availableRulesList = useMemo(() => {
-    const list: { id: string; label: string; when: string; then: string }[] = [];
+    const list: { id: string; label: string; when: string; then: string; source: "book" | "new"; index: number }[] = [];
     ruleBookEntries
       .filter((r: any) => r.status !== "retired")
       .forEach((r: any, i: number) => {
@@ -215,6 +215,8 @@ export default function WeeklyReviewPage() {
           label: `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`,
           when: r.condition,
           then: r.action,
+          source: "book",
+          index: i + 1,
         });
       });
     rulesBuilt.forEach((r, i) => {
@@ -226,6 +228,8 @@ export default function WeeklyReviewPage() {
             label: `New Rule #${i + 1}: WHEN ${r.when} THEN ${r.then}`,
             when: r.when,
             then: r.then,
+            source: "new",
+            index: i + 1,
           });
         }
       }
@@ -325,51 +329,122 @@ export default function WeeklyReviewPage() {
                   />
                 </div>
 
-                <div className="space-y-2 pt-1 border-t border-border/30">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={!!missedDraft.ruleHelped}
-                      onChange={e => {
-                        const checked = e.target.checked;
-                        setMissedDraft(d => ({
-                          ...d,
-                          ruleHelped: checked,
-                          ruleId: checked ? d.ruleId : "",
-                          ruleTitle: checked ? d.ruleTitle : "",
-                        }));
-                      }}
-                      className="accent-success h-4 w-4 rounded"
-                    />
-                    <span>Filtered by Rule &mdash; <span className="text-muted-foreground font-normal">a rule prevented this setup</span></span>
-                  </label>
+                <div className={cn(
+                  "rounded-xl border p-3.5 transition-all space-y-3",
+                  missedDraft.ruleHelped
+                    ? "border-emerald-500/40 bg-emerald-500/[0.04] shadow-sm"
+                    : "border-border/60 bg-muted/10 hover:border-border"
+                )}>
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={!!missedDraft.ruleHelped}
+                        onChange={e => {
+                          const checked = e.target.checked;
+                          setMissedDraft(d => ({
+                            ...d,
+                            ruleHelped: checked,
+                            ruleId: checked ? d.ruleId : "",
+                            ruleTitle: checked ? d.ruleTitle : "",
+                          }));
+                        }}
+                        className="accent-emerald-500 h-4 w-4 rounded cursor-pointer"
+                      />
+                      <span className="text-sm font-semibold flex items-center gap-1.5">
+                        <span>🛡️ Filtered by Rule</span>
+                        <span className="text-xs text-muted-foreground font-normal hidden sm:inline">
+                          &mdash; a trading rule kept you out of this setup
+                        </span>
+                      </span>
+                    </label>
+
+                    {missedDraft.ruleHelped && missedDraft.ruleId && (
+                      <button
+                        type="button"
+                        onClick={() => setMissedDraft(d => ({ ...d, ruleId: "", ruleTitle: "" }))}
+                        className="text-[11px] text-muted-foreground hover:text-destructive transition-colors font-medium cursor-pointer"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
 
                   {missedDraft.ruleHelped && (
-                    <div className="pl-6 space-y-1.5 pt-1">
-                      <Label className="text-xs font-semibold text-primary">Which rule prevented this trade?</Label>
+                    <div className="pt-2 border-t border-border/40 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs font-semibold text-emerald-400">
+                          Which rule prevented this trade?
+                        </Label>
+                        <span className="text-[11px] text-muted-foreground font-mono">
+                          {availableRulesList.length} rule{availableRulesList.length !== 1 ? "s" : ""} available
+                        </span>
+                      </div>
+
                       {availableRulesList.length === 0 ? (
-                        <p className="text-xs text-muted-foreground italic">No rules found. Add rules in Section 2 or Rule Book.</p>
+                        <div className="text-center py-4 px-3 border border-dashed border-border/60 rounded-lg text-xs text-muted-foreground bg-background/40">
+                          No rules found. Add rules in Section 2 above or in the Master Rule Book.
+                        </div>
                       ) : (
-                        <select
-                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs font-medium"
-                          value={missedDraft.ruleId || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            const found = availableRulesList.find(r => r.id === val);
-                            setMissedDraft(d => ({
-                              ...d,
-                              ruleId: val,
-                              ruleTitle: found ? found.label : "",
-                            }));
-                          }}
-                        >
-                          <option value="">-- Select the rule that filtered it --</option>
-                          {availableRulesList.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                          {availableRulesList.map((r) => {
+                            const isSelected = missedDraft.ruleId === r.id;
+                            return (
+                              <div
+                                key={r.id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setMissedDraft(d => ({ ...d, ruleId: "", ruleTitle: "" }));
+                                  } else {
+                                    setMissedDraft(d => ({ ...d, ruleId: r.id, ruleTitle: r.label }));
+                                  }
+                                }}
+                                className={cn(
+                                  "p-2.5 rounded-lg border text-left cursor-pointer transition-all flex items-start gap-2.5 select-none",
+                                  isSelected
+                                    ? "border-emerald-500 bg-emerald-500/10 shadow-[0_0_12px_rgba(16,185,129,0.12)] ring-1 ring-emerald-500/50"
+                                    : "border-border/50 bg-background/60 hover:bg-background hover:border-border/80"
+                                )}
+                              >
+                                <div className="pt-0.5 shrink-0">
+                                  {isSelected ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                                  ) : (
+                                    <Circle className="w-4 h-4 text-muted-foreground/40" />
+                                  )}
+                                </div>
+
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className={cn(
+                                      "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider",
+                                      isSelected
+                                        ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40"
+                                        : "bg-muted text-muted-foreground border border-border/40"
+                                    )}>
+                                      {r.source === "new" ? `New Rule #${r.index}` : `Rule #${r.index}`}
+                                    </span>
+                                    {isSelected && (
+                                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                        ✓ Selected
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className="text-xs leading-relaxed break-words">
+                                    <span className="font-bold text-amber-400 mr-1.5">WHEN</span>
+                                    <span className="text-foreground/90">{r.when}</span>
+                                  </div>
+
+                                  <div className="text-xs leading-relaxed break-words">
+                                    <span className="font-bold text-emerald-400 mr-1.5">THEN</span>
+                                    <span className="text-foreground/90">{r.then}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   )}
