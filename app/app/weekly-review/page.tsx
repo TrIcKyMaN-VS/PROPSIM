@@ -29,6 +29,7 @@ import {
   getRuleBookEntries,
   createRuleBookEntry,
   applyRuleVerdict,
+  updateRuleBookStatus,
 } from "@/app/actions/rulebook-actions";
 import { usePropStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
@@ -494,6 +495,16 @@ export default function WeeklyReviewPage() {
       toast.error("Failed to add to Rule Book");
     } finally {
       setAddingToRuleBook(prev => ({ ...prev, [idx]: false }));
+    }
+  };
+
+  const handleUpdateRuleStatus = async (ruleId: string, newStatus: string) => {
+    try {
+      await updateRuleBookStatus(ruleId, newStatus);
+      setRuleBookEntries(prev => prev.map(r => r.id === ruleId ? { ...r, status: newStatus } : r));
+      toast.success(`Rule status updated to ${newStatus.toUpperCase()}`);
+    } catch {
+      toast.error("Failed to update rule status");
     }
   };
 
@@ -1727,14 +1738,99 @@ const cleanUnicodeEscapes = (str: string) => {
               className="font-semibold text-primary"
             />
           </div>
-          <div className="space-y-2">
-            <Label>Rule status updates (Testing / Active / Retired)</Label>
-            <AutoTextarea
-              value={ruleStatusUpdates}
-              onChange={(e) => setRuleStatusUpdates(e.target.value)}
-              placeholder="e.g. Active: Rule #4 (BE exit). Testing: Rule #1 (key level absorption). Retired: none."
-              className="min-h-[100px]"
-            />
+          {/* Rule status updates — testing / active / retired */}
+          <div className="space-y-3 pt-3 border-t border-border/40">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <Label className="text-sm font-semibold text-foreground">Rule Status Updates (Testing / Active / Retired)</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Maintain your master list. Rules surviving 3+ weeks graduate from Testing to Active. Retire rules that cost more than they saved.
+                </p>
+              </div>
+              <Badge variant="outline" className="font-mono text-xs">
+                {ruleBookEntries.length} Master Rule{ruleBookEntries.length === 1 ? "" : "s"}
+              </Badge>
+            </div>
+
+            {ruleBookEntries.length === 0 ? (
+              <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-lg bg-background/50">
+                No rules currently in your master Rule Book. Create rules in Section 2 to begin tracking statuses.
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-background/60">
+                {ruleBookEntries.map((rule: any, idx: number) => {
+                  const status = rule.status || "testing";
+                  return (
+                    <div key={rule.id || idx} className="p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs hover:bg-muted/20 transition-colors">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <span className="font-mono font-bold text-muted-foreground text-xs shrink-0 mt-0.5">
+                          #{idx + 1}
+                        </span>
+                        <div className="space-y-1 min-w-0">
+                          <div className="text-foreground">
+                            <span className="font-bold text-amber-500 mr-1.5 uppercase text-[10px] tracking-wider">WHEN</span>
+                            <span className="font-medium">{rule.condition}</span>
+                          </div>
+                          <div className="text-foreground">
+                            <span className="font-bold text-emerald-500 mr-1.5 uppercase text-[10px] tracking-wider">THEN</span>
+                            <span className="font-medium">{rule.action}</span>
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+                            {rule.fromMistake && (
+                              <span className="italic">From: {rule.fromMistake}</span>
+                            )}
+                            {rule.weekAdded && (
+                              <span className="font-mono">Born: {rule.weekAdded}</span>
+                            )}
+                            {(rule.reviewCount > 0 || rule.helpCount > 0) && (
+                              <span className="font-mono text-primary font-semibold">
+                                Reviewed {rule.reviewCount || 0}x &bull; Helped {rule.helpCount || 0}x
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 3-way status toggle */}
+                      <div className="flex items-center gap-1.5 shrink-0 bg-muted/40 p-1 rounded-lg border border-border/60">
+                        {(["testing", "active", "retired"] as const).map((s) => {
+                          const isSelected = status === s;
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => handleUpdateRuleStatus(rule.id, s)}
+                              className={cn(
+                                "px-2.5 py-1 rounded-md font-mono text-[10px] font-bold uppercase transition-all",
+                                isSelected
+                                  ? s === "active"
+                                    ? "bg-emerald-500 text-black shadow-sm font-black"
+                                    : s === "testing"
+                                    ? "bg-amber-500 text-black shadow-sm font-black"
+                                    : "bg-muted-foreground/30 text-foreground shadow-sm"
+                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                              )}
+                            >
+                              {s === "testing" ? "Testing (W1-3)" : s}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="space-y-1.5 pt-1">
+              <Label className="text-xs text-muted-foreground">Notes on rule transitions &amp; status updates (optional)</Label>
+              <AutoTextarea
+                value={ruleStatusUpdates}
+                onChange={(e) => setRuleStatusUpdates(e.target.value)}
+                placeholder="e.g. Rule #4 graduated to Active after 3 winning weeks. Rule #1 kept in Testing."
+                className="min-h-[70px] text-xs"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
