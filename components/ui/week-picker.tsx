@@ -11,6 +11,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
+import { getISOWeekKey, getWeekRange } from "@/lib/date-utils"
+
 export function WeekPicker({
   value,
   onChange,
@@ -20,40 +22,11 @@ export function WeekPicker({
   onChange?: (week: string) => void
   className?: string
 }) {
-  // convert week key to a date roughly in that week
-  const date = React.useMemo(() => {
+  const selectedRange = React.useMemo(() => {
     if (!value) return undefined
-    const [yStr, wStr] = value.split("-W")
-    if (!yStr || !wStr) return undefined
-    const year = parseInt(yStr)
-    const week = parseInt(wStr)
-    const simple = new Date(year, 0, 1 + (week - 1) * 7)
-    return simple
+    return getWeekRange(value)
   }, [value])
 
-  const getWeekKeyFromDate = (d: Date) => {
-    const year = d.getFullYear();
-    const oneJan = new Date(year, 0, 1);
-    const numberOfDays = Math.floor(
-      (d.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000),
-    );
-    const week = Math.ceil((d.getDay() + 1 + numberOfDays) / 7);
-    return `${year}-W${week.toString().padStart(2, "0")}`;
-  }
-
-  const selectedRange = React.useMemo(() => {
-    if (!date) return undefined
-    const startOfWeek = new Date(date)
-    startOfWeek.setDate(date.getDate() - date.getDay()) // Sunday
-    
-    const endOfWeek = new Date(startOfWeek)
-    endOfWeek.setDate(startOfWeek.getDate() + 6) // Saturday
-    
-    return {
-      from: startOfWeek,
-      to: endOfWeek
-    }
-  }, [date])
 
   return (
     <Popover>
@@ -73,11 +46,11 @@ export function WeekPicker({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="range"
-          defaultMonth={date}
+          defaultMonth={selectedRange?.from}
           selected={selectedRange}
           onSelect={(range, selectedDay) => {
             if (selectedDay && onChange) {
-              onChange(getWeekKeyFromDate(selectedDay))
+              onChange(getISOWeekKey(selectedDay))
             }
           }}
           showWeekNumber

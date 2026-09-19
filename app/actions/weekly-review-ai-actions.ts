@@ -7,15 +7,8 @@ import { prisma } from "@/lib/prisma"
 import { runWithAiFallback, trackAiUsage } from "@/lib/ai/provider"
 import { generateObject } from "ai"
 import { z } from "zod"
+import { getISOWeekKey } from "@/lib/date-utils"
 
-function getWeekKeyFromDate(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00")
-  const year = d.getFullYear()
-  const oneJan = new Date(year, 0, 1)
-  const numberOfDays = Math.floor((d.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000))
-  const week = Math.ceil((d.getDay() + 1 + numberOfDays) / 7)
-  return `${year}-W${week.toString().padStart(2, "0")}`
-}
 
 export async function generateWeeklyPatterns(weekOf: string) {
   const session = await getServerSession(authOptions)
@@ -39,14 +32,14 @@ export async function generateWeeklyPatterns(weekOf: string) {
   })
 
   // ── Filter to this week ────────────────────────────────────────────────────
-  const weekJournals = allJournals.filter(j => getWeekKeyFromDate(j.date) === weekOf)
+  const weekJournals = allJournals.filter(j => getISOWeekKey(j.date) === weekOf)
 
   const weekDates = new Set(weekJournals.map(j => j.date))
 
   const weekTrades = allTrades.filter(t => {
     const d = new Date(Number(t.timestamp))
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-    return weekDates.has(dateStr) || getWeekKeyFromDate(dateStr) === weekOf
+    return weekDates.has(dateStr) || getISOWeekKey(dateStr) === weekOf
   })
 
   if (weekJournals.length === 0 && weekTrades.length === 0) {

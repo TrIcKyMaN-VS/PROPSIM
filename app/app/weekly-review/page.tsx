@@ -45,17 +45,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getISOWeekKey, getWeekDates } from "@/lib/date-utils";
 
-const getCurrentWeekKey = () => {
-  const d = new Date();
-  const year = d.getFullYear();
-  const oneJan = new Date(year, 0, 1);
-  const numberOfDays = Math.floor(
-    (d.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000),
-  );
-  const week = Math.ceil((d.getDay() + 1 + numberOfDays) / 7);
-  return `${year}-W${week.toString().padStart(2, "0")}`;
-};
+const getCurrentWeekKey = () => getISOWeekKey();
+
 
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
@@ -111,20 +104,7 @@ export default function WeeklyReviewPage() {
 
   // Derive Mon–Sun date strings for the selected weekOf key
   const weekDates = useMemo<string[]>(() => {
-    const [yearStr, wStr] = weekOf.split("-W");
-    const year = Number(yearStr);
-    const week = Number(wStr);
-    // ISO week: Jan 4 is always in week 1
-    const jan4 = new Date(year, 0, 4);
-    const mondayOfW1 = new Date(jan4);
-    mondayOfW1.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7));
-    const monday = new Date(mondayOfW1);
-    monday.setDate(mondayOfW1.getDate() + (week - 1) * 7);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    });
+    return getWeekDates(weekOf);
   }, [weekOf]);
 
   // Filter all trades to this week, grouped by date
