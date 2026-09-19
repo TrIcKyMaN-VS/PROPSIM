@@ -206,8 +206,8 @@ export default function WeeklyReviewPage() {
     setupDescription: string;
     estimatedR: string;
     outcome: "win" | "loss" | "breakeven";
-    whyMissed: string;          // free text â€” user types whatever reason
-    realtimeValidity: "yes_100" | "maybe" | "honest_no";
+    whyMissed: string;          // free text — user types whatever reason
+    realtimeValidity?: "yes_100" | "maybe" | "honest_no";
     ruleHelped?: boolean;       // true if rule correctly blocked a losing trade
     screenshotUrl?: string;     // legacy single uploaded chart screenshot
     screenshots?: string[];     // multiple uploaded chart screenshots
@@ -219,7 +219,7 @@ export default function WeeklyReviewPage() {
   const [uploadingImg, setUploadingImg] = useState(false);
   const emptyMissed = (): MissedTrade => ({
     id: "", instrument: "", direction: "long", date: new Date().toISOString().split("T")[0],
-    setupDescription: "", estimatedR: "", outcome: "win", whyMissed: "", realtimeValidity: "yes_100", ruleHelped: false, screenshots: []
+    setupDescription: "", estimatedR: "", outcome: "win", whyMissed: "", ruleHelped: false, screenshots: []
   });
   const [missedDraft, setMissedDraft] = useState<MissedTrade>(emptyMissed());
   const [expandedMissed, setExpandedMissed] = useState<Record<string, boolean>>({});
@@ -287,40 +287,15 @@ export default function WeeklyReviewPage() {
                   />
                 </div>
 
-                {/* Hindsight reality check */}
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-                  <Label className="text-xs font-semibold text-amber-500">&#x26A0;&#xFE0F; Hindsight Reality Check</Label>
-                  <p className="text-xs text-muted-foreground">"Would you have taken this trade IN REAL TIME, with only the info available then?"</p>
-                  <div className="flex flex-col gap-1.5">
-                    {(["yes_100", "maybe", "honest_no"] as const).map(v => (
-                      <label key={v} className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="realtimeValidity"
-                          value={v}
-                          checked={missedDraft.realtimeValidity === v}
-                          onChange={() => setMissedDraft(d => ({ ...d, realtimeValidity: v }))}
-                          className="accent-primary"
-                        />
-                        <span className="text-sm">
-                          {v === "yes_100" && <><span className="text-success font-medium">Yes, 100%</span> &mdash; I had a clear plan for this level</>}
-                          {v === "maybe" && <><span className="text-amber-500 font-medium">Maybe</span> &mdash; not sure I'd have seen it live</>}
-                          {v === "honest_no" && <><span className="text-destructive font-medium">Honest no</span> &mdash; only obvious in hindsight</>}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
+                <div className="flex items-center gap-3 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
                     <input
                       type="checkbox"
                       checked={!!missedDraft.ruleHelped}
                       onChange={e => setMissedDraft(d => ({ ...d, ruleHelped: e.target.checked }))}
-                      className="accent-success"
+                      className="accent-success h-4 w-4 rounded"
                     />
-                    A rule correctly prevented this (it would have been a bad trade)
+                    <span>Filtered by Rule &mdash; <span className="text-muted-foreground font-normal">a rule correctly prevented this (protected from a loss)</span></span>
                   </label>
                 </div>
 
@@ -1347,8 +1322,6 @@ const cleanUnicodeEscapes = (str: string) => {
             {missedTrades.length > 0 && (
               <div className="space-y-2">
                 {missedTrades.map(t => {
-                  const isConfirmed = t.realtimeValidity === "yes_100"
-                  const isMaybe = t.realtimeValidity === "maybe"
                   const expanded = expandedMissed[t.id]
 
                   if (t.id === editingMissedId) {
@@ -1361,9 +1334,7 @@ const cleanUnicodeEscapes = (str: string) => {
                       className={`rounded-lg border text-sm relative transition-all ${
                         t.ruleHelped
                           ? "border-success/30 bg-success/5"
-                          : isConfirmed
-                          ? "border-border bg-muted/20"
-                          : "border-border bg-muted/10 opacity-70"
+                          : "border-border bg-muted/20"
                       }`}
                     >
                       <div 
@@ -1382,11 +1353,6 @@ const cleanUnicodeEscapes = (str: string) => {
                             </span>
                           )}
                           {t.ruleHelped && <span className="text-xs text-success font-medium">&#x2713; Rule saved you</span>}
-                          {!isConfirmed && (
-                            <span className="text-xs text-muted-foreground italic">
-                              {isMaybe ? "(maybe - unconfirmed)" : "(hindsight only)"}
-                            </span>
-                          )}
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -1435,16 +1401,16 @@ const cleanUnicodeEscapes = (str: string) => {
 
                 {/* Summary bar */}
                 {(() => {
-                  const confirmed = missedTrades.filter(t => t.realtimeValidity === "yes_100" && !t.ruleHelped)
+                  const missedWins = missedTrades.filter(t => !t.ruleHelped && t.outcome === "win")
                   const ruleSaved = missedTrades.filter(t => t.ruleHelped)
-                  const confirmedWinR = confirmed.filter(t => t.outcome === "win").map(t => parseFloat(t.estimatedR) || 0).reduce((a, b) => a + b, 0)
+                  const missedWinR = missedWins.map(t => parseFloat(t.estimatedR) || 0).reduce((a, b) => a + b, 0)
                   const ruleSavedR = ruleSaved.filter(t => t.outcome === "loss").map(t => Math.abs(parseFloat(t.estimatedR) || 0)).reduce((a, b) => a + b, 0)
                   return (
                     <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs grid grid-cols-2 md:grid-cols-3 gap-3">
                       <div>
-                        <p className="text-muted-foreground">Confirmed opportunity cost</p>
-                        <p className={`font-bold text-sm mt-0.5 ${confirmedWinR > 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                          {confirmedWinR > 0 ? `+${confirmedWinR.toFixed(1)}R missed` : "\u2014"}
+                        <p className="text-muted-foreground">Missed opportunity cost</p>
+                        <p className={`font-bold text-sm mt-0.5 ${missedWinR > 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                          {missedWinR > 0 ? `+${missedWinR.toFixed(1)}R missed` : "\u2014"}
                         </p>
                       </div>
                       <div>
