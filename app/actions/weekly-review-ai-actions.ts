@@ -50,7 +50,11 @@ export async function generateWeeklyPatterns(weekOf: string) {
   })
 
   if (weekJournals.length === 0 && weekTrades.length === 0) {
-    throw new Error("No daily journals or trades found for this week.")
+    return {
+      repeatedMistakes: "⚠️ No daily journals or trades found for this week. Log at least one daily journal or trade to generate patterns.",
+      repeatedWinConditions: "⚠️ No daily journals or trades found for this week.",
+      emotionalTimingPatterns: "⚠️ No daily journals or trades found for this week."
+    }
   }
 
   // ── Split trades into winners and losers ───────────────────────────────────
