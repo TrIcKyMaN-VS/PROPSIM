@@ -100,3 +100,77 @@ export async function deleteRuleBookEntry(id: string) {
   if (!session?.user?.id) throw new Error("Unauthorized")
   await prisma.ruleBook.deleteMany({ where: { id, userId: session.user.id } })
 }
+
+export async function syncRuleBookStats() {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+  const userId = session.user.id
+
+  const reviews = await prisma.weeklyReview.findMany({
+    where: { userId },
+    select: { weekOf: true, ruleEvaluations: true, missedTrades: true },
+  })
+
+  const rules = await prisma.ruleBook.findMany({
+    where: { userId },
+  })
+
+  for (const rule of rules) {
+    let reviewCount = 0
+    let followCount = 0
+    let helpCount = 0
+
+    for (const rev of reviews) {
+      let ruleEvaluated = false
+      let ruleFollowed = false
+      let ruleHelped = false
+
+      if (rev.ruleEvaluations) {
+        try {
+          const evals = JSON.parse(rev.ruleEvaluations) as any[]
+          const matched = evals.find(
+            e =>
+              (e.ruleId && e.ruleId === rule.id) ||
+              (e.when === rule.condition && e.then === rule.action)
+          )
+          if (matched && (matched.followStatus || matched.helpStatus || matched.verdict)) {
+            ruleEvaluated = true
+            if (matched.followStatus === "followed") ruleFollowed = true
+            if (matched.helpStatus === "helped") ruleHelped = true
+          }
+        } catch {}
+      }
+
+      // Also credit if this rule prevented a loss in missedTrades
+      if (rev.missedTrades) {
+        try {
+          const missed = JSON.parse(rev.missedTrades) as any[]
+          const rulePreventedLoss = missed.some(
+            m =>
+              m.ruleHelped &&
+              m.outcome === "loss" &&
+              (m.ruleId === rule.id || (m.ruleTitle && m.ruleTitle.includes(rule.condition)))
+          )
+          if (rulePreventedLoss) {
+            ruleFollowed = true
+            ruleHelped = true
+          }
+        } catch {}
+      }
+
+      if (ruleEvaluated) reviewCount++
+      if (ruleFollowed) followCount++
+      if (ruleHelped) helpCount++
+    }
+
+    await prisma.ruleBook.update({
+      where: { id: rule.id },
+      data: {
+        reviewCount,
+        followCount,
+        helpCount,
+        ...(rule.status === "testing" && reviewCount >= 2 && helpCount >= 2 ? { status: "active" } : {}),
+      },
+    })
+  }
+}

@@ -30,6 +30,7 @@ import {
   createRuleBookEntry,
   applyRuleVerdict,
   updateRuleBookStatus,
+  syncRuleBookStats,
 } from "@/app/actions/rulebook-actions";
 import { usePropStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
@@ -197,6 +198,41 @@ export default function WeeklyReviewPage() {
   const [previousRules, setPreviousRules] = useState<{ when: string; then: string; from: string }[]>([]);
   const [ruleEvaluations, setRuleEvaluations] = useState<RuleEval[]>([]);
 
+  // Rule Book state
+  const [ruleBookEntries, setRuleBookEntries] = useState<any[]>([]);
+  // Map from "condition||action" -> ruleId for quick lookup
+  const [ruleIdMap, setRuleIdMap] = useState<Record<string, string>>({});
+  const [addingToRuleBook, setAddingToRuleBook] = useState<Record<number, boolean>>({});
+
+  // Available rules for selection when checking "Filtered by Rule"
+  const availableRulesList = useMemo(() => {
+    const list: { id: string; label: string; when: string; then: string }[] = [];
+    ruleBookEntries
+      .filter((r: any) => r.status !== "retired")
+      .forEach((r: any, i: number) => {
+        list.push({
+          id: r.id,
+          label: `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`,
+          when: r.condition,
+          then: r.action,
+        });
+      });
+    rulesBuilt.forEach((r, i) => {
+      if (r.when?.trim() && r.then?.trim()) {
+        const sig = r.when.trim() + "||" + r.then.trim();
+        if (!ruleIdMap[sig]) {
+          list.push({
+            id: `new-${i}`,
+            label: `New Rule #${i + 1}: WHEN ${r.when} THEN ${r.then}`,
+            when: r.when,
+            then: r.then,
+          });
+        }
+      }
+    });
+    return list;
+  }, [ruleBookEntries, rulesBuilt, ruleIdMap]);
+
   // Missed Trades
   type MissedTrade = {
     id: string;
@@ -208,7 +244,9 @@ export default function WeeklyReviewPage() {
     outcome: "win" | "loss" | "breakeven";
     whyMissed: string;          // free text — user types whatever reason
     realtimeValidity?: "yes_100" | "maybe" | "honest_no";
-    ruleHelped?: boolean;       // true if rule correctly blocked a losing trade
+    ruleHelped?: boolean;       // true if rule correctly blocked a trade
+    ruleId?: string;            // which rule filtered it
+    ruleTitle?: string;         // display label of the rule
     screenshotUrl?: string;     // legacy single uploaded chart screenshot
     screenshots?: string[];     // multiple uploaded chart screenshots
   };
@@ -219,7 +257,7 @@ export default function WeeklyReviewPage() {
   const [uploadingImg, setUploadingImg] = useState(false);
   const emptyMissed = (): MissedTrade => ({
     id: "", instrument: "", direction: "long", date: new Date().toISOString().split("T")[0],
-    setupDescription: "", estimatedR: "", outcome: "win", whyMissed: "", ruleHelped: false, screenshots: []
+    setupDescription: "", estimatedR: "", outcome: "win", whyMissed: "", ruleHelped: false, ruleId: "", ruleTitle: "", screenshots: []
   });
   const [missedDraft, setMissedDraft] = useState<MissedTrade>(emptyMissed());
   const [expandedMissed, setExpandedMissed] = useState<Record<string, boolean>>({});
@@ -287,16 +325,54 @@ export default function WeeklyReviewPage() {
                   />
                 </div>
 
-                <div className="flex items-center gap-3 pt-1">
+                <div className="space-y-2 pt-1 border-t border-border/30">
                   <label className="flex items-center gap-2 cursor-pointer text-sm font-medium">
                     <input
                       type="checkbox"
                       checked={!!missedDraft.ruleHelped}
-                      onChange={e => setMissedDraft(d => ({ ...d, ruleHelped: e.target.checked }))}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setMissedDraft(d => ({
+                          ...d,
+                          ruleHelped: checked,
+                          ruleId: checked ? d.ruleId : "",
+                          ruleTitle: checked ? d.ruleTitle : "",
+                        }));
+                      }}
                       className="accent-success h-4 w-4 rounded"
                     />
-                    <span>Filtered by Rule &mdash; <span className="text-muted-foreground font-normal">a rule correctly prevented this (protected from a loss)</span></span>
+                    <span>Filtered by Rule &mdash; <span className="text-muted-foreground font-normal">a rule prevented this setup</span></span>
                   </label>
+
+                  {missedDraft.ruleHelped && (
+                    <div className="pl-6 space-y-1.5 pt-1">
+                      <Label className="text-xs font-semibold text-primary">Which rule prevented this trade?</Label>
+                      {availableRulesList.length === 0 ? (
+                        <p className="text-xs text-muted-foreground italic">No rules found. Add rules in Section 2 or Rule Book.</p>
+                      ) : (
+                        <select
+                          className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-xs font-medium"
+                          value={missedDraft.ruleId || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            const found = availableRulesList.find(r => r.id === val);
+                            setMissedDraft(d => ({
+                              ...d,
+                              ruleId: val,
+                              ruleTitle: found ? found.label : "",
+                            }));
+                          }}
+                        >
+                          <option value="">-- Select the rule that filtered it --</option>
+                          {availableRulesList.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Chart screenshot upload */}
@@ -406,11 +482,7 @@ export default function WeeklyReviewPage() {
     });
   };
 
-  // Rule Book state
-  const [ruleBookEntries, setRuleBookEntries] = useState<any[]>([]);
-  // Map from "condition||action" -> ruleId for quick lookup
-  const [ruleIdMap, setRuleIdMap] = useState<Record<string, string>>({});
-  const [addingToRuleBook, setAddingToRuleBook] = useState<Record<number, boolean>>({});
+
 
   const loadRuleBook = async () => {
     try {
@@ -671,7 +743,37 @@ const cleanUnicodeEscapes = (str: string) => {
         ruleFilteredGoodTrade: ruleFilteredGoodTrade || null,
         oneRuleNotBreak: oneRuleNotBreak || null,
         ruleStatusUpdates: ruleStatusUpdates || null,
-        ruleEvaluations: ruleEvaluations.length > 0 ? JSON.stringify(ruleEvaluations) : null,
+        ruleEvaluations: (() => {
+          // Auto-credit rule evaluations for rules that filtered missed trades
+          const evals = [...ruleEvaluations];
+          missedTrades.forEach(mt => {
+            if (mt.ruleHelped && mt.ruleId) {
+              const ruleObj = ruleBookEntries.find(r => r.id === mt.ruleId);
+              if (ruleObj) {
+                const existingIdx = evals.findIndex(e => e.when === ruleObj.condition && e.then === ruleObj.action);
+                if (existingIdx === -1) {
+                  evals.push({
+                    when: ruleObj.condition,
+                    then: ruleObj.action,
+                    from: ruleObj.fromMistake || "",
+                    followStatus: "followed",
+                    helpStatus: mt.outcome === "loss" ? "helped" : "",
+                    verdict: "",
+                    adjustmentNote: "",
+                  });
+                } else {
+                  if (!evals[existingIdx].followStatus) {
+                    evals[existingIdx].followStatus = "followed";
+                  }
+                  if (!evals[existingIdx].helpStatus && mt.outcome === "loss") {
+                    evals[existingIdx].helpStatus = "helped";
+                  }
+                }
+              }
+            }
+          });
+          return evals.length > 0 ? JSON.stringify(evals) : null;
+        })(),
         missedTrades: missedTrades.length > 0 ? JSON.stringify(missedTrades) : null,
       };
 
@@ -708,8 +810,15 @@ const cleanUnicodeEscapes = (str: string) => {
 
       if (verdictPromises.length > 0) {
         await Promise.allSettled(verdictPromises);
-        await loadRuleBook();
       }
+
+      // Sync and accurately recalculate total reviewCount, followCount, helpCount across all reviews
+      try {
+        await syncRuleBookStats();
+      } catch (err) {
+        console.error("Failed to sync rulebook stats:", err);
+      }
+      await loadRuleBook();
 
       toast.success("Weekly review saved successfully!");
     } catch (err) {
@@ -750,6 +859,38 @@ const cleanUnicodeEscapes = (str: string) => {
   const masterRunningRules = useMemo(() => {
     return ruleBookEntries.filter((r: any) => r.status !== "retired");
   }, [ruleBookEntries]);
+
+  // Rules that helped prevent losses in missed setups this week
+  const lossSavingRules = useMemo(() => {
+    const map = new Map<string, { ruleName: string; savedR: number }>();
+    missedTrades.forEach(t => {
+      if (t.ruleHelped && t.outcome === "loss") {
+        const ruleLabel = t.ruleTitle ? (t.ruleTitle.includes(":") ? t.ruleTitle.split(":")[0] : t.ruleTitle) : "Rule";
+        const key = t.ruleId || ruleLabel;
+        const rVal = Math.abs(parseFloat(t.estimatedR) || 1);
+        const existing = map.get(key) || { ruleName: ruleLabel, savedR: 0 };
+        existing.savedR += rVal;
+        map.set(key, existing);
+      }
+    });
+    return Array.from(map.values());
+  }, [missedTrades]);
+
+  // Rules that filtered winning trades in missed setups this week
+  const winFilteringRules = useMemo(() => {
+    const map = new Map<string, { ruleName: string; missedR: number }>();
+    missedTrades.forEach(t => {
+      if (t.ruleHelped && t.outcome === "win") {
+        const ruleLabel = t.ruleTitle ? (t.ruleTitle.includes(":") ? t.ruleTitle.split(":")[0] : t.ruleTitle) : "Rule";
+        const key = t.ruleId || ruleLabel;
+        const rVal = parseFloat(t.estimatedR) || 1;
+        const existing = map.get(key) || { ruleName: ruleLabel, missedR: 0 };
+        existing.missedR += rVal;
+        map.set(key, existing);
+      }
+    });
+    return Array.from(map.values());
+  }, [missedTrades]);
 
   return (
     <>
@@ -1352,7 +1493,21 @@ const cleanUnicodeEscapes = (str: string) => {
                               {t.estimatedR} &bull; {t.outcome.toUpperCase()}
                             </span>
                           )}
-                          {t.ruleHelped && <span className="text-xs text-success font-medium">&#x2713; Rule saved you</span>}
+                          {t.ruleHelped && (
+                            <span className={cn(
+                              "text-xs font-semibold px-2 py-0.5 rounded-full border",
+                              t.outcome === "loss"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                                : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+                            )}>
+                              {t.outcome === "loss" ? "🛡️ " : "⚠️ "}
+                              {t.ruleTitle ? (t.ruleTitle.includes(":") ? t.ruleTitle.split(":")[0] : t.ruleTitle) : "Rule"}
+                              {t.outcome === "loss"
+                                ? ` saved you (${t.estimatedR ? `${t.estimatedR} prevented` : "loss prevented"})`
+                                : ` filtered this (${t.estimatedR ? `${t.estimatedR} missed` : "winner filtered"})`
+                              }
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -1374,9 +1529,14 @@ const cleanUnicodeEscapes = (str: string) => {
                       </div>
                       
                       {expanded && (
-                        <div className="px-3 pb-4 pt-1 border-t border-border/40 mt-1">
+                        <div className="px-3 pb-4 pt-1 border-t border-border/40 mt-1 space-y-1.5">
+                          {t.ruleTitle && (
+                            <p className="text-xs font-medium text-foreground bg-muted/40 px-2.5 py-1 rounded border border-border/50">
+                              <span className="text-primary font-bold mr-1">Filtered by:</span> {t.ruleTitle}
+                            </p>
+                          )}
                           <p className="text-muted-foreground text-xs"><span className="font-medium text-foreground">Missed:</span> {t.whyMissed}</p>
-                          {t.setupDescription && <p className="text-muted-foreground mt-2 text-xs italic"><span className="font-medium text-foreground not-italic">Plan:</span> {t.setupDescription}</p>}
+                          {t.setupDescription && <p className="text-muted-foreground text-xs italic"><span className="font-medium text-foreground not-italic">Plan:</span> {t.setupDescription}</p>}
                           {t.screenshots && t.screenshots.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-3">
                               {t.screenshots.map((url, idx) => (
@@ -1481,16 +1641,54 @@ const cleanUnicodeEscapes = (str: string) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label>Rule that would have saved the most</Label>
+              <div className="flex items-center justify-between">
+                <Label>Rule that would have saved the most</Label>
+                {lossSavingRules.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">Click to fill:</span>
+                )}
+              </div>
+              {lossSavingRules.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {lossSavingRules.map((ls, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setRuleSavedMost(`${ls.ruleName} (prevented ${ls.savedR.toFixed(1)}R loss)`)}
+                      className="text-xs px-2 py-0.5 rounded-full border border-success/30 bg-success/10 text-success hover:bg-success/20 transition-colors text-left"
+                    >
+                      🛡️ {ls.ruleName} ({ls.savedR.toFixed(1)}R saved)
+                    </button>
+                  ))}
+                </div>
+              )}
               <AutoTextarea value={ruleSavedMost}
                 onChange={(e) => setRuleSavedMost(e.target.value)}
                 placeholder="e.g. Stop trading after 2 losses"
               />
             </div>
             <div className="space-y-2">
-              <Label>
-                Rule that filtered out a good trade (needs adjusting)
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label>
+                  Rule that filtered out a good trade (needs adjusting)
+                </Label>
+                {winFilteringRules.length > 0 && (
+                  <span className="text-[10px] text-muted-foreground">Click to fill:</span>
+                )}
+              </div>
+              {winFilteringRules.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {winFilteringRules.map((wf, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setRuleFilteredGoodTrade(`${wf.ruleName} (filtered +${wf.missedR.toFixed(1)}R trade)`)}
+                      className="text-xs px-2 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors text-left"
+                    >
+                      ⚠️ {wf.ruleName} (+{wf.missedR.toFixed(1)}R missed)
+                    </button>
+                  ))}
+                </div>
+              )}
               <AutoTextarea value={ruleFilteredGoodTrade}
                 onChange={(e) => setRuleFilteredGoodTrade(e.target.value)}
                 placeholder="e.g. Too tight trailing stop"
@@ -1602,6 +1800,34 @@ const cleanUnicodeEscapes = (str: string) => {
                                   Reviewed {rule.reviewCount || 0}x &bull; Helped {rule.helpCount || 0}x
                                 </span>
                               )}
+                              {/* Weekly Impact from Replay / Missed Setups */}
+                              {(() => {
+                                const matchingMissed = missedTrades.filter(
+                                  mt => mt.ruleHelped && (
+                                    mt.ruleId === rule.id || 
+                                    (mt.ruleTitle && mt.ruleTitle.includes(rule.condition))
+                                  )
+                                );
+                                if (matchingMissed.length === 0) return null;
+                                const lossesBlocked = matchingMissed.filter(mt => mt.outcome === "loss");
+                                const winsFiltered = matchingMissed.filter(mt => mt.outcome === "win");
+                                const totalSavedR = lossesBlocked.reduce((acc, m) => acc + Math.abs(parseFloat(m.estimatedR) || 1), 0);
+                                const totalMissedR = winsFiltered.reduce((acc, m) => acc + (parseFloat(m.estimatedR) || 1), 0);
+                                return (
+                                  <div className="flex items-center gap-2 flex-wrap pt-0.5">
+                                    {lossesBlocked.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                                        🛡️ Blocked {lossesBlocked.length} loss{lossesBlocked.length !== 1 ? "es" : ""} this week (+{totalSavedR.toFixed(1)}R protected)
+                                      </span>
+                                    )}
+                                    {winsFiltered.length > 0 && (
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                                        ⚠️ Filtered {winsFiltered.length} winner{winsFiltered.length !== 1 ? "s" : ""} this week (+{totalMissedR.toFixed(1)}R missed)
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
