@@ -132,6 +132,19 @@ export default function WeeklyReviewPage() {
   const weekWins = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl > 0).length, 0);
   const weekLosses = Object.values(weekTradesByDay).reduce((n, arr) => n + arr.filter(t => t.pnl <= 0).length, 0);
 
+  const weekTradesList = useMemo(() => {
+    return Object.values(weekTradesByDay).flat().sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+  }, [weekTradesByDay]);
+
+  const actualWinRatePct = weekTotalTrades > 0 ? (weekWins / weekTotalTrades) * 100 : 0;
+  const actualLargestLossR = useMemo(() => {
+    const losses = weekTradesList
+      .filter(t => t.pnl < 0)
+      .map(t => (t.netR ?? (t.pnl / defaultPlannedRisk)));
+    if (losses.length === 0) return 0;
+    return Math.min(...losses);
+  }, [weekTradesList, defaultPlannedRisk]);
+
   const gradeColor = (g?: string) => {
     if (!g) return "border-border text-muted-foreground"
     if (g === "A+" || g === "A") return "border-green-500 text-green-400 bg-green-500/10"
@@ -269,9 +282,122 @@ export default function WeeklyReviewPage() {
   const [expandedMissed, setExpandedMissed] = useState<Record<string, boolean>>({});
   const toggleMissed = (id: string) => setExpandedMissed(p => ({ ...p, [id]: !p[id] }));
   const [deleteMissedId, setDeleteMissedId] = useState<string | null>(null);
+
+  // 3. Interactive Backtest Replay States
+  const [replaySkippedTradeIds, setReplaySkippedTradeIds] = useState<Record<string, boolean>>({});
+  const [replayIncludedMissedIds, setReplayIncludedMissedIds] = useState<Record<string, boolean>>({});
+  const [isManualBacktestOverride, setIsManualBacktestOverride] = useState(false);
+
+  // Load saved skipped trade IDs from localStorage
+  useEffect(() => {
+    if (!weekOf) return;
+    try {
+      const saved = localStorage.getItem(`propsim_replay_skipped_${weekOf}`);
+      if (saved) setReplaySkippedTradeIds(JSON.parse(saved));
+      const savedMissed = localStorage.getItem(`propsim_replay_missed_${weekOf}`);
+      if (savedMissed) setReplayIncludedMissedIds(JSON.parse(savedMissed));
+    } catch {}
+  }, [weekOf]);
+
+  const handleToggleReplaySkipped = (tradeId: string, skipped: boolean) => {
+    setReplaySkippedTradeIds(prev => {
+      const next = { ...prev, [tradeId]: skipped };
+      try { localStorage.setItem(`propsim_replay_skipped_${weekOf}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleToggleReplayMissed = (missedId: string) => {
+    setReplayIncludedMissedIds(prev => {
+      const next = { ...prev, [missedId]: !prev[missedId] };
+      try { localStorage.setItem(`propsim_replay_missed_${weekOf}`, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  };
+
+  const handleKeepAllTrades = () => {
+    setReplaySkippedTradeIds({});
+    try { localStorage.setItem(`propsim_replay_skipped_${weekOf}`, JSON.stringify({})); } catch {}
+  };
+
+  const handleSkipAllLosses = () => {
+    const next: Record<string, boolean> = {};
+    weekTradesList.filter(t => t.pnl <= 0).forEach(t => { next[t.id] = true; });
+    setReplaySkippedTradeIds(next);
+    try { localStorage.setItem(`propsim_replay_skipped_${weekOf}`, JSON.stringify(next)); } catch {}
+  };
+
+  // Real-time calculation of all 5 metrics
+  const replayCalculations = useMemo(() => {
+    const takenActual = weekTradesList.filter(t => !replaySkippedTradeIds[t.id]);
+    const skippedActual = weekTradesList.filter(t => !!replaySkippedTradeIds[t.id]);
+    const includedMissed = missedTrades.filter(m => !!replayIncludedMissedIds[m.id]);
+
+    const takenCount = takenActual.length + includedMissed.length;
+    const skippedCount = skippedActual.length;
+
+    const takenWins = takenActual.filter(t => t.pnl > 0).length + includedMissed.filter(m => m.outcome === "win").length;
+    const winRatePct = takenCount > 0 ? (takenWins / takenCount) * 100 : 0;
+    const winRateStr = takenCount > 0 ? `${winRatePct.toFixed(0)}%` : "0%";
+
+    const actualRSum = takenActual.reduce((acc, t) => acc + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0);
+    const missedRSum = includedMissed.reduce((acc, m) => {
+      const parsed = parseFloat(m.estimatedR);
+      return acc + (isNaN(parsed) ? 0 : parsed);
+    }, 0);
+    const totalR = actualRSum + missedRSum;
+    const netRStr = `${totalR >= 0 ? "+" : ""}${totalR.toFixed(1)}R`;
+
+    const actualLossesR = takenActual
+      .filter(t => t.pnl < 0)
+      .map(t => (t.netR ?? (t.pnl / defaultPlannedRisk)));
+    const missedLossesR = includedMissed
+      .filter(m => m.outcome === "loss")
+      .map(m => {
+        const parsed = parseFloat(m.estimatedR);
+        return isNaN(parsed) ? -1 : (parsed > 0 ? -parsed : parsed);
+      });
+    const allLossesR = [...actualLossesR, ...missedLossesR];
+    const worstLossR = allLossesR.length > 0 ? Math.min(...allLossesR) : 0;
+    const largestLossStr = worstLossR !== 0 ? `${worstLossR.toFixed(1)}R` : "0R";
+
+    return {
+      takenCount,
+      skippedCount,
+      winRateStr,
+      winRatePct,
+      totalR,
+      netRStr,
+      worstLossR,
+      largestLossStr,
+      takenActual,
+      skippedActual,
+      includedMissed,
+    };
+  }, [weekTradesList, replaySkippedTradeIds, missedTrades, replayIncludedMissedIds, defaultPlannedRisk]);
+
+  // Sync live calculations into state for saving
+  useEffect(() => {
+    if (!isManualBacktestOverride && weekTradesList.length > 0) {
+      setBacktestTradesTaken(replayCalculations.takenCount);
+      setBacktestTradesSkipped(replayCalculations.skippedCount);
+      setBacktestWinRate(replayCalculations.winRateStr);
+      setBacktestNetR(replayCalculations.netRStr);
+      setBacktestLargestLoss(replayCalculations.largestLossStr);
+    }
+  }, [replayCalculations, isManualBacktestOverride, weekTradesList.length]);
+
   const renderMissedForm = () => (
               <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Date</Label>
+                    <Input
+                      type="date"
+                      value={missedDraft.date || ""}
+                      onChange={e => setMissedDraft(d => ({ ...d, date: e.target.value }))}
+                    />
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Instrument</Label>
                     <Input
@@ -1449,54 +1575,327 @@ const cleanUnicodeEscapes = (str: string) => {
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="space-y-2">
-              <Label>Trades Taken</Label>
-              <Input
-                type="number"
-                value={backtestTradesTaken}
-                onChange={(e) =>
-                  setBacktestTradesTaken(
-                    e.target.value === "" ? "" : Number(e.target.value),
-                  )
-                }
-              />
+          {/* 5-Metric Backtest Replay HUD */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {/* 1. Trades Taken */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-1">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Trades Taken
+                </div>
+                <div className="text-2xl font-black font-mono text-foreground flex items-baseline gap-2">
+                  <span>{backtestTradesTaken === "" ? 0 : backtestTradesTaken}</span>
+                  {weekTotalTrades > 0 && (
+                    <span className="text-[11px] font-normal text-muted-foreground">
+                      of {weekTotalTrades}
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {replayCalculations.skippedCount === 0 ? "All trades taken" : `${replayCalculations.takenCount} followed rules`}
+                </div>
+              </div>
+
+              {/* 2. Trades Skipped */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-1">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Trades Skipped
+                </div>
+                <div className="text-2xl font-black font-mono text-amber-400 flex items-baseline gap-2">
+                  <span>{backtestTradesSkipped === "" ? 0 : backtestTradesSkipped}</span>
+                  {weekTotalTrades > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30">
+                      {((Number(backtestTradesSkipped || 0) / weekTotalTrades) * 100).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">Filtered by rules</div>
+              </div>
+
+              {/* 3. Win Rate */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-1">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Win Rate
+                </div>
+                <div className="text-2xl font-black font-mono text-foreground flex items-baseline gap-2">
+                  <span>{backtestWinRate || "0%"}</span>
+                  {weekTotalTrades > 0 && (
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.2 rounded font-mono font-bold border",
+                      replayCalculations.winRatePct >= actualWinRatePct
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                        : "bg-destructive/15 text-destructive border-destructive/30"
+                    )}>
+                      {replayCalculations.winRatePct >= actualWinRatePct ? "+" : ""}
+                      {(replayCalculations.winRatePct - actualWinRatePct).toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  Actual: {actualWinRatePct.toFixed(0)}%
+                </div>
+              </div>
+
+              {/* 4. Net R */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-1">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Net R
+                </div>
+                <div className={cn(
+                  "text-2xl font-black font-mono flex items-baseline gap-2",
+                  replayCalculations.totalR >= 0 ? "text-emerald-400" : "text-destructive"
+                )}>
+                  <span>{backtestNetR || "0R"}</span>
+                  {weekTotalTrades > 0 && (
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.2 rounded font-mono font-bold border",
+                      (replayCalculations.totalR - weekTotalNetR) >= 0
+                        ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                        : "bg-destructive/15 text-destructive border-destructive/30"
+                    )}>
+                      {(replayCalculations.totalR - weekTotalNetR) >= 0 ? "+" : ""}
+                      {(replayCalculations.totalR - weekTotalNetR).toFixed(1)}R
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  Actual: {weekTotalNetR >= 0 ? "+" : ""}{weekTotalNetR.toFixed(1)}R
+                </div>
+              </div>
+
+              {/* 5. Largest Loss */}
+              <div className="p-3.5 rounded-xl border border-border/70 bg-card/60 shadow-sm space-y-1">
+                <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Largest Loss
+                </div>
+                <div className="text-2xl font-black font-mono text-foreground flex items-baseline gap-2">
+                  <span className={backtestLargestLoss?.startsWith("-") ? "text-destructive" : "text-foreground"}>
+                    {backtestLargestLoss || "0R"}
+                  </span>
+                  {actualLargestLossR < 0 && replayCalculations.worstLossR > actualLargestLossR && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      +{(replayCalculations.worstLossR - actualLargestLossR).toFixed(1)}R saved
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  Actual: {actualLargestLossR.toFixed(1)}R
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Trades Skipped</Label>
-              <Input
-                type="number"
-                value={backtestTradesSkipped}
-                onChange={(e) =>
-                  setBacktestTradesSkipped(
-                    e.target.value === "" ? "" : Number(e.target.value),
-                  )
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Win Rate</Label>
-              <Input
-                value={backtestWinRate}
-                onChange={(e) => setBacktestWinRate(e.target.value)}
-                placeholder="e.g. 55%"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Net R</Label>
-              <Input
-                value={backtestNetR}
-                onChange={(e) => setBacktestNetR(e.target.value)}
-                placeholder="e.g. +4R"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Largest Loss</Label>
-              <Input
-                value={backtestLargestLoss}
-                onChange={(e) => setBacktestLargestLoss(e.target.value)}
-                placeholder="e.g. -1R"
-              />
+
+            {/* Interactive Trade Filter Box */}
+            <div className="rounded-xl border border-border/60 bg-muted/10 p-3.5 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                    <span>Filter Week's Trades For Replay</span>
+                  </span>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Toggle trades that violated your rules to <strong>Skipped</strong>. Metrics update automatically.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {weekTradesList.length > 0 && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs cursor-pointer"
+                        onClick={handleKeepAllTrades}
+                      >
+                        Keep All
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10 cursor-pointer"
+                        onClick={handleSkipAllLosses}
+                      >
+                        🛡️ Skip All Losses
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                    onClick={() => setIsManualBacktestOverride(!isManualBacktestOverride)}
+                  >
+                    <Pencil className="w-3.5 h-3.5 mr-1" />
+                    {isManualBacktestOverride ? "Use Auto Mode" : "Manual Edit"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Manual Override Inputs (shown if manual mode is enabled) */}
+              {isManualBacktestOverride && (
+                <div className="p-3.5 rounded-lg border border-amber-500/40 bg-amber-500/5 space-y-3">
+                  <div className="text-xs font-semibold text-amber-400">Manual Override Mode Active</div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Trades Taken</Label>
+                      <Input
+                        type="number"
+                        value={backtestTradesTaken}
+                        onChange={(e) => setBacktestTradesTaken(e.target.value === "" ? "" : Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Trades Skipped</Label>
+                      <Input
+                        type="number"
+                        value={backtestTradesSkipped}
+                        onChange={(e) => setBacktestTradesSkipped(e.target.value === "" ? "" : Number(e.target.value))}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Win Rate</Label>
+                      <Input
+                        value={backtestWinRate}
+                        onChange={(e) => setBacktestWinRate(e.target.value)}
+                        placeholder="e.g. 55%"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Net R</Label>
+                      <Input
+                        value={backtestNetR}
+                        onChange={(e) => setBacktestNetR(e.target.value)}
+                        placeholder="e.g. +4R"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Largest Loss</Label>
+                      <Input
+                        value={backtestLargestLoss}
+                        onChange={(e) => setBacktestLargestLoss(e.target.value)}
+                        placeholder="e.g. -1R"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Week's Trades List */}
+              {weekTradesList.length === 0 ? (
+                <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-lg bg-background/50">
+                  No trades found in your journal for this week. Enter replay numbers manually or log trades in your journal.
+                </div>
+              ) : (
+                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+                  {weekTradesList.map((t, idx) => {
+                    const isSkipped = !!replaySkippedTradeIds[t.id];
+                    const tradeR = (t.netR ?? (t.pnl / defaultPlannedRisk));
+                    const rawDate = new Date(Number(t.timestamp));
+                    const formattedDate = rawDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+                    return (
+                      <div
+                        key={t.id}
+                        className={cn(
+                          "p-2.5 rounded-lg border text-xs flex items-center justify-between gap-3 transition-all select-none",
+                          isSkipped
+                            ? "border-amber-500/30 bg-amber-500/[0.04] opacity-80"
+                            : "border-border/60 bg-background/80 hover:bg-background"
+                        )}
+                      >
+                        {/* Trade Info */}
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <span className="font-mono text-muted-foreground text-[10px] shrink-0">
+                            #{idx + 1}
+                          </span>
+                          <span className="font-mono text-[11px] text-muted-foreground shrink-0">
+                            {formattedDate}
+                          </span>
+                          <span className={cn(
+                            "text-[10px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0",
+                            t.direction === "long" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"
+                          )}>
+                            {t.direction}
+                          </span>
+                          <span className="font-bold text-foreground shrink-0">{t.instrument}</span>
+                          <span className={cn(
+                            "font-mono font-bold shrink-0",
+                            t.pnl >= 0 ? "text-emerald-400" : "text-destructive"
+                          )}>
+                            {t.pnl >= 0 ? "+" : ""}{tradeR.toFixed(1)}R
+                          </span>
+                          {t.mistakes && (
+                            <span className="text-[10px] text-destructive/80 italic truncate hidden md:inline">
+                              ⚠️ {t.mistakes}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Segmented Action Button */}
+                        <div className="flex items-center gap-1 shrink-0 bg-muted/40 p-0.5 rounded-lg border border-border/50">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleReplaySkipped(t.id, false)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer",
+                              !isSkipped
+                                ? "bg-emerald-500 text-black shadow-sm font-black"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            ✓ Taken
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleReplaySkipped(t.id, true)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-md text-[10px] font-bold transition-all cursor-pointer",
+                              isSkipped
+                                ? "bg-amber-500 text-black shadow-sm font-black"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            ✗ Skipped
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Optional: Include Missed Setups into Replay */}
+              {missedTrades.length > 0 && (
+                <div className="pt-2 border-t border-border/40 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    Include Valid Missed Setups in Replay (Optional):
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {missedTrades.map(m => {
+                      const isIncluded = !!replayIncludedMissedIds[m.id];
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => handleToggleReplayMissed(m.id)}
+                          className={cn(
+                            "text-xs px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer",
+                            isIncluded
+                              ? "border-emerald-500/80 bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-500/40 font-bold"
+                              : "border-border bg-background/50 text-muted-foreground hover:border-border/80"
+                          )}
+                        >
+                          <span>{isIncluded ? "✓" : "+"}</span>
+                          <span className="font-semibold">{m.instrument} {m.direction}</span>
+                          <span className="font-mono text-emerald-400 font-bold">{m.estimatedR || "+1R"}</span>
+                          {m.date && <span className="text-[10px] text-muted-foreground">({m.date})</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="space-y-2">
@@ -1561,6 +1960,11 @@ const cleanUnicodeEscapes = (str: string) => {
                       >
                         <div className="flex items-center gap-2 flex-wrap flex-1">
                           {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground mr-1" /> : <ChevronDown className="w-4 h-4 text-muted-foreground mr-1" />}
+                          {t.date && (
+                            <span className="text-[11px] font-mono text-muted-foreground/90 bg-muted/40 px-2 py-0.5 rounded border border-border/40">
+                              {t.date}
+                            </span>
+                          )}
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${t.direction === "long" ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"}`}>
                             {t.direction.toUpperCase()}
                           </span>
@@ -1691,19 +2095,45 @@ const cleanUnicodeEscapes = (str: string) => {
               />
             </div>
             <div className="space-y-2">
-              <Label>Rule-Based Net R</Label>
+              <div className="flex items-center justify-between">
+                <Label>Rule-Based Net R</Label>
+                {replayCalculations.netRStr && (
+                  <button
+                    type="button"
+                    onClick={() => setRuleBasedNetR(replayCalculations.netRStr)}
+                    className="text-[10px] font-mono text-emerald-400 hover:underline cursor-pointer"
+                  >
+                    Fill: {replayCalculations.netRStr}
+                  </button>
+                )}
+              </div>
               <Input
-                value={ruleBasedNetR}
+                value={ruleBasedNetR !== "" ? ruleBasedNetR : (backtestNetR || "")}
                 onChange={(e) => setRuleBasedNetR(e.target.value)}
                 placeholder="e.g. +4R"
+                className="font-mono font-bold text-emerald-400"
               />
             </div>
             <div className="space-y-2">
-              <Label>Difference</Label>
+              <div className="flex items-center justify-between">
+                <Label>Difference</Label>
+                {weekTotalTrades > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const diff = (replayCalculations.totalR - weekTotalNetR);
+                      setComparisonDifference(`${diff >= 0 ? "+" : ""}${diff.toFixed(1)}R ${diff >= 0 ? "edge gained" : "lost"}`);
+                    }}
+                    className="text-[10px] font-mono text-primary hover:underline cursor-pointer"
+                  >
+                    Fill: {(replayCalculations.totalR - weekTotalNetR) >= 0 ? "+" : ""}{(replayCalculations.totalR - weekTotalNetR).toFixed(1)}R
+                  </button>
+                )}
+              </div>
               <Input
                 value={comparisonDifference}
                 onChange={(e) => setComparisonDifference(e.target.value)}
-                placeholder="e.g. 6R missed"
+                placeholder="e.g. +3.5R edge gained"
               />
             </div>
           </div>
