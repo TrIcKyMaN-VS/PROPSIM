@@ -773,40 +773,17 @@ const cleanUnicodeEscapes = (str: string) => {
     setRulesBuilt(updated);
   };
 
-  // Active and testing rules currently in force (from master Rule Book + newly built in this review)
-  const activeAndTestingRules = useMemo(() => {
-    const map = new Map<string, { when: string; then: string; from: string; status: string; id?: string }>();
+  const [showMasterRulesRef, setShowMasterRulesRef] = useState(false);
 
-    // 1. From master Rule Book
-    ruleBookEntries
-      .filter((r: any) => r.status !== "retired")
-      .forEach((r: any) => {
-        map.set(r.condition + "||" + r.action, {
-          when: r.condition,
-          then: r.action,
-          from: r.fromMistake || (r.weekAdded ? `Week ${r.weekAdded}` : "Rule Book"),
-          status: r.status,
-          id: r.id,
-        });
-      });
+  // New rules built from this week (specifically being backtested in Section 3)
+  const newRulesForBacktest = useMemo(() => {
+    return rulesBuilt.filter((r) => r.when?.trim() && r.then?.trim());
+  }, [rulesBuilt]);
 
-    // 2. Add newly built rules from Section 2 for this week
-    rulesBuilt.forEach((r) => {
-      if (r.when?.trim() && r.then?.trim()) {
-        const key = r.when + "||" + r.then;
-        if (!map.has(key)) {
-          map.set(key, {
-            when: r.when,
-            then: r.then,
-            from: r.from || `Week ${weekOf}`,
-            status: "testing",
-          });
-        }
-      }
-    });
-
-    return Array.from(map.values());
-  }, [ruleBookEntries, rulesBuilt, weekOf]);
+  // Master running rules (from Rule Book)
+  const masterRunningRules = useMemo(() => {
+    return ruleBookEntries.filter((r: any) => r.status !== "retired");
+  }, [ruleBookEntries]);
 
   return (
     <>
@@ -1334,33 +1311,34 @@ const cleanUnicodeEscapes = (str: string) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* PDF Page 9 Rule Log */}
+          {/* PDF Page 9 Rule Log — Rules applied for replay */}
           <div className="rounded-xl border border-border/80 bg-muted/20 p-4 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-primary" /> Rule Log &mdash; Rules In Force For Replay
+                  <BookOpen className="w-4 h-4 text-primary" /> Rule Log &mdash; New Rules Built This Week (Applied for Replay)
                 </h4>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Your active and testing rules applied during this replay
+                  Replay the same week with your new rules in force. Any trade that violated these rules is counted as skipped.
                 </p>
               </div>
               <Badge variant="outline" className="font-mono text-[11px] font-bold">
-                {activeAndTestingRules.length} Rule{activeAndTestingRules.length === 1 ? "" : "s"} In Force
+                {newRulesForBacktest.length} New Rule{newRulesForBacktest.length === 1 ? "" : "s"} Built
               </Badge>
             </div>
 
-            {activeAndTestingRules.length === 0 ? (
-              <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-lg bg-background/50">
-                No active or testing rules currently in force. Build rules in Section 2 above to begin backtesting against them.
+            {newRulesForBacktest.length === 0 ? (
+              <div className="text-center py-6 text-xs text-muted-foreground border border-dashed rounded-lg bg-background/50 space-y-1">
+                <p className="font-medium text-foreground">No new rules built in Section 2 yet.</p>
+                <p>Add new rules above in Section 2 from this week's mistakes to backtest them against your charts.</p>
               </div>
             ) : (
               <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-background/80">
-                {activeAndTestingRules.map((rule, rIdx) => (
+                {newRulesForBacktest.map((rule, rIdx) => (
                   <div key={rIdx} className="p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <span className="font-mono font-black text-muted-foreground text-xs shrink-0 mt-0.5">
-                        #{rIdx + 1}
+                        RULE #{rIdx + 1}
                       </span>
                       <div className="space-y-1 min-w-0">
                         <div className="text-foreground">
@@ -1381,18 +1359,44 @@ const cleanUnicodeEscapes = (str: string) => {
                     <div className="shrink-0">
                       <Badge 
                         variant="outline" 
-                        className={cn(
-                          "font-mono text-[10px] uppercase font-bold px-2 py-0.5",
-                          rule.status === "active" 
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" 
-                            : "bg-amber-500/10 text-amber-400 border-amber-500/30"
-                        )}
+                        className="font-mono text-[10px] uppercase font-bold px-2 py-0.5 bg-amber-500/10 text-amber-400 border-amber-500/30"
                       >
-                        {rule.status || "TESTING"}
+                        NEW (TESTING)
                       </Badge>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Collapsible reference to Master Rule Book */}
+            {masterRunningRules.length > 0 && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowMasterRulesRef(!showMasterRulesRef)}
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-mono transition-colors"
+                >
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", showMasterRulesRef && "rotate-180")} />
+                  {showMasterRulesRef ? "Hide" : "Show"} Master Rule Book Reference ({masterRunningRules.length} existing rules)
+                </button>
+
+                {showMasterRulesRef && (
+                  <div className="mt-2.5 divide-y divide-border/40 overflow-hidden rounded-lg border border-border/50 bg-background/50 text-[11px]">
+                    {masterRunningRules.map((r: any, idx: number) => (
+                      <div key={idx} className="p-2.5 flex items-center justify-between gap-2 text-muted-foreground">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-bold text-foreground mr-2">#{idx + 1}</span>
+                          <span className="text-amber-400 font-semibold mr-1">WHEN</span> {r.condition}{" "}
+                          <span className="text-emerald-400 font-semibold mx-1">&rarr; THEN</span> {r.action}
+                        </div>
+                        <Badge variant="outline" className="font-mono text-[9px] uppercase shrink-0">
+                          {r.status}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1687,21 +1691,32 @@ const cleanUnicodeEscapes = (str: string) => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>The ONE rule I will not break</Label>
-              {activeAndTestingRules.length > 0 && (
+              {(newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
                 <span className="text-xs text-muted-foreground">Click a rule below to select it:</span>
               )}
             </div>
-            {activeAndTestingRules.length > 0 && (
+            {(newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
               <div className="flex gap-2 flex-wrap pb-1">
-                {activeAndTestingRules.map((r, i) => (
+                {newRulesForBacktest.map((r, i) => (
                   <button
-                    key={i}
+                    key={`new-${i}`}
                     type="button"
-                    onClick={() => setOneRuleNotBreak(`Rule #${i + 1}: ${r.then}`)}
-                    className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/30 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-xs truncate"
+                    onClick={() => setOneRuleNotBreak(`New Rule #${i + 1}: ${r.then}`)}
+                    className="text-left text-xs px-2.5 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 hover:border-amber-500/60 transition-colors max-w-xs truncate"
                     title={`WHEN ${r.when} -> THEN ${r.then}`}
                   >
-                    <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.then}
+                    <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> {r.then}
+                  </button>
+                ))}
+                {masterRunningRules.map((r: any, i: number) => (
+                  <button
+                    key={`master-${i}`}
+                    type="button"
+                    onClick={() => setOneRuleNotBreak(`Rule #${i + 1}: ${r.action}`)}
+                    className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/30 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-xs truncate"
+                    title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                  >
+                    <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.action}
                   </button>
                 ))}
               </div>
