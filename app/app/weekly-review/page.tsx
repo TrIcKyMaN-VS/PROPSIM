@@ -1097,142 +1097,6 @@ const cleanUnicodeEscapes = (str: string) => {
         </CardContent>
       </Card>
 
-      {/* RULE ACCOUNTABILITY (PDF Mentorship Framework) */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3 flex-wrap">
-          <div className="flex items-center gap-2">
-            <ClipboardCheck className="w-5 h-5 text-primary" />
-            <div>
-              <CardTitle>Rule Accountability &amp; Evaluation</CardTitle>
-              <CardDescription className="mt-0.5">
-                Evaluate adherence and effectiveness of your running rules ({previousWeekOf || "Master Rule Book"})
-              </CardDescription>
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" asChild className="text-xs font-mono gap-1 text-muted-foreground hover:text-foreground">
-            <a href="/app/rule-book" target="_blank" rel="noopener noreferrer">
-              <BookOpen className="w-3.5 h-3.5" /> Open Rule Book
-            </a>
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {ruleEvaluations.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-8 border border-dashed rounded-xl space-y-2">
-              <p className="font-semibold text-foreground">No running rules to evaluate yet.</p>
-              <p className="text-xs max-w-md mx-auto">
-                Turn your weekly repeated mistakes into rules in Section 2 below. Once created, they join your running Rule Book and are reviewed here every weekend.
-              </p>
-            </div>
-          ) : (
-            ruleEvaluations.map((ev, idx) => (
-              <div key={idx} className="border border-border/60 rounded-xl p-4 space-y-4 bg-muted/10">
-                {/* Rule summary */}
-                <div className="space-y-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold font-mono text-muted-foreground">RULE #{idx + 1}</span>
-                    {ruleIdMap[ev.when + "||" + ev.then] && (
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
-                        IN RULE BOOK
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-amber-500 mt-1">When (Trigger)</div>
-                  <div className="text-sm text-foreground font-medium">{ev.when || <span className="italic text-muted-foreground">&mdash;</span>}</div>
-                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-500 mt-2">Then (Action)</div>
-                  <div className="text-sm text-foreground font-medium">{ev.then || <span className="italic text-muted-foreground">&mdash;</span>}</div>
-                  {ev.from && (
-                    <div className="text-xs text-muted-foreground mt-1 italic">Born from: {ev.from}</div>
-                  )}
-                </div>
-
-                {/* Follow Status */}
-                <div className="space-y-2 pt-1 border-t border-border/40">
-                  <Label className="text-xs uppercase tracking-widest font-bold">Did you follow this rule?</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {(["followed", "broke", "na"] as const).map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => updateEval(idx, { followStatus: opt })}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                          ev.followStatus === opt
-                            ? opt === "followed" ? "bg-success text-success-foreground border-success"
-                              : opt === "broke" ? "bg-destructive text-destructive-foreground border-destructive"
-                              : "bg-muted text-foreground border-border"
-                            : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
-                        }`}
-                      >
-                        {opt === "followed" ? "Followed" : opt === "broke" ? "Broke It" : "No Opportunity"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Help Status — only if followed */}
-                {ev.followStatus === "followed" && (
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-widest font-bold">Did following it help?</Label>
-                    <div className="flex gap-2 flex-wrap">
-                      {(["helped", "no_diff", "worse"] as const).map(opt => (
-                        <button
-                          key={opt}
-                          type="button"
-                          onClick={() => updateEval(idx, { helpStatus: opt })}
-                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                            ev.helpStatus === opt
-                              ? opt === "helped" ? "bg-success text-success-foreground border-success"
-                                : opt === "worse" ? "bg-destructive text-destructive-foreground border-destructive"
-                                : "bg-muted text-foreground border-border"
-                              : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
-                          }`}
-                        >
-                          {opt === "helped" ? "Yes, it helped" : opt === "no_diff" ? "No difference" : "Made it worse"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Verdict */}
-                <div className="space-y-2">
-                  <Label className="text-xs uppercase tracking-widest font-bold">Verdict</Label>
-                  <div className="flex gap-2 flex-wrap">
-                    {(["keep", "adjust", "retire"] as const).map(opt => (
-                      <button
-                        key={opt}
-                        type="button"
-                        onClick={() => updateEval(idx, { verdict: opt })}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
-                          ev.verdict === opt
-                            ? opt === "keep" ? "bg-success text-success-foreground border-success"
-                              : opt === "retire" ? "bg-destructive text-destructive-foreground border-destructive"
-                              : "bg-amber-500 text-white border-amber-500"
-                            : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
-                        }`}
-                      >
-                        {opt === "keep" ? "Keep" : opt === "adjust" ? "Adjust" : "Retire"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Adjustment note — only if verdict is adjust */}
-                {ev.verdict === "adjust" && (
-                  <div className="space-y-2">
-                    <Label className="text-xs uppercase tracking-widest font-bold">How should this rule change?</Label>
-                    <AutoTextarea
-                      value={ev.adjustmentNote}
-                      onChange={(e) => updateEval(idx, { adjustmentNote: e.target.value })}
-                      placeholder="e.g. Instead of 10 mins, I'll step away for only 3 mins..."
-                    />
-                  </div>
-                )}
-              </div>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
       {/* 2. RULES BUILT */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
@@ -1760,61 +1624,149 @@ const cleanUnicodeEscapes = (str: string) => {
               <div className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border bg-background/60">
                 {ruleBookEntries.map((rule: any, idx: number) => {
                   const status = rule.status || "testing";
+                  const evalItem = ruleEvaluations.find(e => e.when === rule.condition && e.then === rule.action);
+                  const evalIdx = ruleEvaluations.findIndex(e => e.when === rule.condition && e.then === rule.action);
+
                   return (
-                    <div key={rule.id || idx} className="p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs hover:bg-muted/20 transition-colors">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <span className="font-mono font-bold text-muted-foreground text-xs shrink-0 mt-0.5">
-                          #{idx + 1}
-                        </span>
-                        <div className="space-y-1 min-w-0">
-                          <div className="text-foreground">
-                            <span className="font-bold text-amber-500 mr-1.5 uppercase text-[10px] tracking-wider">WHEN</span>
-                            <span className="font-medium">{rule.condition}</span>
+                    <div key={rule.id || idx} className="p-4 space-y-3 text-xs hover:bg-muted/10 transition-colors">
+                      {/* Top bar: Rule info & Status selector */}
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <span className="font-mono font-bold text-muted-foreground text-xs shrink-0 mt-0.5">
+                            #{idx + 1}
+                          </span>
+                          <div className="space-y-1 min-w-0">
+                            <div className="text-foreground">
+                              <span className="font-bold text-amber-500 mr-1.5 uppercase text-[10px] tracking-wider">WHEN</span>
+                              <span className="font-medium">{rule.condition}</span>
+                            </div>
+                            <div className="text-foreground">
+                              <span className="font-bold text-emerald-500 mr-1.5 uppercase text-[10px] tracking-wider">THEN</span>
+                              <span className="font-medium">{rule.action}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+                              {rule.fromMistake && (
+                                <span className="italic">From: {rule.fromMistake}</span>
+                              )}
+                              {rule.weekAdded && (
+                                <span className="font-mono">Born: {rule.weekAdded}</span>
+                              )}
+                              {(rule.reviewCount > 0 || rule.helpCount > 0) && (
+                                <span className="font-mono text-primary font-semibold">
+                                  Reviewed {rule.reviewCount || 0}x &bull; Helped {rule.helpCount || 0}x
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-foreground">
-                            <span className="font-bold text-emerald-500 mr-1.5 uppercase text-[10px] tracking-wider">THEN</span>
-                            <span className="font-medium">{rule.action}</span>
-                          </div>
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap pt-0.5">
-                            {rule.fromMistake && (
-                              <span className="italic">From: {rule.fromMistake}</span>
-                            )}
-                            {rule.weekAdded && (
-                              <span className="font-mono">Born: {rule.weekAdded}</span>
-                            )}
-                            {(rule.reviewCount > 0 || rule.helpCount > 0) && (
-                              <span className="font-mono text-primary font-semibold">
-                                Reviewed {rule.reviewCount || 0}x &bull; Helped {rule.helpCount || 0}x
-                              </span>
-                            )}
-                          </div>
+                        </div>
+
+                        {/* 3-way status toggle */}
+                        <div className="flex items-center gap-1.5 shrink-0 bg-muted/40 p-1 rounded-lg border border-border/60">
+                          {(["testing", "active", "retired"] as const).map((s) => {
+                            const isSelected = status === s;
+                            return (
+                              <button
+                                key={s}
+                                type="button"
+                                onClick={() => handleUpdateRuleStatus(rule.id, s)}
+                                className={cn(
+                                  "px-2.5 py-1 rounded-md font-mono text-[10px] font-bold uppercase transition-all",
+                                  isSelected
+                                    ? s === "active"
+                                      ? "bg-emerald-500 text-black shadow-sm font-black"
+                                      : s === "testing"
+                                      ? "bg-amber-500 text-black shadow-sm font-black"
+                                      : "bg-muted-foreground/30 text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                                )}
+                              >
+                                {s === "testing" ? "Testing (W1-3)" : s}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
 
-                      {/* 3-way status toggle */}
-                      <div className="flex items-center gap-1.5 shrink-0 bg-muted/40 p-1 rounded-lg border border-border/60">
-                        {(["testing", "active", "retired"] as const).map((s) => {
-                          const isSelected = status === s;
-                          return (
-                            <button
-                              key={s}
-                              type="button"
-                              onClick={() => handleUpdateRuleStatus(rule.id, s)}
-                              className={cn(
-                                "px-2.5 py-1 rounded-md font-mono text-[10px] font-bold uppercase transition-all",
-                                isSelected
-                                  ? s === "active"
-                                    ? "bg-emerald-500 text-black shadow-sm font-black"
-                                    : s === "testing"
-                                    ? "bg-amber-500 text-black shadow-sm font-black"
-                                    : "bg-muted-foreground/30 text-foreground shadow-sm"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                              )}
-                            >
-                              {s === "testing" ? "Testing (W1-3)" : s}
-                            </button>
-                          );
-                        })}
+                      {/* Adherence & Effectiveness for this review week */}
+                      <div className="pt-2 border-t border-border/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-muted/20 p-2.5 rounded-lg">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                            Followed this week?
+                          </span>
+                          {(["followed", "broke", "na"] as const).map((opt) => {
+                            const current = evalItem?.followStatus;
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                onClick={() => {
+                                  if (evalIdx !== -1) {
+                                    updateEval(evalIdx, { followStatus: opt });
+                                  } else {
+                                    setRuleEvaluations(prev => [
+                                      ...prev,
+                                      {
+                                        when: rule.condition,
+                                        then: rule.action,
+                                        from: rule.fromMistake || "",
+                                        followStatus: opt,
+                                        helpStatus: "",
+                                        verdict: "",
+                                        adjustmentNote: "",
+                                      }
+                                    ]);
+                                  }
+                                }}
+                                className={cn(
+                                  "px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors",
+                                  current === opt
+                                    ? opt === "followed"
+                                      ? "bg-success text-success-foreground border-success"
+                                      : opt === "broke"
+                                      ? "bg-destructive text-destructive-foreground border-destructive"
+                                      : "bg-muted text-foreground border-border"
+                                    : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
+                                )}
+                              >
+                                {opt === "followed" ? "Followed" : opt === "broke" ? "Broke It" : "No Opportunity"}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {evalItem?.followStatus === "followed" && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                              Did it help?
+                            </span>
+                            {(["helped", "no_diff", "worse"] as const).map((opt) => {
+                              const currentHelp = evalItem?.helpStatus;
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  onClick={() => {
+                                    if (evalIdx !== -1) {
+                                      updateEval(evalIdx, { helpStatus: opt });
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-2.5 py-0.5 rounded-full text-[10px] font-bold border transition-colors",
+                                    currentHelp === opt
+                                      ? opt === "helped"
+                                        ? "bg-success text-success-foreground border-success"
+                                        : opt === "worse"
+                                        ? "bg-destructive text-destructive-foreground border-destructive"
+                                        : "bg-muted text-foreground border-border"
+                                      : "bg-transparent text-muted-foreground border-border hover:border-foreground/40"
+                                  )}
+                                >
+                                  {opt === "helped" ? "Yes, helped" : opt === "no_diff" ? "No difference" : "Made worse"}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
