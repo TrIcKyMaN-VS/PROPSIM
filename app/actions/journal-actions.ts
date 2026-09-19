@@ -92,6 +92,12 @@ export async function getPreviousWeeklyReview(currentWeekOf: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) throw new Error("Unauthorized")
 
+  // Fetch all master RuleBook entries for this user
+  const masterRules = await prisma.ruleBook.findMany({
+    where: { userId: session.user.id, status: { not: "retired" } },
+    orderBy: { createdAt: "asc" },
+  })
+
   // Get all weekly reviews ordered by weekOf desc
   const allReviews = await prisma.weeklyReview.findMany({
     where: { userId: session.user.id },
@@ -101,7 +107,6 @@ export async function getPreviousWeeklyReview(currentWeekOf: string) {
 
   // Find the most recent week BEFORE currentWeekOf
   const prev = allReviews.find(r => r.weekOf < currentWeekOf)
-  if (!prev) return null
 
   // Collect all ever-retired rule signatures across ALL weeks
   const retiredSignatures = new Set<string>()
@@ -118,14 +123,58 @@ export async function getPreviousWeeklyReview(currentWeekOf: string) {
     }
   }
 
-  // Parse previous week's rules and filter out retired ones
-  let prevRules: Array<{ when: string; then: string; from: string }> = []
-  if (prev.rulesBuilt) {
+  // Combine rules from master RuleBook and previous weekly reviews
+  const ruleMap = new Map<string, { when: string; then: string; from: string; status?: string; id?: string }>()
+
+  // 1. First add from master RuleBook (excluding retired ones)
+  for (const r of masterRules) {
+    const sig = r.condition + '||' + r.action
+    if (!retiredSignatures.has(sig)) {
+      // If rule was added in an earlier week, or has no week, or is active/testing
+      if (!r.weekAdded || r.weekAdded < currentWeekOf) {
+        ruleMap.set(sig, {
+          when: r.condition,
+          then: r.action,
+          from: r.fromMistake || (r.weekAdded ? `Week ${r.weekAdded}` : "Rule Book"),
+          status: r.status,
+          id: r.id
+        })
+      }
+    }
+  }
+
+  // 2. Also incorporate previous review rulesBuilt if any exist
+  if (prev?.rulesBuilt) {
     try {
       const parsed = JSON.parse(prev.rulesBuilt)
-      prevRules = parsed.filter((r: any) => !retiredSignatures.has(r.when + '||' + r.then))
+      for (const r of parsed) {
+        const sig = r.when + '||' + r.then
+        if (!retiredSignatures.has(sig) && !ruleMap.has(sig)) {
+          ruleMap.set(sig, {
+            when: r.when,
+            then: r.then,
+            from: r.from || `Week ${prev.weekOf}`,
+          })
+        }
+      }
     } catch {}
   }
+
+  // If no earlier rules found specifically before currentWeekOf, but master rules exist, load active & testing master rules
+  let prevRules = Array.from(ruleMap.values())
+  if (prevRules.length === 0 && masterRules.length > 0) {
+    prevRules = masterRules
+      .filter(r => !retiredSignatures.has(r.condition + '||' + r.action))
+      .map(r => ({
+        when: r.condition,
+        then: r.action,
+        from: r.fromMistake || (r.weekAdded ? `Week ${r.weekAdded}` : "Rule Book"),
+        status: r.status,
+        id: r.id
+      }))
+  }
+
+  const previousWeekLabel = prev?.weekOf || (prevRules.length > 0 ? "Rule Book" : null)
 
   // Get saved evaluations for current week (if editing)
   const currentWeek = allReviews.find(r => r.weekOf === currentWeekOf)
@@ -134,7 +183,7 @@ export async function getPreviousWeeklyReview(currentWeekOf: string) {
     try { savedEvals = JSON.parse(currentWeek.ruleEvaluations) } catch {}
   }
 
-  return { previousWeekOf: prev.weekOf, rules: prevRules, savedEvals }
+  return { previousWeekOf: previousWeekLabel, rules: prevRules, savedEvals }
 }
 
 export async function getWeeklyReview(weekOf: string) {
