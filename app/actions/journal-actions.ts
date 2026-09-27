@@ -17,6 +17,26 @@ export async function getDailyJournal(date: string) {
   })
 }
 
+export async function getLatestDailyJournal(beforeDate?: string) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  return prisma.dailyJournal.findFirst({
+    where: {
+      userId: session.user.id,
+      ...(beforeDate ? { date: { lt: beforeDate } } : {})
+    },
+    orderBy: { date: "desc" },
+    select: {
+      session: true,
+      instrument: true,
+      riskPerTrade: true,
+      maxTrades: true,
+      maxDailyLoss: true
+    }
+  })
+}
+
 
 
 async function saveLocalFile(fileName: string, buffer: Buffer): Promise<string> {

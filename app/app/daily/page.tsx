@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo } from "react"
 import { usePropStore } from "@/lib/store"
-import { getDailyJournal, saveDailyJournal, uploadImageFormData } from "@/app/actions/journal-actions"
+import { getDailyJournal, getLatestDailyJournal, saveDailyJournal, uploadImageFormData } from "@/app/actions/journal-actions"
+import { getRuleBookEntries } from "@/app/actions/rulebook-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { Save, Loader2, ImageIcon, Upload, ChevronDown, ChevronUp, Link, Maximize2, ChevronRight, ArrowLeft, Trash2 } from "lucide-react"
+import { Save, Loader2, ImageIcon, Upload, ChevronDown, ChevronUp, Link, Maximize2, ChevronRight, ArrowLeft, Trash2, Plus, Check, X, BookOpen, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Trade } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -384,13 +385,42 @@ export default function DailyJournalPage() {
   const [tomorrowRemove, setTomorrowRemove] = useState("")
   const [tomorrowConsider, setTomorrowConsider] = useState("")
   const [netR, setNetR] = useState("")
-  const [rulesBroken, setRulesBroken] = useState("")
+  const [rulesBrokenList, setRulesBrokenList] = useState<string[]>([])
+  const [customRuleInput, setCustomRuleInput] = useState("")
+  const [ruleBookRules, setRuleBookRules] = useState<{ id: string; condition: string; action: string; status: string }[]>([])
+  const [showRuleSelector, setShowRuleSelector] = useState(false)
+  const [isAutoFilled, setIsAutoFilled] = useState(false)
+
+  // Load Rule Book rules on mount
+  useEffect(() => {
+    getRuleBookEntries()
+      .then(rules => {
+        setRuleBookRules(rules.filter(r => r.status !== "retired"))
+      })
+      .catch(() => {})
+  }, [])
+
+  function parseRulesBroken(val?: string | null): string[] {
+    if (!val || !val.trim()) return []
+    const trimmed = val.trim()
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
+      } catch {}
+    }
+    if (trimmed.includes(" | ")) {
+      return trimmed.split(" | ").map(s => s.trim()).filter(Boolean)
+    }
+    return [trimmed]
+  }
 
   // Load from DB on date change
   useEffect(() => {
     setLoading(true)
-    getDailyJournal(date).then(data => {
+    getDailyJournal(date).then(async data => {
       if (data) {
+        setIsAutoFilled(false)
         setSession(data.session ?? "NY")
         setInstrument(data.instrument ?? "")
         setHtfContext(data.htfContext ?? "")
@@ -421,20 +451,40 @@ export default function DailyJournalPage() {
         setTomorrowRemove(data.tomorrowRemove ?? "")
         setTomorrowConsider(data.tomorrowConsider ?? "")
         setNetR(data.netR ?? "")
-        setRulesBroken(data.rulesBroken ?? "")
+        setRulesBrokenList(parseRulesBroken(data.rulesBroken))
         setPreMarketScreenshots(data.preMarketScreenshots ?? [])
         setPostSessionScreenshots(data.postSessionScreenshots ?? [])
       } else {
-        setSession("NY")
-        setInstrument("")
+        try {
+          const prev = await getLatestDailyJournal(date)
+          if (prev) {
+            setIsAutoFilled(true)
+            setSession(prev.session ?? "NY")
+            setInstrument(prev.instrument ?? "")
+            setRiskPerTrade(prev.riskPerTrade ?? "")
+            setMaxTrades(prev.maxTrades?.toString() ?? "")
+            setMaxDailyLoss(prev.maxDailyLoss ?? "")
+          } else {
+            setIsAutoFilled(false)
+            setSession("NY")
+            setInstrument("")
+            setRiskPerTrade("")
+            setMaxTrades("")
+            setMaxDailyLoss("")
+          }
+        } catch {
+          setIsAutoFilled(false)
+          setSession("NY")
+          setInstrument("")
+          setRiskPerTrade("")
+          setMaxTrades("")
+          setMaxDailyLoss("")
+        }
         setHtfContext("")
         setKeyLevels("")
         setScenarioAIf(""); setScenarioAThen("")
         setScenarioBIf(""); setScenarioBThen("")
         setNewsEventRisk("")
-        setRiskPerTrade("")
-        setMaxTrades("")
-        setMaxDailyLoss("")
         setStateCheck("")
         setStateCheckNotes("")
         setIsRedDay(false)
@@ -446,7 +496,7 @@ export default function DailyJournalPage() {
         setOverallThoughtProcess("")
         setTomorrowAdd(""); setTomorrowRemove(""); setTomorrowConsider("")
         setNetR("")
-        setRulesBroken("")
+        setRulesBrokenList([])
         setPreMarketScreenshots([])
         setPostSessionScreenshots([])
       }
@@ -500,7 +550,7 @@ export default function DailyJournalPage() {
         planAdherence: planAdherence ? parseInt(planAdherence) : null,
         planAdherenceWhy, overallThoughtProcess,
         tomorrowAdd, tomorrowRemove, tomorrowConsider,
-        netR, rulesBroken,
+        netR, rulesBroken: rulesBrokenList.join(" | "),
         preMarketScreenshots,
         postSessionScreenshots,
       })
@@ -529,7 +579,14 @@ export default function DailyJournalPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground text-sm">Pre-market plan + post-session review</p>
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              <p className="text-muted-foreground text-sm">Pre-market plan + post-session review</p>
+              {isAutoFilled && (
+                <Badge variant="outline" className="text-[10px] font-medium bg-primary/10 text-primary border-primary/30 flex items-center gap-1 py-0 px-2">
+                  <Sparkles className="w-3 h-3" /> Auto-filled defaults from previous day
+                </Badge>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <DatePicker value={date} onChange={setDate} className="w-[180px] bg-background" />
@@ -754,8 +811,152 @@ export default function DailyJournalPage() {
               </Badge>
             </div>
           </JournalField>
-          <JournalField title="Rules Broken" className="md:col-span-1">
-            <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={rulesBroken} onChange={e => setRulesBroken(e.target.value)} placeholder="Did you break any rules?" />
+          <JournalField title="Rules Broken" className="md:col-span-1" colorClass="bg-rose-400">
+            <div className="space-y-3">
+              {/* Active Selected Rule Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[32px]">
+                {rulesBrokenList.length === 0 ? (
+                  <span className="text-xs text-muted-foreground/60 italic">No rules flagged yet. Select below or mark clean:</span>
+                ) : (
+                  rulesBrokenList.map((rule, idx) => {
+                    const isClean = rule.toUpperCase() === "NO" || rule.toLowerCase().includes("followed all")
+                    return (
+                      <Badge
+                        key={idx}
+                        variant="outline"
+                        className={cn(
+                          "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all",
+                          isClean
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-rose-500/10 text-rose-300 border-rose-500/30"
+                        )}
+                      >
+                        <span>{isClean ? "🎯 " + rule : "⚠️ " + rule}</span>
+                        <button
+                          type="button"
+                          onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
+                          className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Quick Controls: Followed All Rules Toggle + Rule Book Selector Toggle */}
+              <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (rulesBrokenList.some(r => r.toUpperCase() === "NO")) {
+                      setRulesBrokenList(list => list.filter(r => r.toUpperCase() !== "NO"))
+                    } else {
+                      setRulesBrokenList(["NO"])
+                    }
+                  }}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-semibold border flex items-center gap-1.5 transition-all",
+                    rulesBrokenList.some(r => r.toUpperCase() === "NO")
+                      ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
+                      : "bg-muted/20 text-muted-foreground border-border hover:border-emerald-500/40 hover:text-emerald-400"
+                  )}
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  Followed All Rules (NO)
+                </button>
+
+                {ruleBookRules.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowRuleSelector(!showRuleSelector)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-semibold border flex items-center gap-1.5 transition-all",
+                      showRuleSelector
+                        ? "bg-primary/20 text-primary border-primary/50"
+                        : "bg-muted/20 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    Select from Rule Book ({ruleBookRules.length})
+                    {showRuleSelector ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                )}
+              </div>
+
+              {/* Expandable Rule Book Selection Menu */}
+              {showRuleSelector && (
+                <div className="p-2.5 rounded-lg border border-border/60 bg-muted/20 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                    Click rule to toggle:
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                    {ruleBookRules.map(rb => {
+                      const ruleLabel = `WHEN ${rb.condition} THEN ${rb.action}`
+                      const isSelected = rulesBrokenList.includes(ruleLabel)
+                      return (
+                        <button
+                          key={rb.id}
+                          type="button"
+                          onClick={() => {
+                            if (isSelected) {
+                              setRulesBrokenList(list => list.filter(r => r !== ruleLabel))
+                            } else {
+                              setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), ruleLabel])
+                            }
+                          }}
+                          className={cn(
+                            "text-left p-2 rounded-md text-xs border transition-all flex items-start gap-2",
+                            isSelected
+                              ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
+                              : "bg-card/60 text-muted-foreground border-border hover:border-rose-500/30 hover:text-foreground"
+                          )}
+                        >
+                          <span className={cn("mt-0.5 w-2 h-2 rounded-full shrink-0", isSelected ? "bg-rose-500" : "bg-muted-foreground/40")} />
+                          <span className="line-clamp-2 leading-relaxed">{ruleLabel}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Free-Text Input Row */}
+              <div className="flex items-center gap-2 pt-0.5">
+                <Input
+                  value={customRuleInput}
+                  onChange={e => setCustomRuleInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" && customRuleInput.trim()) {
+                      e.preventDefault()
+                      const val = customRuleInput.trim()
+                      if (!rulesBrokenList.includes(val)) {
+                        setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), val])
+                      }
+                      setCustomRuleInput("")
+                    }
+                  }}
+                  placeholder="Type custom rule or note..."
+                  className="h-8 text-xs bg-muted/20 border-border/60 focus-visible:ring-1 focus-visible:ring-primary/40 flex-1"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="h-8 text-xs font-semibold px-3"
+                  onClick={() => {
+                    const val = customRuleInput.trim()
+                    if (val && !rulesBrokenList.includes(val)) {
+                      setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), val])
+                      setCustomRuleInput("")
+                    }
+                  }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" /> Add
+                </Button>
+              </div>
+            </div>
           </JournalField>
         </div>
 
