@@ -590,6 +590,7 @@ model DailyJournal {
 model RuleBook {
   id        String   @id @default(cuid())
   userId    String
+  title     String?  // Rule Heading / Title (e.g. "Level Confirmation", "Trendline Break")
   condition String
   action    String
   fromMistake String?

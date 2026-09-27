@@ -461,18 +461,41 @@ export default function DailyJournalPage() {
   const [netR, setNetR] = useState("")
   const [rulesBrokenList, setRulesBrokenList] = useState<string[]>([])
   const [customRuleInput, setCustomRuleInput] = useState("")
-  const [ruleBookRules, setRuleBookRules] = useState<{ id: string; condition: string; action: string; status: string }[]>([])
+  const [ruleBookRules, setRuleBookRules] = useState<{ id: string; title?: string | null; condition: string; action: string; status: string; stableIndex?: number }[]>([])
   const [showRuleSelector, setShowRuleSelector] = useState(false)
   const [isAutoFilled, setIsAutoFilled] = useState(false)
 
-  // Load Rule Book rules on mount
+  // Load Rule Book rules on mount with stable chronological order
   useEffect(() => {
     getRuleBookEntries()
       .then(rules => {
-        setRuleBookRules(rules.filter(r => r.status !== "retired"))
+        setRuleBookRules(rules.filter(r => r.status !== "retired").map((r, i) => ({ ...r, stableIndex: i + 1 })))
       })
       .catch(() => {})
   }, [])
+
+  function getRuleBadgeText(ruleStr: string): { title: string; fullText: string; isClean: boolean } {
+    const isClean = ruleStr.toUpperCase() === "NO" || ruleStr.toLowerCase().includes("followed all")
+    if (isClean) return { title: "Followed All Rules (NO)", fullText: "Followed All Rules", isClean: true }
+
+    // Check if rule matches any rule in ruleBookRules
+    const match = ruleBookRules.find(r => 
+      (r.title && r.title.toLowerCase() === ruleStr.toLowerCase()) ||
+      (`WHEN ${r.condition} THEN ${r.action}`.toLowerCase() === ruleStr.toLowerCase()) ||
+      (r.condition.toLowerCase() === ruleStr.toLowerCase()) ||
+      (ruleStr.toLowerCase().includes(r.condition.toLowerCase()))
+    )
+
+    if (match) {
+      const title = match.title ? `Rule #${match.stableIndex}: ${match.title}` : `Rule #${match.stableIndex}: WHEN ${match.condition}`
+      const fullText = `WHEN ${match.condition} THEN ${match.action}`
+      return { title, fullText, isClean: false }
+    }
+
+    // Custom text entered by user
+    const title = ruleStr.length > 45 ? ruleStr.substring(0, 42) + "..." : ruleStr
+    return { title, fullText: ruleStr, isClean: false }
+  }
 
   function parseRulesBroken(val?: string | null): string[] {
     if (!val || !val.trim()) return []
@@ -1210,7 +1233,7 @@ export default function DailyJournalPage() {
           ))}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_3fr] gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_3fr] gap-4 min-w-0">
           <JournalField title="Net R (Total R-Multiple)" colorClass="bg-cyan-400">
             <div className="flex items-center gap-2">
               <Input
@@ -1224,31 +1247,34 @@ export default function DailyJournalPage() {
               </Badge>
             </div>
           </JournalField>
-          <JournalField title="Rules Broken" className="md:col-span-1" colorClass="bg-rose-400">
-            <div className="space-y-3">
+          <JournalField title="Rules Broken" className="md:col-span-1 min-w-0 overflow-hidden" colorClass="bg-rose-400">
+            <div className="space-y-3 min-w-0">
               {/* Active Selected Rule Chips */}
-              <div className="flex flex-wrap items-center gap-1.5 min-h-[32px]">
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[32px] min-w-0 max-w-full">
                 {rulesBrokenList.length === 0 ? (
                   <span className="text-xs text-muted-foreground/60 italic">No rules flagged yet. Select below or mark clean:</span>
                 ) : (
                   rulesBrokenList.map((rule, idx) => {
-                    const isClean = rule.toUpperCase() === "NO" || rule.toLowerCase().includes("followed all")
+                    const badgeInfo = getRuleBadgeText(rule)
                     return (
                       <Badge
                         key={idx}
                         variant="outline"
+                        title={badgeInfo.fullText}
                         className={cn(
-                          "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all",
-                          isClean
+                          "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all max-w-full min-w-0",
+                          badgeInfo.isClean
                             ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
                             : "bg-rose-500/10 text-rose-300 border-rose-500/30"
                         )}
                       >
-                        <span>{isClean ? "🎯 " + rule : "⚠️ " + rule}</span>
+                        <span className="truncate max-w-[260px] sm:max-w-[340px]" title={badgeInfo.fullText}>
+                          {badgeInfo.isClean ? "🎯 " + badgeInfo.title : "⚠️ " + badgeInfo.title}
+                        </span>
                         <button
                           type="button"
                           onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
-                          className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground"
+                          className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground shrink-0"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -1305,29 +1331,50 @@ export default function DailyJournalPage() {
                     Click rule to toggle:
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                    {ruleBookRules.map(rb => {
-                      const ruleLabel = `WHEN ${rb.condition} THEN ${rb.action}`
-                      const isSelected = rulesBrokenList.includes(ruleLabel)
+                    {ruleBookRules.map((rb, rIdx) => {
+                      const ruleIdentifier = rb.title ? rb.title : `WHEN ${rb.condition} THEN ${rb.action}`
+                      const isSelected = rulesBrokenList.some(r => 
+                        r === ruleIdentifier || 
+                        (rb.title && r.toLowerCase() === rb.title.toLowerCase()) ||
+                        r === `WHEN ${rb.condition} THEN ${rb.action}` ||
+                        r.toLowerCase().includes(rb.condition.toLowerCase())
+                      )
                       return (
                         <button
                           key={rb.id}
                           type="button"
                           onClick={() => {
                             if (isSelected) {
-                              setRulesBrokenList(list => list.filter(r => r !== ruleLabel))
+                              setRulesBrokenList(list => list.filter(r => 
+                                r !== ruleIdentifier && 
+                                !(rb.title && r.toLowerCase() === rb.title.toLowerCase()) &&
+                                r !== `WHEN ${rb.condition} THEN ${rb.action}` &&
+                                !r.toLowerCase().includes(rb.condition.toLowerCase())
+                              ))
                             } else {
-                              setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), ruleLabel])
+                              setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), ruleIdentifier])
                             }
                           }}
                           className={cn(
-                            "text-left p-2 rounded-md text-xs border transition-all flex items-start gap-2",
+                            "text-left p-2.5 rounded-md text-xs border transition-all flex flex-col gap-1 min-w-0 overflow-hidden",
                             isSelected
                               ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
                               : "bg-card/60 text-muted-foreground border-border hover:border-rose-500/30 hover:text-foreground"
                           )}
                         >
-                          <span className={cn("mt-0.5 w-2 h-2 rounded-full shrink-0", isSelected ? "bg-rose-500" : "bg-muted-foreground/40")} />
-                          <span className="line-clamp-2 leading-relaxed">{ruleLabel}</span>
+                          <div className="flex items-center gap-1.5 w-full min-w-0">
+                            <span className={cn("w-2 h-2 rounded-full shrink-0", isSelected ? "bg-rose-500" : "bg-muted-foreground/40")} />
+                            <span className="font-bold text-foreground truncate">
+                              {rb.title ? (
+                                <span>Rule #{rb.stableIndex || (rIdx + 1)}: {rb.title}</span>
+                              ) : (
+                                <span>Rule #{rb.stableIndex || (rIdx + 1)}</span>
+                              )}
+                            </span>
+                          </div>
+                          <span className="line-clamp-2 text-[11px] opacity-80 pl-3.5">
+                            WHEN {rb.condition} &rarr; THEN {rb.action}
+                          </span>
                         </button>
                       )
                     })}

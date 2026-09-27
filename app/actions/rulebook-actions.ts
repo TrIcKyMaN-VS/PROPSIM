@@ -9,7 +9,7 @@ export async function getRuleBookEntries() {
   if (!session?.user?.id) throw new Error("Unauthorized")
   const rules = await prisma.ruleBook.findMany({
     where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   })
   return rules.map(r => ({
     ...r,
@@ -18,6 +18,7 @@ export async function getRuleBookEntries() {
 }
 
 export async function createRuleBookEntry(data: {
+  title?: string
   condition: string
   action: string
   fromMistake?: string
@@ -37,6 +38,7 @@ export async function createRuleBookEntry(data: {
   const rule = await prisma.ruleBook.create({
     data: {
       userId: session.user.id,
+      title: data.title?.trim() || null,
       condition: data.condition,
       action: data.action,
       fromMistake: data.fromMistake || null,
@@ -45,6 +47,28 @@ export async function createRuleBookEntry(data: {
     },
   })
   return { rule, isDuplicate: false }
+}
+
+export async function updateRuleBookEntry(id: string, data: {
+  title?: string
+  condition?: string
+  action?: string
+  fromMistake?: string
+  status?: string
+}) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  return prisma.ruleBook.update({
+    where: { id },
+    data: {
+      ...(data.title !== undefined ? { title: data.title?.trim() || null } : {}),
+      ...(data.condition !== undefined ? { condition: data.condition.trim() } : {}),
+      ...(data.action !== undefined ? { action: data.action.trim() } : {}),
+      ...(data.fromMistake !== undefined ? { fromMistake: data.fromMistake?.trim() || null } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
+    },
+  })
 }
 
 export async function updateRuleBookStatus(id: string, status: string) {

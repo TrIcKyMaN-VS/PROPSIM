@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { 
   Plus, Save, Trash2, ChevronDown, ChevronRight, History, Loader2, 
   Search, ShieldCheck, Zap, Archive, BookOpen, ArrowRight, AlertCircle, 
-  CheckCircle2, Sparkles, Filter, Bookmark, TrendingUp
+  CheckCircle2, Sparkles, Filter, Bookmark, TrendingUp, Pencil, X
 } from "lucide-react"
 import { toast } from "sonner"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -25,8 +25,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
   getRuleBookEntries,
   createRuleBookEntry,
+  updateRuleBookEntry,
   updateRuleBookStatus,
   deleteRuleBookEntry,
 } from "@/app/actions/rulebook-actions"
@@ -58,10 +66,16 @@ export default function RuleBookPage() {
   const [saving, setSaving] = useState(false)
   const [adding, setAdding] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "reviewed">("newest")
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "reviewed">("oldest")
   const [expandedHistory, setExpandedHistory] = useState<Record<string, boolean>>({})
 
+  // Edit rule state
+  const [editingRule, setEditingRule] = useState<any | null>(null)
+  const [editForm, setEditForm] = useState({ id: "", title: "", condition: "", action: "", fromMistake: "" })
+  const [updating, setUpdating] = useState(false)
+
   const [form, setForm] = useState({
+    title: "",
     condition: "",
     action: "",
     fromMistake: "",
@@ -70,7 +84,9 @@ export default function RuleBookPage() {
   const load = async () => {
     try {
       const data = await getRuleBookEntries()
-      setRules(data)
+      // Attach permanent chronological numbering so Rule #1 is always Rule #1
+      const withIndex = data.map((r, i) => ({ ...r, stableIndex: i + 1 }))
+      setRules(withIndex)
     } catch {
       toast.error("Failed to load rules")
     } finally {
@@ -86,19 +102,46 @@ export default function RuleBookPage() {
     }
     setSaving(true)
     try {
-      const res = await createRuleBookEntry({ ...form, fromMistake: form.fromMistake || undefined })
+      const res = await createRuleBookEntry({ 
+        title: form.title || undefined,
+        condition: form.condition, 
+        action: form.action, 
+        fromMistake: form.fromMistake || undefined 
+      })
       if (res.isDuplicate) {
         toast.warning("This rule already exists in your Rule Book")
       } else {
         toast.success("Rule added to Rule Book")
         setAdding(false)
-        setForm({ condition: "", action: "", fromMistake: "" })
+        setForm({ title: "", condition: "", action: "", fromMistake: "" })
         await load()
       }
     } catch {
       toast.error("Failed to save rule")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleUpdateRule = async () => {
+    if (!editForm.condition.trim() || !editForm.action.trim()) {
+      return toast.error("WHEN condition and THEN action are required")
+    }
+    setUpdating(true)
+    try {
+      await updateRuleBookEntry(editForm.id, {
+        title: editForm.title || undefined,
+        condition: editForm.condition,
+        action: editForm.action,
+        fromMistake: editForm.fromMistake || undefined,
+      })
+      toast.success("Rule updated successfully!")
+      setEditingRule(null)
+      await load()
+    } catch {
+      toast.error("Failed to update rule")
+    } finally {
+      setUpdating(false)
     }
   }
 
@@ -166,10 +209,10 @@ export default function RuleBookPage() {
       <div className={`group relative rounded-2xl border border-border/80 bg-card/60 backdrop-blur-xl p-5 md:p-6 transition-all duration-300 hover:border-primary/40 ${cfg.border} ${cfg.glow}`}>
         
         {/* Top Header Row */}
-        <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-3 mb-4">
+        <div className="flex items-start justify-between gap-4 border-b border-border/40 pb-3 mb-3">
           <div className="flex items-center gap-2.5 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-md bg-muted/60 border border-border text-[11px] font-black uppercase tracking-wider text-foreground font-mono">
-              RULE #{index + 1}
+              RULE #{rule.stableIndex || (index + 1)}
             </span>
             <span className="text-xs text-muted-foreground font-mono">
               {new Date(rule.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
@@ -181,7 +224,26 @@ export default function RuleBookPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            {/* Edit Rule Button */}
+            <button
+              onClick={() => {
+                setEditingRule(rule)
+                setEditForm({
+                  id: rule.id,
+                  title: rule.title || "",
+                  condition: rule.condition || "",
+                  action: rule.action || "",
+                  fromMistake: rule.fromMistake || ""
+                })
+              }}
+              className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all flex items-center gap-1.5"
+              title="Edit Heading and Rule"
+            >
+              <Pencil className="w-3 h-3 text-primary" />
+              <span>Edit</span>
+            </button>
+
             {/* Status Custom Dropdown Select */}
             <select
               className={`text-xs font-bold uppercase tracking-wider border rounded-lg px-2.5 py-1.5 cursor-pointer bg-background/80 focus:ring-2 focus:ring-primary/40 outline-none transition-all ${cfg.badge}`}
@@ -202,6 +264,38 @@ export default function RuleBookPage() {
               <Trash2 className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Prominent Rule Heading / Title */}
+        <div className="mb-3.5">
+          {rule.title ? (
+            <h3 className="text-base font-bold text-foreground tracking-tight flex items-center gap-2">
+              <span className="text-primary font-mono text-xs font-black px-1.5 py-0.5 rounded bg-primary/10 border border-primary/20">
+                #{rule.stableIndex || (index + 1)}
+              </span>
+              <span>{rule.title}</span>
+            </h3>
+          ) : (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground/70 italic">
+              <span>No heading added yet.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingRule(rule)
+                  setEditForm({
+                    id: rule.id,
+                    title: "",
+                    condition: rule.condition || "",
+                    action: rule.action || "",
+                    fromMistake: rule.fromMistake || ""
+                  })
+                }}
+                className="text-primary hover:underline not-italic font-semibold flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Add Heading
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Core WHEN & THEN Condition Blocks */}
@@ -382,6 +476,18 @@ export default function RuleBookPage() {
           </CardHeader>
           <CardContent className="space-y-4 pt-4">
             <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Rule Heading / Title (Short Name)
+              </Label>
+              <Input
+                placeholder="e.g. Level Confirmation, Trendline Break, 2-Loss Hard Stop..."
+                value={form.title}
+                onChange={e => setForm({ ...form, title: e.target.value })}
+                className="bg-muted/20 border-border/80 font-semibold"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
               <Label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                 <AlertCircle className="w-3.5 h-3.5" /> WHEN (Condition / Trigger)
               </Label>
@@ -424,6 +530,79 @@ export default function RuleBookPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Edit Rule Dialog */}
+      <Dialog open={editingRule !== null} onOpenChange={(open) => !open && setEditingRule(null)}>
+        <DialogContent className="max-w-xl bg-card border-border/80 shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base uppercase tracking-wider flex items-center gap-2 text-primary">
+              <Pencil className="w-4 h-4" /> Edit Rule #{editingRule?.stableIndex || ""}
+            </DialogTitle>
+            <DialogDescription>
+              Update rule heading, trigger condition, and execution action.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Rule Heading / Title (Short Name)
+              </Label>
+              <Input
+                placeholder="e.g. Level Confirmation, Trendline Break..."
+                value={editForm.title}
+                onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                className="font-semibold bg-muted/20"
+                autoFocus
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5" /> WHEN (Condition / Trigger)
+              </Label>
+              <Textarea
+                placeholder="e.g. Price reaches key level..."
+                value={editForm.condition}
+                onChange={e => setEditForm(f => ({ ...f, condition: e.target.value }))}
+                className="bg-muted/20 resize-none h-20 border-border/80 focus:border-amber-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                <ArrowRight className="w-3.5 h-3.5" /> THEN (Action / Execution Plan)
+              </Label>
+              <Textarea
+                placeholder="e.g. Wait for confirmation..."
+                value={editForm.action}
+                onChange={e => setEditForm(f => ({ ...f, action: e.target.value }))}
+                className="bg-muted/20 resize-none h-20 border-border/80 focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <Bookmark className="w-3.5 h-3.5" /> Born from mistake / Trade Note (Optional)
+              </Label>
+              <Input
+                placeholder="e.g. Chased market order on Aug 28"
+                value={editForm.fromMistake}
+                onChange={e => setEditForm(f => ({ ...f, fromMistake: e.target.value }))}
+                className="bg-muted/20 border-border/80"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+              <Button variant="ghost" onClick={() => setEditingRule(null)}>Cancel</Button>
+              <Button onClick={handleUpdateRule} disabled={updating} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
+                {updating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                {updating ? "Saving..." : "Save Changes"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search & Sort Controls Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">

@@ -224,13 +224,14 @@ export default function WeeklyReviewPage() {
 
   // Available rules for selection when checking "Filtered by Rule"
   const availableRulesList = useMemo(() => {
-    const list: { id: string; label: string; when: string; then: string; source: "book" | "new"; index: number }[] = [];
+    const list: { id: string; label: string; title?: string | null; when: string; then: string; source: "book" | "new"; index: number }[] = [];
     ruleBookEntries
       .filter((r: any) => r.status !== "retired")
       .forEach((r: any, i: number) => {
         list.push({
           id: r.id,
-          label: `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`,
+          label: r.title ? `Rule #${i + 1}: ${r.title}` : `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`,
+          title: r.title,
           when: r.condition,
           then: r.action,
           source: "book",
@@ -244,6 +245,7 @@ export default function WeeklyReviewPage() {
           list.push({
             id: `new-${i}`,
             label: `New Rule #${i + 1}: WHEN ${r.when} THEN ${r.then}`,
+            title: null,
             when: r.when,
             then: r.then,
             source: "new",
@@ -547,16 +549,23 @@ export default function WeeklyReviewPage() {
 
                                 <div className="flex-1 min-w-0 space-y-1">
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className={cn(
-                                      "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider",
-                                      isSelected
-                                        ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40"
-                                        : "bg-muted text-muted-foreground border border-border/40"
-                                    )}>
-                                      {r.source === "new" ? `New Rule #${r.index}` : `Rule #${r.index}`}
-                                    </span>
+                                    <div className="flex items-center gap-1.5 min-w-0">
+                                      <span className={cn(
+                                        "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0",
+                                        isSelected
+                                          ? "bg-emerald-500/25 text-emerald-300 border border-emerald-500/40"
+                                          : "bg-muted text-muted-foreground border border-border/40"
+                                      )}>
+                                        {r.source === "new" ? `New Rule #${r.index}` : `Rule #${r.index}`}
+                                      </span>
+                                      {r.title && (
+                                        <span className="text-xs font-bold text-foreground truncate">
+                                          {r.title}
+                                        </span>
+                                      )}
+                                    </div>
                                     {isSelected && (
-                                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
                                         ✓ Selected
                                       </span>
                                     )}
@@ -1626,7 +1635,10 @@ const cleanUnicodeEscapes = (str: string) => {
                     {masterRunningRules.map((r: any, idx: number) => (
                       <div key={idx} className="p-2.5 flex items-center justify-between gap-2 text-muted-foreground">
                         <div className="min-w-0 flex-1">
-                          <span className="font-bold text-foreground mr-2">#{idx + 1}</span>
+                          <span className="font-bold text-foreground mr-1.5">#{idx + 1}</span>
+                          {r.title && (
+                            <span className="font-bold text-primary mr-2">[{r.title}]</span>
+                          )}
                           <span className="text-amber-400 font-semibold mr-1">WHEN</span> {r.condition}{" "}
                           <span className="text-emerald-400 font-semibold mx-1">&rarr; THEN</span> {r.action}
                         </div>
@@ -2270,20 +2282,23 @@ const cleanUnicodeEscapes = (str: string) => {
                         <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> WHEN {r.when} THEN {r.then}
                       </button>
                     ))}
-                    {masterRunningRules.map((r: any, i: number) => (
-                      <button
-                        key={`master-save-${i}`}
-                        type="button"
-                        onClick={() => {
-                          setRuleSavedMost(`Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`);
-                          setShowSavedRulePicker(false);
-                        }}
-                        className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
-                        title={`WHEN ${r.condition} -> THEN ${r.action}`}
-                      >
-                        <span className="font-bold text-primary mr-1">#{i + 1}</span> WHEN {r.condition} THEN {r.action}
-                      </button>
-                    ))}
+                    {masterRunningRules.map((r: any, i: number) => {
+                      const displayTitle = r.title ? `Rule #${i + 1}: ${r.title}` : `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`;
+                      return (
+                        <button
+                          key={`master-save-${i}`}
+                          type="button"
+                          onClick={() => {
+                            setRuleSavedMost(displayTitle);
+                            setShowSavedRulePicker(false);
+                          }}
+                          className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
+                          title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                        >
+                          <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.title ? r.title : `WHEN ${r.condition} THEN ${r.action}`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2352,20 +2367,23 @@ const cleanUnicodeEscapes = (str: string) => {
                         <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> WHEN {r.when} THEN {r.then}
                       </button>
                     ))}
-                    {masterRunningRules.map((r: any, i: number) => (
-                      <button
-                        key={`master-filter-${i}`}
-                        type="button"
-                        onClick={() => {
-                          setRuleFilteredGoodTrade(`Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`);
-                          setShowFilteredRulePicker(false);
-                        }}
-                        className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
-                        title={`WHEN ${r.condition} -> THEN ${r.action}`}
-                      >
-                        <span className="font-bold text-primary mr-1">#{i + 1}</span> WHEN {r.condition} THEN {r.action}
-                      </button>
-                    ))}
+                    {masterRunningRules.map((r: any, i: number) => {
+                      const displayTitle = r.title ? `Rule #${i + 1}: ${r.title}` : `Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`;
+                      return (
+                        <button
+                          key={`master-filter-${i}`}
+                          type="button"
+                          onClick={() => {
+                            setRuleFilteredGoodTrade(displayTitle);
+                            setShowFilteredRulePicker(false);
+                          }}
+                          className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
+                          title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                        >
+                          <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.title ? r.title : `WHEN ${r.condition} THEN ${r.action}`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -2408,17 +2426,20 @@ const cleanUnicodeEscapes = (str: string) => {
                     <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> {r.then}
                   </button>
                 ))}
-                {masterRunningRules.map((r: any, i: number) => (
-                  <button
-                    key={`master-${i}`}
-                    type="button"
-                    onClick={() => setOneRuleNotBreak(`Rule #${i + 1}: ${r.action}`)}
-                    className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/30 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-xs truncate"
-                    title={`WHEN ${r.condition} -> THEN ${r.action}`}
-                  >
-                    <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.action}
-                  </button>
-                ))}
+                {masterRunningRules.map((r: any, i: number) => {
+                  const displayTitle = r.title ? `Rule #${i + 1}: ${r.title}` : `Rule #${i + 1}: ${r.action}`;
+                  return (
+                    <button
+                      key={`master-${i}`}
+                      type="button"
+                      onClick={() => setOneRuleNotBreak(displayTitle)}
+                      className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/30 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-xs truncate"
+                      title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                    >
+                      <span className="font-bold text-primary mr-1">#{i + 1}</span> {r.title || r.action}
+                    </button>
+                  );
+                })}
               </div>
             )}
             <AutoTextarea value={oneRuleNotBreak}
