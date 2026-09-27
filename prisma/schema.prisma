@@ -46,6 +46,7 @@ model User {
   dailyJournals       DailyJournal[]
   weeklyReviews       WeeklyReview[]
   monthlyRecaps       MonthlyRecap[]
+  deletedTrades       DeletedTrade[]
 }
 
 model DeviceSession {
@@ -370,6 +371,20 @@ model ImportLog {
   message           String?
   createdAt         DateTime @default(now())
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DeletedTrade {
+  id              String   @id @default(cuid())
+  userId          String
+  accountId       String?
+  providerTradeId String?
+  instrument      String?
+  timestamp       BigInt?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, providerTradeId])
+  @@index([userId, instrument, timestamp])
 }
 
 model UserAiSettings {

@@ -199,7 +199,10 @@ export const usePropStore = create<PropState>()(
             return; // skip if nothing changed
           }
 
-          const activeId = parsedAccounts.find(a => !a.archivedAt && a.status === "active")?.id || parsedAccounts[0]?.id || null
+          const currentActive = get().activeAccountId
+          const activeId = (currentActive && parsedAccounts.some(a => a.id === currentActive && !a.archivedAt))
+            ? currentActive
+            : (parsedAccounts.find(a => !a.archivedAt && a.status === "active")?.id || parsedAccounts[0]?.id || null)
 
           const [
             dbPlaybooks,
@@ -371,11 +374,12 @@ export const usePropStore = create<PropState>()(
         await get().syncWithDb()
       },
       removeTrade: async (id) => {
-        set((s) => {
-          const trades = s.trades.filter((t) => t.id !== id)
-          return { trades }
-        })
+        set((s) => ({
+          trades: s.trades.filter((t) => t.id !== id),
+          tradePsychology: s.tradePsychology.filter((p) => p.tradeId !== id)
+        }))
         await deleteDbTrade(id)
+        await get().syncWithDb()
       },
 
       importTrades: async (rows, accountId) => {

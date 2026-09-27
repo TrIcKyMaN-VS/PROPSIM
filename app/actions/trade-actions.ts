@@ -306,14 +306,53 @@ export async function deleteTrade(id: string) {
 
   const trade = await prisma.trade.findUnique({
     where: { id },
-    select: { accountId: true, screenshots: { select: { url: true } } }
+    select: { 
+      accountId: true, 
+      instrument: true,
+      timestamp: true,
+      tags: true,
+      screenshots: { select: { url: true } },
+      account: { select: { userId: true } }
+    }
   })
 
+  if (!trade || trade.account.userId !== session.user.id) {
+    throw new Error("Unauthorized or trade not found")
+  }
+
   // Clean up screenshot files before deleting
-  if (trade?.screenshots) {
+  if (trade.screenshots) {
     for (const sc of trade.screenshots) {
       await deleteStorageFile(sc.url)
     }
+  }
+
+  // Record tombstone so external syncs (NinjaTrader) never re-import this deleted trade
+  let ntProviderId: string | null = null
+  if (trade.tags) {
+    try {
+      const parsedTags = JSON.parse(trade.tags)
+      if (Array.isArray(parsedTags)) {
+        const ntTag = parsedTags.find((t: string) => typeof t === "string" && t.startsWith("NT-"))
+        if (ntTag) {
+          ntProviderId = ntTag.replace(/^NT-/, "")
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    await prisma.deletedTrade.create({
+      data: {
+        userId: session.user.id,
+        accountId: trade.accountId,
+        providerTradeId: ntProviderId,
+        instrument: trade.instrument,
+        timestamp: trade.timestamp
+      }
+    })
+  } catch (err) {
+    console.error("Failed to record deleted trade tombstone:", err)
   }
 
   await prisma.trade.deleteMany({
@@ -323,9 +362,7 @@ export async function deleteTrade(id: string) {
     }
   })
 
-  if (trade) {
-    await reindexTradeDays(trade.accountId)
-  }
+  await reindexTradeDays(trade.accountId)
 }
 
 export async function addTradeScreenshot(tradeId: string, stage: string, url: string) {

@@ -8,12 +8,23 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { usePropStore } from "@/lib/store"
-import { Target, FileText, ChevronUp, ChevronDown } from "lucide-react"
+import { Target, FileText, ChevronUp, ChevronDown, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { fmtPnl } from "@/lib/format"
+import { toast } from "sonner"
 
 export function DailyReplaySheet({
   open,
@@ -29,6 +40,7 @@ export function DailyReplaySheet({
   const displayTimeMode = usePropStore(s => s.displayTimeMode)
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
   const activeAccountId = usePropStore(s => s.activeAccountId)
+  const removeTrade = usePropStore(s => s.removeTrade)
   const account = usePropStore(s => s.accounts.find(a => a.id === activeAccountId))
   const accountBalance = account?.rules?.startingBalance ?? 50000
   
@@ -36,6 +48,9 @@ export function DailyReplaySheet({
   const [openTrades, setOpenTrades] = React.useState<Record<string, boolean>>({})
   const toggleTrade = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }))
   const [viewImage, setViewImage] = React.useState<string | null>(null)
+  const [deleteConfirmId, setDeleteConfirmId] = React.useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+
   const getTradeDateKey = (timestamp: number) => {
     const date = new Date(timestamp)
     if (displayTimeMode === "Exchange Time") {
@@ -54,8 +69,8 @@ export function DailyReplaySheet({
   
   const dayTrades = React.useMemo(() => {
     if (!dateStr) return []
-    return trades.filter(t => getTradeDateKey(Number(t.timestamp)) === dateStr)
-  }, [trades, dateStr, displayTimeMode])
+    return trades.filter(t => (activeAccountId ? t.accountId === activeAccountId : true) && getTradeDateKey(Number(t.timestamp)) === dateStr)
+  }, [trades, activeAccountId, dateStr, displayTimeMode])
   const pnl = React.useMemo(() => dayTrades.reduce((s, t) => s + t.pnl, 0), [dayTrades])
   
   const winRate = React.useMemo(() => {
@@ -247,8 +262,16 @@ export function DailyReplaySheet({
                               </div>
                             </div>
                             
-                            <div className="flex justify-end pt-2">
+                            <div className="flex items-center justify-between pt-2 border-t border-border/40">
                               <button 
+                                type="button"
+                                onClick={() => setDeleteConfirmId(t.id)}
+                                className="text-xs font-bold uppercase tracking-wider text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Delete Trade
+                              </button>
+                              <button 
+                                type="button"
                                 onClick={() => router.push(`/app/journal/${t.id}`)}
                                 className="text-xs font-bold uppercase tracking-wider text-primary hover:underline flex items-center gap-1"
                               >
@@ -267,6 +290,40 @@ export function DailyReplaySheet({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmId !== null} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent className="bg-card/95 backdrop-blur-xl border-border/80">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-lg font-bold">Delete Trade Record?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs text-muted-foreground">
+              Are you sure you want to permanently delete this trade? It will be removed from your journal, calendar, and rule telemetry.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-bold" disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!deleteConfirmId) return
+                setIsDeleting(true)
+                try {
+                  await removeTrade(deleteConfirmId)
+                  toast.success("Trade deleted successfully")
+                  setDeleteConfirmId(null)
+                } catch {
+                  toast.error("Failed to delete trade")
+                } finally {
+                  setIsDeleting(false)
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
+            >
+              {isDeleting ? "Deleting..." : "Delete Trade"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

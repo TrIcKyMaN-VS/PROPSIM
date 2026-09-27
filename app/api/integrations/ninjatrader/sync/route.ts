@@ -89,6 +89,27 @@ export async function POST(req: Request) {
       }
       const scores = calculateTradeScores(mappedTrade, null)
 
+      // Tombstone check: if user previously deleted this trade in PropSim, do not re-import
+      const wasDeleted = await prisma.deletedTrade.findFirst({
+        where: {
+          userId: apiToken.userId,
+          OR: [
+            ...(payload.providerTradeId ? [{ providerTradeId: payload.providerTradeId }] : []),
+            {
+              instrument: payload.instrument,
+              timestamp: BigInt(entryTimeMs)
+            }
+          ]
+        }
+      })
+
+      if (wasDeleted) {
+        if (!isArray) {
+          return NextResponse.json({ message: "Trade was deleted by user in PropSim, skipping." }, { status: 200 })
+        }
+        continue
+      }
+
       // Duplicate prevention: check if trade with same NT providerTradeId or instrument+timestamp exists
       const ntTag = `NT-${payload.providerTradeId}`
       const existing = await prisma.trade.findFirst({
