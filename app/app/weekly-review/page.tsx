@@ -5,6 +5,7 @@ import {
   getWeeklyReview,
   saveWeeklyReview,
   getPreviousWeeklyReview,
+  getDailyJournalsForDates,
   uploadImageFormData,
 } from "@/app/actions/journal-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -192,6 +193,8 @@ export default function WeeklyReviewPage() {
   const [whatDifferenceTellsMe, setWhatDifferenceTellsMe] = useState("");
   const [ruleSavedMost, setRuleSavedMost] = useState("");
   const [ruleFilteredGoodTrade, setRuleFilteredGoodTrade] = useState("");
+  const [showSavedRulePicker, setShowSavedRulePicker] = useState(false);
+  const [showFilteredRulePicker, setShowFilteredRulePicker] = useState(false);
 
   // 5. Commitment
   const [oneRuleNotBreak, setOneRuleNotBreak] = useState("");
@@ -817,17 +820,50 @@ const cleanUnicodeEscapes = (str: string) => {
           setOneRuleNotBreak(data.oneRuleNotBreak ?? "");
           setRuleStatusUpdates(data.ruleStatusUpdates ?? "");
 
-          // Load missed trades
+          // Load missed trades from Weekly Review
+          let weeklyMissed: MissedTrade[] = [];
           if ((data as any).missedTrades) {
             try {
               const parsed = JSON.parse((data as any).missedTrades) as MissedTrade[];
-              setMissedTrades(parsed.map(t => ({
+              weeklyMissed = parsed.map(t => ({
                 ...t,
                 screenshots: t.screenshots || (t.screenshotUrl ? [t.screenshotUrl] : [])
-              })));
-            } catch { setMissedTrades([]); }
-          } else {
-            setMissedTrades([]);
+              }));
+            } catch { weeklyMissed = []; }
+          }
+
+          // Auto-pull daily missed setups from DailyJournals of this week
+          try {
+            const dailyJournals = await getDailyJournalsForDates(weekDates);
+            const pulledDailyMissed: MissedTrade[] = [];
+            dailyJournals.forEach(dj => {
+              if (dj.missedTrades) {
+                try {
+                  const parsedDaily = JSON.parse(dj.missedTrades);
+                  if (Array.isArray(parsedDaily)) {
+                    parsedDaily.forEach((d: any) => {
+                      const exists = weeklyMissed.some(wm => wm.id === d.id || (wm.date === d.date && wm.setupDescription === d.setup));
+                      if (!exists) {
+                        pulledDailyMissed.push({
+                          id: d.id || `daily_${d.date}_${Date.now()}`,
+                          instrument: d.setup || "NQ",
+                          direction: d.direction || "long",
+                          date: d.date || dj.date,
+                          setupDescription: d.setup || "",
+                          estimatedR: d.potentialR || "1",
+                          outcome: d.outcome || "win",
+                          whyMissed: d.reason || "",
+                          screenshots: d.screenshots || [],
+                        });
+                      }
+                    });
+                  }
+                } catch {}
+              }
+            });
+            setMissedTrades([...weeklyMissed, ...pulledDailyMissed]);
+          } catch {
+            setMissedTrades(weeklyMissed);
           }
         } else {
           // Reset form for fresh week
@@ -861,7 +897,37 @@ const cleanUnicodeEscapes = (str: string) => {
           setRuleFilteredGoodTrade("");
           setOneRuleNotBreak("");
           setRuleStatusUpdates("");
-          setMissedTrades([]);
+
+          // Auto-pull daily missed setups for fresh week
+          try {
+            const dailyJournals = await getDailyJournalsForDates(weekDates);
+            const pulledDailyMissed: MissedTrade[] = [];
+            dailyJournals.forEach(dj => {
+              if (dj.missedTrades) {
+                try {
+                  const parsedDaily = JSON.parse(dj.missedTrades);
+                  if (Array.isArray(parsedDaily)) {
+                    parsedDaily.forEach((d: any) => {
+                      pulledDailyMissed.push({
+                        id: d.id || `daily_${d.date}_${Date.now()}`,
+                        instrument: d.setup || "NQ",
+                        direction: d.direction || "long",
+                        date: d.date || dj.date,
+                        setupDescription: d.setup || "",
+                        estimatedR: d.potentialR || "1",
+                        outcome: d.outcome || "win",
+                        whyMissed: d.reason || "",
+                        screenshots: d.screenshots || [],
+                      });
+                    });
+                  }
+                } catch {}
+              }
+            });
+            setMissedTrades(pulledDailyMissed);
+          } catch {
+            setMissedTrades([]);
+          }
         }
 
         // Load running rules for Rule Accountability (from master RuleBook + previous reviews)
@@ -2148,12 +2214,26 @@ const cleanUnicodeEscapes = (str: string) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <Label>Rule that would have saved the most</Label>
-                {lossSavingRules.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground">Click to fill:</span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {(newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSavedRulePicker(!showSavedRulePicker)}
+                      className="text-[11px] font-medium text-primary hover:underline flex items-center gap-1"
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      {showSavedRulePicker ? "Hide Rules" : `Select from Rules (${masterRunningRules.length + newRulesForBacktest.length})`}
+                    </button>
+                  )}
+                  {lossSavingRules.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground">Click to fill:</span>
+                  )}
+                </div>
               </div>
+
+              {/* Simulation Detected Loss Saving Rules */}
               {lossSavingRules.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pb-1">
                   {lossSavingRules.map((ls, idx) => (
@@ -2168,20 +2248,74 @@ const cleanUnicodeEscapes = (str: string) => {
                   ))}
                 </div>
               )}
+
+              {/* Click-to-select Rule List from Rule Book and New Rules */}
+              {showSavedRulePicker && (newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
+                <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20 space-y-1.5 max-h-48 overflow-y-auto animate-in fade-in duration-200">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1">
+                    Click any rule to auto-fill (or edit below):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {newRulesForBacktest.map((r, i) => (
+                      <button
+                        key={`new-save-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setRuleSavedMost(`New Rule #${i + 1}: WHEN ${r.when} THEN ${r.then}`);
+                          setShowSavedRulePicker(false);
+                        }}
+                        className="text-left text-xs px-2.5 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 hover:border-amber-500/60 transition-colors max-w-full truncate"
+                        title={`WHEN ${r.when} -> THEN ${r.then}`}
+                      >
+                        <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> WHEN {r.when} THEN {r.then}
+                      </button>
+                    ))}
+                    {masterRunningRules.map((r: any, i: number) => (
+                      <button
+                        key={`master-save-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setRuleSavedMost(`Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`);
+                          setShowSavedRulePicker(false);
+                        }}
+                        className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
+                        title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                      >
+                        <span className="font-bold text-primary mr-1">#{i + 1}</span> WHEN {r.condition} THEN {r.action}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <AutoTextarea value={ruleSavedMost}
                 onChange={(e) => setRuleSavedMost(e.target.value)}
-                placeholder="e.g. Stop trading after 2 losses"
+                placeholder="e.g. Stop trading after 2 losses, or select a rule from Rule Book above"
               />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <Label>
                   Rule that filtered out a good trade (needs adjusting)
                 </Label>
-                {winFilteringRules.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground">Click to fill:</span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {(newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowFilteredRulePicker(!showFilteredRulePicker)}
+                      className="text-[11px] font-medium text-amber-400 hover:underline flex items-center gap-1"
+                    >
+                      <BookOpen className="w-3 h-3" />
+                      {showFilteredRulePicker ? "Hide Rules" : `Select from Rules (${masterRunningRules.length + newRulesForBacktest.length})`}
+                    </button>
+                  )}
+                  {winFilteringRules.length > 0 && (
+                    <span className="text-[10px] text-muted-foreground">Click to fill:</span>
+                  )}
+                </div>
               </div>
+
+              {/* Simulation Detected Win Filtering Rules */}
               {winFilteringRules.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 pb-1">
                   {winFilteringRules.map((wf, idx) => (
@@ -2196,9 +2330,49 @@ const cleanUnicodeEscapes = (str: string) => {
                   ))}
                 </div>
               )}
+
+              {/* Click-to-select Rule List from Rule Book and New Rules */}
+              {showFilteredRulePicker && (newRulesForBacktest.length > 0 || masterRunningRules.length > 0) && (
+                <div className="p-2.5 rounded-lg border border-border/70 bg-muted/20 space-y-1.5 max-h-48 overflow-y-auto animate-in fade-in duration-200">
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground mb-1">
+                    Click any rule to auto-fill (or edit below):
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {newRulesForBacktest.map((r, i) => (
+                      <button
+                        key={`new-filter-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setRuleFilteredGoodTrade(`New Rule #${i + 1}: WHEN ${r.when} THEN ${r.then}`);
+                          setShowFilteredRulePicker(false);
+                        }}
+                        className="text-left text-xs px-2.5 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 hover:border-amber-500/60 transition-colors max-w-full truncate"
+                        title={`WHEN ${r.when} -> THEN ${r.then}`}
+                      >
+                        <span className="font-bold text-amber-400 mr-1">New #{i + 1}</span> WHEN {r.when} THEN {r.then}
+                      </button>
+                    ))}
+                    {masterRunningRules.map((r: any, i: number) => (
+                      <button
+                        key={`master-filter-${i}`}
+                        type="button"
+                        onClick={() => {
+                          setRuleFilteredGoodTrade(`Rule #${i + 1}: WHEN ${r.condition} THEN ${r.action}`);
+                          setShowFilteredRulePicker(false);
+                        }}
+                        className="text-left text-xs px-2.5 py-1 rounded-md border border-border/70 bg-muted/40 hover:border-primary/60 hover:bg-primary/5 transition-colors max-w-full truncate"
+                        title={`WHEN ${r.condition} -> THEN ${r.action}`}
+                      >
+                        <span className="font-bold text-primary mr-1">#{i + 1}</span> WHEN {r.condition} THEN {r.action}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <AutoTextarea value={ruleFilteredGoodTrade}
                 onChange={(e) => setRuleFilteredGoodTrade(e.target.value)}
-                placeholder="e.g. Too tight trailing stop"
+                placeholder="e.g. Too tight trailing stop, or select a rule from Rule Book above"
               />
             </div>
           </div>

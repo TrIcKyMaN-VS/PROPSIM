@@ -322,6 +322,17 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
 
 
 
+export type DailyMissedTrade = {
+  id: string
+  date: string
+  setup: string
+  direction: "long" | "short"
+  outcome: "win" | "loss" | "breakeven"
+  potentialR: string
+  reason: string
+  screenshots: string[]
+}
+
 export default function DailyJournalPage() {
   const [date, setDate] = useState(today())
   const [loading, setLoading] = useState(false)
@@ -348,6 +359,69 @@ export default function DailyJournalPage() {
   const dayWins = useMemo(() => dayTrades.filter(t => t.pnl > 0).length, [dayTrades])
   const dayLosses = useMemo(() => dayTrades.filter(t => t.pnl < 0).length, [dayTrades])
   const dayWinRate = dayTrades.length > 0 ? Math.round((dayWins / dayTrades.length) * 100) : 0
+
+  // ---- Missed Setups / Replay state ----
+  const [missedTrades, setMissedTrades] = useState<DailyMissedTrade[]>([])
+  const [isAddingMissed, setIsAddingMissed] = useState(false)
+  const [draftSetup, setDraftSetup] = useState("")
+  const [draftDirection, setDraftDirection] = useState<"long" | "short">("long")
+  const [draftOutcome, setDraftOutcome] = useState<"win" | "loss" | "breakeven">("win")
+  const [draftPotentialR, setDraftPotentialR] = useState("+2R")
+  const [draftReason, setDraftReason] = useState("")
+  const [draftScreenshots, setDraftScreenshots] = useState<string[]>([])
+  const [uploadingMissedImg, setUploadingMissedImg] = useState(false)
+
+  const resetMissedForm = () => {
+    setIsAddingMissed(false)
+    setDraftSetup("")
+    setDraftDirection("long")
+    setDraftOutcome("win")
+    setDraftPotentialR("+2R")
+    setDraftReason("")
+    setDraftScreenshots([])
+  }
+
+  const handleAddMissed = () => {
+    if (!draftSetup.trim()) {
+      toast.error("Please enter a setup name")
+      return
+    }
+    const newMissed: DailyMissedTrade = {
+      id: `daily_${date}_${Date.now()}`,
+      date,
+      setup: draftSetup.trim(),
+      direction: draftDirection,
+      outcome: draftOutcome,
+      potentialR: draftPotentialR.trim() || "+1R",
+      reason: draftReason.trim(),
+      screenshots: draftScreenshots,
+    }
+    setMissedTrades(prev => [...prev, newMissed])
+    resetMissedForm()
+    toast.success("Missed setup added! Click Save to persist.")
+  }
+
+  const handleUploadMissedScreenshot = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    setUploadingMissedImg(true)
+    try {
+      const newUrls: string[] = []
+      for (let i = 0; i < files.length; i++) {
+        const formData = new FormData()
+        formData.append("file", files[i])
+        formData.append("prefix", "daily_missed_" + date)
+        const url = await uploadImageFormData(formData)
+        newUrls.push(url)
+      }
+      setDraftScreenshots(prev => [...prev, ...newUrls])
+    } catch {
+      toast.error("Failed to upload screenshot")
+    } finally {
+      setUploadingMissedImg(false)
+    }
+    e.target.value = ""
+  }
 
   // ---- form state ----
   const [session, setSession] = useState("NY")
@@ -454,6 +528,15 @@ export default function DailyJournalPage() {
         setRulesBrokenList(parseRulesBroken(data.rulesBroken))
         setPreMarketScreenshots(data.preMarketScreenshots ?? [])
         setPostSessionScreenshots(data.postSessionScreenshots ?? [])
+        if (data.missedTrades) {
+          try {
+            setMissedTrades(JSON.parse(data.missedTrades))
+          } catch {
+            setMissedTrades([])
+          }
+        } else {
+          setMissedTrades([])
+        }
       } else {
         try {
           const prev = await getLatestDailyJournal(date)
@@ -499,6 +582,7 @@ export default function DailyJournalPage() {
         setRulesBrokenList([])
         setPreMarketScreenshots([])
         setPostSessionScreenshots([])
+        setMissedTrades([])
       }
     }).catch(() => {}).finally(() => setLoading(false))
   }, [date])
@@ -551,6 +635,7 @@ export default function DailyJournalPage() {
         planAdherenceWhy, overallThoughtProcess,
         tomorrowAdd, tomorrowRemove, tomorrowConsider,
         netR, rulesBroken: rulesBrokenList.join(" | "),
+        missedTrades: JSON.stringify(missedTrades),
         preMarketScreenshots,
         postSessionScreenshots,
       })
@@ -717,6 +802,334 @@ export default function DailyJournalPage() {
 
       {/* -- TRADE LIST ----------------------------------------------------- */}
       <TradeListCard dayTrades={dayTrades} date={date} />
+
+      {/* -- MISSED SETUPS -------------------------------------------------- */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-2">
+          <div className="flex items-center gap-2.5">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
+              Missed Setups / Replay
+            </span>
+            {missedTrades.length > 0 && (
+              <Badge variant="outline" className="font-mono text-[10px] bg-muted/60 text-muted-foreground px-2 py-0 border-border/70">
+                {missedTrades.length} Logged
+              </Badge>
+            )}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              if (isAddingMissed) resetMissedForm()
+              else setIsAddingMissed(true)
+            }}
+            className="text-xs h-8 font-semibold"
+          >
+            {isAddingMissed ? (
+              <><X className="w-3.5 h-3.5 mr-1.5" /> Cancel</>
+            ) : (
+              <><Plus className="w-3.5 h-3.5 mr-1.5" /> Log Missed Setup</>
+            )}
+          </Button>
+        </div>
+
+        {/* Inline Add Missed Setup Form */}
+        {isAddingMissed && (
+          <div className="rounded-xl border border-primary/30 bg-muted/20 p-4 space-y-4 animate-in fade-in duration-200">
+            <div className="flex items-center justify-between border-b border-border/50 pb-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                <Plus className="w-3.5 h-3.5" /> New Missed Setup
+              </span>
+              <span className="text-[11px] text-muted-foreground">Minimal inputs &bull; Auto-syncs to Weekly Review</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {/* Setup Name */}
+              <div className="space-y-1.5 md:col-span-2">
+                <Label className="text-xs font-semibold">Setup Name <span className="text-destructive">*</span></Label>
+                <Input
+                  className="h-9 text-sm bg-background/80"
+                  placeholder="e.g. NQ 15m FVG Sweep, Trendline Break..."
+                  value={draftSetup}
+                  onChange={e => setDraftSetup(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {/* Direction Toggle */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Direction</Label>
+                <div className="grid grid-cols-2 gap-1.5 h-9">
+                  <button
+                    type="button"
+                    onClick={() => setDraftDirection("long")}
+                    className={cn(
+                      "rounded-md text-xs font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-1",
+                      draftDirection === "long"
+                        ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50 shadow-sm"
+                        : "border-border/60 text-muted-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    Long
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDraftDirection("short")}
+                    className={cn(
+                      "rounded-md text-xs font-bold uppercase tracking-wider border transition-all flex items-center justify-center gap-1",
+                      draftDirection === "short"
+                        ? "bg-rose-500/20 text-rose-400 border-rose-500/50 shadow-sm"
+                        : "border-border/60 text-muted-foreground hover:bg-muted/40"
+                    )}
+                  >
+                    Short
+                  </button>
+                </div>
+              </div>
+
+              {/* Outcome Toggle */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Outcome</Label>
+                <div className="grid grid-cols-3 gap-1 h-9">
+                  {(["win", "loss", "breakeven"] as const).map(out => (
+                    <button
+                      key={out}
+                      type="button"
+                      onClick={() => setDraftOutcome(out)}
+                      className={cn(
+                        "rounded-md text-[11px] font-bold uppercase tracking-wider border transition-all flex items-center justify-center",
+                        draftOutcome === out
+                          ? out === "win"
+                            ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50"
+                            : out === "loss"
+                            ? "bg-rose-500/20 text-rose-400 border-rose-500/50"
+                            : "bg-amber-500/20 text-amber-400 border-amber-500/50"
+                          : "border-border/60 text-muted-foreground hover:bg-muted/40"
+                      )}
+                    >
+                      {out === "breakeven" ? "BE" : out}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+              {/* Potential R */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Potential R</Label>
+                <Input
+                  className="h-9 text-sm font-mono font-bold bg-background/80"
+                  placeholder="e.g. +2.5R"
+                  value={draftPotentialR}
+                  onChange={e => setDraftPotentialR(e.target.value)}
+                />
+              </div>
+
+              {/* Why Missed / Reason */}
+              <div className="space-y-1.5 md:col-span-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">Why was it missed?</Label>
+                  <span className="text-[10px] text-muted-foreground">Quick chips or type:</span>
+                </div>
+                {/* Reason Quick Chips */}
+                <div className="flex flex-wrap gap-1.5 pb-1">
+                  {[
+                    "Hesitated",
+                    "Away from desk",
+                    "Second guessing",
+                    "Spread / Execution",
+                    "News upcoming",
+                    "Not in session",
+                  ].map(chip => (
+                    <button
+                      key={chip}
+                      type="button"
+                      onClick={() => {
+                        if (draftReason.includes(chip)) {
+                          setDraftReason(draftReason.replace(chip, "").replace(/^,\s*|,\s*$/g, "").trim())
+                        } else {
+                          setDraftReason(draftReason ? `${draftReason}, ${chip}` : chip)
+                        }
+                      }}
+                      className={cn(
+                        "text-[10px] font-medium px-2 py-0.5 rounded-full border transition-all",
+                        draftReason.includes(chip)
+                          ? "bg-primary/20 text-primary border-primary/50"
+                          : "bg-muted/40 text-muted-foreground border-border/60 hover:border-primary/40"
+                      )}
+                    >
+                      {chip}
+                    </button>
+                  ))}
+                </div>
+                <Input
+                  className="h-9 text-sm bg-background/80"
+                  placeholder="Reason or notes..."
+                  value={draftReason}
+                  onChange={e => setDraftReason(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Screenshots Multi-Upload */}
+            <div className="space-y-2 pt-1 border-t border-border/40">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-muted-foreground" /> Screenshots (Multi-upload)
+                </Label>
+                <span className="text-[10px] text-muted-foreground">Upload multiple chart views</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                {draftScreenshots.map((url, idx) => (
+                  <div key={idx} className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/20">
+                    <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setViewImage(url)}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDraftScreenshots(prev => prev.filter((_, i) => i !== idx))}
+                      className="absolute top-1 right-1 p-1 bg-black/70 hover:bg-destructive text-white rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+
+                <label className="flex flex-col items-center justify-center gap-1 border border-dashed border-border/70 rounded-lg p-2 text-center cursor-pointer hover:bg-muted/20 hover:border-primary/50 transition-colors aspect-video">
+                  {uploadingMissedImg ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      <span className="text-[10px] text-muted-foreground">Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 text-muted-foreground/60" />
+                      <span className="text-[10px] text-muted-foreground">Upload Charts</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleUploadMissedScreenshot}
+                    disabled={uploadingMissedImg}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Form Action Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
+              <Button type="button" variant="ghost" size="sm" onClick={resetMissedForm} className="text-xs">
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleAddMissed}
+                disabled={!draftSetup.trim() || uploadingMissedImg}
+                className="text-xs font-semibold"
+              >
+                Add Missed Setup
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Existing Missed Trades List */}
+        {missedTrades.length === 0 && !isAddingMissed ? (
+          <div className="rounded-xl border border-dashed border-border/60 bg-muted/10 p-5 text-center space-y-1">
+            <p className="text-xs text-muted-foreground italic">No missed setups logged for {date}.</p>
+            <p className="text-[11px] text-muted-foreground/60">If you skipped a valid trade, log it here to track in your Weekly Review replay.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {missedTrades.map((m, idx) => (
+              <div
+                key={m.id || idx}
+                className="rounded-xl border border-border/70 bg-card p-3.5 space-y-2.5 transition-all hover:border-border"
+              >
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-semibold text-sm text-foreground">{m.setup}</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider px-2 py-0",
+                        m.direction === "long"
+                          ? "bg-blue-500/10 text-blue-400 border-blue-500/30"
+                          : "bg-red-500/10 text-red-400 border-red-500/30"
+                      )}
+                    >
+                      {m.direction}
+                    </Badge>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider px-2 py-0",
+                        m.outcome === "win"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                          : m.outcome === "loss"
+                          ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                          : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                      )}
+                    >
+                      {m.outcome}
+                    </Badge>
+                    {m.potentialR && (
+                      <span className="font-mono text-xs font-bold text-cyan-400">
+                        {m.potentialR}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setMissedTrades(prev => prev.filter((_, i) => i !== idx))}
+                    className="p-1 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded transition-colors"
+                    title="Remove missed setup"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {m.reason && (
+                  <div className="text-xs text-muted-foreground leading-relaxed pl-0.5">
+                    <span className="font-semibold text-foreground/80">Reason: </span>
+                    {m.reason}
+                  </div>
+                )}
+
+                {/* Screenshots Gallery for this item */}
+                {m.screenshots && m.screenshots.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {m.screenshots.map((imgUrl, imgIdx) => (
+                      <div
+                        key={imgIdx}
+                        onClick={() => setViewImage(imgUrl)}
+                        className="group relative w-24 h-16 rounded-md overflow-hidden border border-border bg-muted/20 cursor-pointer"
+                      >
+                        <img src={imgUrl} alt={`Chart ${imgIdx + 1}`} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <SectionHeader title="Red-Day Checklist" />
       <JournalField title="Was today a negative / red day?" className={cn("transition-colors", isRedDay ? "border-destructive/30" : "border-border/60")}>

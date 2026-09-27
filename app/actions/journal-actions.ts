@@ -226,6 +226,22 @@ export async function saveWeeklyReview(weekOf: string, data: any) {
   })
 }
 
+export async function getDailyJournalsForDates(dates: string[]) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  return prisma.dailyJournal.findMany({
+    where: {
+      userId: session.user.id,
+      date: { in: dates }
+    },
+    select: {
+      date: true,
+      missedTrades: true,
+    }
+  })
+}
+
 export async function getMonthlyRecap(month: string) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return null
