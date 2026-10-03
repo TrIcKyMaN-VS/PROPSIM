@@ -354,8 +354,15 @@ function DailyJournalContent() {
   // Trades for the selected date
   const dayTrades = allTrades.filter(t => {
     if (t.accountId !== activeAccountId) return false
-    const d = new Date(Number(t.timestamp)).toISOString().split("T")[0]
-    return d === date
+    if (!t.timestamp) return false
+    const ts = Number(t.timestamp)
+    if (isNaN(ts) || ts <= 0) return false
+    try {
+      const d = new Date(ts).toISOString().split("T")[0]
+      return d === date
+    } catch {
+      return false
+    }
   })
 
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
@@ -1267,33 +1274,34 @@ function DailyJournalContent() {
                   rulesBrokenList.map((rule, idx) => {
                     const badgeInfo = getRuleBadgeText(rule)
                     return (
-                      <Tooltip key={idx}>
-                        <TooltipTrigger asChild>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all max-w-full min-w-0 cursor-default",
-                              badgeInfo.isClean
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                                : "bg-rose-500/10 text-rose-300 border-rose-500/30"
-                            )}
-                          >
-                            <span className="truncate max-w-[260px] sm:max-w-[340px]">
+                      <Badge
+                        key={idx}
+                        variant="outline"
+                        className={cn(
+                          "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all max-w-full min-w-0 cursor-default",
+                          badgeInfo.isClean
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-rose-500/10 text-rose-300 border-rose-500/30"
+                        )}
+                      >
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="truncate max-w-[260px] sm:max-w-[340px] cursor-help">
                               {badgeInfo.isClean ? "🎯 " + badgeInfo.title : "⚠️ " + badgeInfo.title}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
-                              className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </Badge>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="max-w-xs text-xs font-sans whitespace-pre-wrap">
-                          {badgeInfo.fullText}
-                        </TooltipContent>
-                      </Tooltip>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-xs text-xs font-sans whitespace-pre-wrap">
+                            {badgeInfo.fullText}
+                          </TooltipContent>
+                        </Tooltip>
+                        <button
+                          type="button"
+                          onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
+                          className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </Badge>
                     )
                   })
                 )}
@@ -1514,9 +1522,11 @@ function DailyJournalContent() {
 
 export default function DailyJournalPage() {
   return (
-    <Suspense fallback={<div className="p-12 text-center text-muted-foreground text-sm">Loading daily journal...</div>}>
-      <DailyJournalContent />
-    </Suspense>
+    <TooltipProvider delayDuration={150}>
+      <Suspense fallback={<div className="p-12 text-center text-muted-foreground text-sm">Loading daily journal...</div>}>
+        <DailyJournalContent />
+      </Suspense>
+    </TooltipProvider>
   )
 }
 
