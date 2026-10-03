@@ -164,16 +164,19 @@ ${journalBlock}
   const schema = z.object({
     repeatedMistakes: z.array(z.string()).describe(
       "Return 2-4 concise, evidence-based insights about repeated mistakes from BOTH trade records and journal entries combined. " +
+      "STRICT STYLE: Each insight must be EXACTLY ONE concise sentence of MAXIMUM 25 words directly identifying the pattern without trade-by-trade backstory. " +
       "Each insight must begin with exactly one of: 'Repeated pattern:', 'Possible pattern:', or 'Observation:'. " +
       "Return exactly ['Insufficient evidence'] if no meaningful insight exists."
     ),
     repeatedWinConditions: z.array(z.string()).describe(
       "Return 2-4 concise, evidence-based insights about conditions behind the trader's best trades, combining trade record evidence and journal context. " +
+      "STRICT STYLE: Each insight must be EXACTLY ONE concise sentence of MAXIMUM 25 words directly identifying the pattern without trade-by-trade backstory. " +
       "Each insight must begin with exactly one of: 'Repeated pattern:', 'Possible pattern:', or 'Observation:'. " +
       "Return exactly ['Insufficient evidence'] if no meaningful insight exists."
     ),
     emotionalTimingPatterns: z.array(z.string()).describe(
       "Return 2-4 concise, evidence-based insights about emotional and timing patterns, combining trade timing data and journal emotional context. " +
+      "STRICT STYLE: Each insight must be EXACTLY ONE concise sentence of MAXIMUM 25 words directly identifying the pattern without trade-by-trade backstory. " +
       "Each insight must begin with exactly one of: 'Repeated pattern:', 'Possible pattern:', or 'Observation:'. " +
       "Return exactly ['Insufficient evidence'] if no meaningful insight exists."
     )
@@ -432,7 +435,7 @@ Only report meaningful discrepancies supported by the data.
 - Avoid repeating the same pattern in multiple sections unless the distinction is genuinely useful.
 - Each insight should provide new information.
 
-15. OUTPUT SECTIONS
+15. OUTPUT SECTIONS & STRICT CONCISENESS RULES
 
 Return exactly these three sections:
 
@@ -445,25 +448,41 @@ For each section:
 - If fewer than 2 meaningful insights exist, return only the meaningful insights.
 - If no meaningful insight exists, return exactly: ["Insufficient evidence"]
 
-Every insight must begin with exactly one classification:
-- Repeated pattern:
-- Possible pattern:
-- Observation:
+STRICT CONCISENESS & SENTENCE RULES:
+1. EXACTLY ONE SENTENCE PER INSIGHT: Each insight must be a single, crisp, self-contained sentence. Never write paragraphs, bullet sub-lists, or multiple sentences.
+2. MAXIMUM 25 WORDS PER INSIGHT: Strictly keep each insight under 25 words.
+3. DIRECT PATTERN IDENTIFICATION: State the pattern directly. Do NOT write a trade-by-trade breakdown, narrative backstory, or diary explanation of individual trades.
+4. EASY TO SCAN IN 10-15 SECONDS: The weekly review reader must be able to scan and absorb all insights across all 3 sections in 10-15 seconds.
+5. COMBINE RELATED EVIDENCE: Combine related trade occurrences and journal notes into one comprehensive insight instead of creating several similar insights.
+6. NO DUPLICATION: Do not repeat the same pattern with different wording across multiple insights or sections.
+7. NO RULE CREATION: Do NOT turn observations into IF → THEN trading rules. This section is strictly for PATTERN DETECTION. (Rule creation happens separately in Section 2 of the Weekly Review).
 
-Keep each insight concise, specific, and evidence-based.
+Every insight must begin with exactly one classification label:
+- "Repeated pattern:" (recurring, well-supported across comparable data)
+- "Possible pattern:" (meaningful relationship developing or mixed)
+- "Observation:" (specific useful observation that is not yet a pattern)
 
-16. EVIDENCE AND EXAMPLES
+16. EVIDENCE AND EXAMPLES (MINIMAL & TARGETED)
 
-- When a specific trade materially supports an insight, include the relevant date and NY time.
-- Do not cite unnecessary trades.
-- Use specific examples only when they strengthen the insight.
-- Format timestamps in New York time using:
-  "Aug 28 at 09:36 AM NY"
-  "Sep 18 at 02:03 PM NY"
-  "Sep 17 session"
-- Always include the date when citing a specific trade.
-- Never output raw UTC timestamps or ISO timestamps.
-- Never output raw database IDs.
+- Do NOT include multiple trade examples, dates, or long execution explanations inside one insight.
+- If a specific trade is essential evidence, cite at most ONE date/time example (e.g. "Aug 28 at 09:36 AM NY"), and only when it materially strengthens the insight while keeping the insight strictly under 25 words.
+- Otherwise, identify the pattern directly without date citations.
+- Never output raw UTC timestamps, ISO timestamps, or raw database IDs.
+
+DESIRED OUTPUT STYLE BENCHMARK:
+
+REPEATED MISTAKES:
+- Repeated pattern: Entering before full confirmation is associated with weaker execution.
+- Repeated pattern: Aggressive stop trailing causes premature exits from valid trades.
+- Repeated pattern: Hesitation after confirmation leads to missed valid setups.
+
+REPEATED CONDITIONS BEHIND BEST TRADES:
+- Repeated pattern: Delta Reload setups with aggression or absorption appear frequently in higher-quality trades.
+- Possible pattern: Candle-close confirmation at significant Delta levels is associated with better execution.
+
+EMOTIONAL / TIMING PATTERNS NOTICED:
+- Repeated pattern: Hesitation after confirmation repeatedly results in missed valid setups.
+- Observation: Missed opportunities are sometimes followed by lower-quality trade attempts.
 
 17. TIMEZONE CONVERSION
 
@@ -554,7 +573,7 @@ ${compiledText}`
 
     const cleanStr = (s: string) => {
       if (!s) return s
-      return s
+      let res = s
         .replace(/\\u2019/g, "'")
         .replace(/\\u2018/g, "'")
         .replace(/\\u201c/g, '"')
@@ -562,10 +581,14 @@ ${compiledText}`
         .replace(/\\'/g, "'")
         .replace(/\\"/g, '"')
         .replace(/\\\\/g, '\\')
+        .trim()
+      // Strip leading bullet or dash if LLM included one
+      res = res.replace(/^[-*•]\s*/, "").trim()
+      return res
     }
 
     const formatSection = (items: string[], noDataLabel: string) => {
-      const clean = (items || []).map(cleanStr)
+      const clean = (items || []).map(cleanStr).filter(Boolean)
       if (clean.length === 0) return noDataLabel
       return clean.map(s => `- ${s}`).join("\n\n")
     }
