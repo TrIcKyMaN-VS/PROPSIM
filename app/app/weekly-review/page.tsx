@@ -7,6 +7,7 @@ import {
   getPreviousWeeklyReview,
   getDailyJournalsForDates,
   uploadImageFormData,
+  saveDailyJournal,
 } from "@/app/actions/journal-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { generateWeeklyPatterns } from "@/app/actions/weekly-review-ai-actions";
@@ -658,7 +659,7 @@ export default function WeeklyReviewPage() {
 
                 <div className="flex justify-end gap-2">
                   <Button variant="ghost" size="sm" onClick={cancelMissedForm}>Cancel</Button>
-                  <Button size="sm" onClick={saveMissedTrade} disabled={!missedDraft.instrument || !missedDraft.whyMissed || uploadingImg}>
+                  <Button size="sm" onClick={saveMissedTrade} disabled={!missedDraft.instrument || uploadingImg}>
                     {uploadingImg ? <><Loader2 className="w-3 h-3 mr-1 animate-spin" />Uploading...</> : editingMissedId ? "Save Changes" : "Add Missed Trade"}
                   </Button>
                 </div>
@@ -706,11 +707,16 @@ export default function WeeklyReviewPage() {
   };
 
   const saveMissedTrade = () => {
-    if (!missedDraft.instrument || !missedDraft.whyMissed) return;
+    if (!missedDraft.instrument) {
+      toast.error("Please enter an instrument or setup name");
+      return;
+    }
     if (editingMissedId) {
       setMissedTrades(prev => prev.map(t => t.id === editingMissedId ? missedDraft : t));
+      toast.success("Missed setup updated!");
     } else {
       setMissedTrades(prev => [...prev, { ...missedDraft, id: Math.random().toString(36).slice(2) }]);
+      toast.success("Missed setup added!");
     }
     cancelMissedForm();
   };
@@ -932,8 +938,19 @@ const cleanUnicodeEscapes = (str: string) => {
                   const parsedDaily = JSON.parse(dj.missedTrades);
                   if (Array.isArray(parsedDaily)) {
                     parsedDaily.forEach((d: any) => {
-                      const exists = weeklyMissed.some(wm => wm.id === d.id || (wm.date === d.date && wm.setupDescription === d.setup));
-                      if (!exists) {
+                      const existingIdx = weeklyMissed.findIndex(wm => wm.id === d.id || (wm.date === d.date && wm.setupDescription === d.setup));
+                      if (existingIdx !== -1) {
+                        weeklyMissed[existingIdx] = {
+                          ...weeklyMissed[existingIdx],
+                          instrument: d.setup || weeklyMissed[existingIdx].instrument,
+                          setupDescription: d.setup || weeklyMissed[existingIdx].setupDescription,
+                          direction: d.direction || weeklyMissed[existingIdx].direction,
+                          outcome: d.outcome || weeklyMissed[existingIdx].outcome,
+                          estimatedR: d.potentialR || weeklyMissed[existingIdx].estimatedR,
+                          whyMissed: d.reason || weeklyMissed[existingIdx].whyMissed,
+                          screenshots: (d.screenshots && d.screenshots.length > 0) ? d.screenshots : weeklyMissed[existingIdx].screenshots,
+                        };
+                      } else {
                         pulledDailyMissed.push({
                           id: d.id || `daily_${d.date}_${Date.now()}`,
                           instrument: d.setup || "NQ",
@@ -1153,6 +1170,58 @@ const cleanUnicodeEscapes = (str: string) => {
       }
 
       await saveWeeklyReview(weekOf, payload);
+
+      // Sync any edited daily missed trades back to their matching Daily Journals
+      try {
+        const dailyTradesToSync = missedTrades.filter(mt => mt.date);
+        if (dailyTradesToSync.length > 0 && weekDailyJournals.length > 0) {
+          for (const dj of weekDailyJournals) {
+            if (!dj.date) continue;
+            const matchingMissed = dailyTradesToSync.filter(mt => mt.date === dj.date);
+            if (matchingMissed.length > 0) {
+              let existingDailyMissed: any[] = [];
+              try {
+                if (dj.missedTrades) existingDailyMissed = JSON.parse(dj.missedTrades);
+              } catch {}
+
+              const updatedDailyList = [...existingDailyMissed];
+              matchingMissed.forEach(m => {
+                const matchIdx = updatedDailyList.findIndex(edm => edm.id === m.id || edm.setup === (m.instrument || m.setupDescription));
+                if (matchIdx !== -1) {
+                  updatedDailyList[matchIdx] = {
+                    ...updatedDailyList[matchIdx],
+                    setup: m.instrument || m.setupDescription || updatedDailyList[matchIdx].setup,
+                    direction: m.direction || updatedDailyList[matchIdx].direction,
+                    outcome: m.outcome || updatedDailyList[matchIdx].outcome,
+                    potentialR: m.estimatedR || updatedDailyList[matchIdx].potentialR,
+                    reason: m.whyMissed || updatedDailyList[matchIdx].reason,
+                    screenshots: (m.screenshots && m.screenshots.length > 0) ? m.screenshots : (updatedDailyList[matchIdx].screenshots || []),
+                  };
+                } else {
+                  updatedDailyList.push({
+                    id: m.id || `daily_${m.date}_${Date.now()}`,
+                    date: m.date,
+                    setup: m.instrument || m.setupDescription || "Setup",
+                    direction: m.direction || "long",
+                    outcome: m.outcome || "win",
+                    potentialR: m.estimatedR || "+1R",
+                    reason: m.whyMissed || "",
+                    screenshots: m.screenshots || [],
+                  });
+                }
+              });
+
+              const { id, userId, createdAt, updatedAt, ...restDj } = dj as any;
+              await saveDailyJournal(dj.date, {
+                ...restDj,
+                missedTrades: JSON.stringify(updatedDailyList),
+              });
+            }
+          }
+        }
+      } catch (syncErr) {
+        console.error("Failed to sync missed trades back to daily journals:", syncErr);
+      }
 
       // Sync rule verdicts to Rule Book
       const verdictPromises = ruleEvaluations
@@ -1496,6 +1565,55 @@ const cleanUnicodeEscapes = (str: string) => {
                     )}
                   </div>
                 </div>
+
+                {/* Missed Setups logged on this day */}
+                {dj.missedTrades && (() => {
+                  try {
+                    const dayMissed = JSON.parse(dj.missedTrades);
+                    if (Array.isArray(dayMissed) && dayMissed.length > 0) {
+                      return (
+                        <div className="pt-2.5 border-t border-border/40 space-y-1.5">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                            <span className="flex items-center gap-1.5 text-amber-400">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Missed Setups / Replay ({dayMissed.length})
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/70 font-normal">
+                              Logged for this day &bull; Editable in Section 3
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {dayMissed.map((dm: any, i: number) => (
+                              <div key={i} className="flex items-center gap-1.5 text-xs bg-muted/30 border border-border/60 rounded-md px-2.5 py-1">
+                                <span className="font-semibold text-foreground">{dm.setup}</span>
+                                <span className={cn(
+                                  "text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border",
+                                  dm.direction === "long" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" : "bg-red-500/10 text-red-400 border-red-500/30"
+                                )}>
+                                  {dm.direction}
+                                </span>
+                                <span className={cn(
+                                  "text-[9px] font-bold uppercase px-1.5 py-0.2 rounded border",
+                                  dm.outcome === "win" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : dm.outcome === "loss" ? "bg-rose-500/10 text-rose-400 border-rose-500/30" : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                )}>
+                                  {dm.outcome}
+                                </span>
+                                {dm.potentialR && (
+                                  <span className="font-mono text-[10px] text-cyan-400 font-bold">{dm.potentialR}</span>
+                                )}
+                                {dm.reason && (
+                                  <span className="text-[10px] text-muted-foreground/80 border-l border-border/50 pl-1.5 italic truncate max-w-[150px]">
+                                    {dm.reason}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                  } catch {}
+                  return null;
+                })()}
               </div>
             );
           })}
@@ -2359,21 +2477,25 @@ const cleanUnicodeEscapes = (str: string) => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 sm:opacity-85 sm:group-hover:opacity-100 transition-opacity">
                           <button
+                            type="button"
                             onClick={(e) => startEditMissed(t, e)}
-                            className="text-muted-foreground hover:text-foreground p-1 rounded transition-colors"
+                            className="text-muted-foreground hover:text-foreground hover:bg-background/80 p-1.5 rounded-md transition-colors border border-transparent hover:border-border/60 cursor-pointer"
+                            title="Edit missed setup"
                           >
-                            <Pencil className="w-4 h-4" />
+                            <Pencil className="w-3.5 h-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteMissedId(t.id);
                             }}
-                            className="text-muted-foreground hover:text-destructive p-1 rounded transition-colors"
+                            className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 p-1.5 rounded-md transition-colors border border-transparent hover:border-destructive/30 cursor-pointer"
+                            title="Delete missed setup"
                           >
-                            <Trash className="w-4 h-4" />
+                            <Trash className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
