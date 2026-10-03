@@ -12,6 +12,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -470,7 +471,7 @@ function DailyJournalContent() {
   const [netR, setNetR] = useState("")
   const [rulesBrokenList, setRulesBrokenList] = useState<string[]>([])
   const [customRuleInput, setCustomRuleInput] = useState("")
-  const [ruleBookRules, setRuleBookRules] = useState<{ id: string; title?: string | null; condition: string; action: string; status: string; stableIndex?: number }[]>([])
+  const [ruleBookRules, setRuleBookRules] = useState<{ id: string; title?: string | null; condition: string; action: string; status: string; stableIndex?: number; fromMistake?: string | null }[]>([])
   const [showRuleSelector, setShowRuleSelector] = useState(false)
   const [isAutoFilled, setIsAutoFilled] = useState(false)
 
@@ -1266,28 +1267,33 @@ function DailyJournalContent() {
                   rulesBrokenList.map((rule, idx) => {
                     const badgeInfo = getRuleBadgeText(rule)
                     return (
-                      <Badge
-                        key={idx}
-                        variant="outline"
-                        title={badgeInfo.fullText}
-                        className={cn(
-                          "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all max-w-full min-w-0",
-                          badgeInfo.isClean
-                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                            : "bg-rose-500/10 text-rose-300 border-rose-500/30"
-                        )}
-                      >
-                        <span className="truncate max-w-[260px] sm:max-w-[340px]" title={badgeInfo.fullText}>
-                          {badgeInfo.isClean ? "🎯 " + badgeInfo.title : "⚠️ " + badgeInfo.title}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
-                          className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground shrink-0"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
+                      <Tooltip key={idx}>
+                        <TooltipTrigger asChild>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "pl-2.5 pr-1.5 py-1 text-xs font-medium flex items-center gap-1.5 rounded-lg border transition-all max-w-full min-w-0 cursor-default",
+                              badgeInfo.isClean
+                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                : "bg-rose-500/10 text-rose-300 border-rose-500/30"
+                            )}
+                          >
+                            <span className="truncate max-w-[260px] sm:max-w-[340px]">
+                              {badgeInfo.isClean ? "🎯 " + badgeInfo.title : "⚠️ " + badgeInfo.title}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRulesBrokenList(list => list.filter((_, i) => i !== idx))}
+                              className="hover:bg-background/40 rounded p-0.5 transition-colors text-muted-foreground hover:text-foreground shrink-0 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </Badge>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs text-xs font-sans whitespace-pre-wrap">
+                          {badgeInfo.fullText}
+                        </TooltipContent>
+                      </Tooltip>
                     )
                   })
                 )}
@@ -1339,7 +1345,7 @@ function DailyJournalContent() {
                   <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                     Click rule to toggle:
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-56 overflow-y-auto pr-1">
                     {ruleBookRules.map((rb, rIdx) => {
                       const ruleIdentifier = rb.title ? rb.title : `WHEN ${rb.condition} THEN ${rb.action}`
                       const isSelected = rulesBrokenList.some(r => 
@@ -1348,43 +1354,86 @@ function DailyJournalContent() {
                         r === `WHEN ${rb.condition} THEN ${rb.action}` ||
                         r.toLowerCase().includes(rb.condition.toLowerCase())
                       )
+                      const ruleNum = rb.stableIndex || (rIdx + 1)
                       return (
-                        <button
-                          key={rb.id}
-                          type="button"
-                          onClick={() => {
-                            if (isSelected) {
-                              setRulesBrokenList(list => list.filter(r => 
-                                r !== ruleIdentifier && 
-                                !(rb.title && r.toLowerCase() === rb.title.toLowerCase()) &&
-                                r !== `WHEN ${rb.condition} THEN ${rb.action}` &&
-                                !r.toLowerCase().includes(rb.condition.toLowerCase())
-                              ))
-                            } else {
-                              setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), ruleIdentifier])
-                            }
-                          }}
-                          className={cn(
-                            "text-left p-2.5 rounded-md text-xs border transition-all flex flex-col gap-1 min-w-0 overflow-hidden",
-                            isSelected
-                              ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
-                              : "bg-card/60 text-muted-foreground border-border hover:border-rose-500/30 hover:text-foreground"
-                          )}
-                        >
-                          <div className="flex items-center gap-1.5 w-full min-w-0">
-                            <span className={cn("w-2 h-2 rounded-full shrink-0", isSelected ? "bg-rose-500" : "bg-muted-foreground/40")} />
-                            <span className="font-bold text-foreground truncate">
-                              {rb.title ? (
-                                <span>Rule #{rb.stableIndex || (rIdx + 1)}: {rb.title}</span>
-                              ) : (
-                                <span>Rule #{rb.stableIndex || (rIdx + 1)}</span>
+                        <Tooltip key={rb.id}>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setRulesBrokenList(list => list.filter(r => 
+                                    r !== ruleIdentifier && 
+                                    !(rb.title && r.toLowerCase() === rb.title.toLowerCase()) &&
+                                    r !== `WHEN ${rb.condition} THEN ${rb.action}` &&
+                                    !r.toLowerCase().includes(rb.condition.toLowerCase())
+                                  ))
+                                } else {
+                                  setRulesBrokenList(list => [...list.filter(r => r.toUpperCase() !== "NO"), ruleIdentifier])
+                                }
+                              }}
+                              className={cn(
+                                "text-left p-2.5 rounded-md text-xs border transition-all flex flex-col gap-1 min-w-0 overflow-hidden cursor-pointer",
+                                isSelected
+                                  ? "bg-rose-500/20 text-rose-300 border-rose-500/50 shadow-[0_0_8px_rgba(244,63,94,0.15)]"
+                                  : "bg-card/60 text-muted-foreground border-border hover:border-rose-500/40 hover:text-foreground hover:bg-card"
                               )}
-                            </span>
-                          </div>
-                          <span className="line-clamp-2 text-[11px] opacity-80 pl-3.5">
-                            WHEN {rb.condition} &rarr; THEN {rb.action}
-                          </span>
-                        </button>
+                            >
+                              <div className="flex items-center gap-1.5 w-full min-w-0">
+                                <span className={cn("w-2 h-2 rounded-full shrink-0", isSelected ? "bg-rose-500" : "bg-muted-foreground/40")} />
+                                <span className="font-bold text-foreground truncate">
+                                  {rb.title ? (
+                                    <span>Rule #{ruleNum}: {rb.title}</span>
+                                  ) : (
+                                    <span>Rule #{ruleNum}</span>
+                                  )}
+                                </span>
+                              </div>
+                              <span className="line-clamp-2 text-[11px] opacity-80 pl-3.5 leading-snug">
+                                WHEN {rb.condition} &rarr; THEN {rb.action}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent 
+                            side="top" 
+                            align="center" 
+                            sideOffset={6}
+                            className="w-80 sm:w-96 p-3.5 space-y-2.5 text-xs border border-border/80 shadow-2xl bg-popover/95 backdrop-blur-md rounded-xl z-[9999]"
+                          >
+                            <div className="font-bold text-foreground flex items-center justify-between border-b border-border/40 pb-1.5">
+                              <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                                Rule #{ruleNum}{rb.title ? `: ${rb.title}` : ""}
+                              </span>
+                              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-muted text-muted-foreground border border-border/40">
+                                Full Rule
+                              </span>
+                            </div>
+                            
+                            <div className="space-y-2 text-xs font-sans">
+                              <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                                <div className="font-bold text-rose-400 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400" /> WHEN (Trigger / Condition):
+                                </div>
+                                <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{rb.condition}</p>
+                              </div>
+
+                              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                                <div className="font-bold text-emerald-400 text-[10px] uppercase tracking-wider mb-1 flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> THEN (Action / Constraint):
+                                </div>
+                                <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">{rb.action}</p>
+                              </div>
+
+                              {rb.fromMistake && (
+                                <div className="text-[11px] text-muted-foreground pt-1 flex items-center gap-1.5">
+                                  <span className="font-semibold text-muted-foreground/80">Origin:</span>
+                                  <span className="truncate">{rb.fromMistake}</span>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
                       )
                     })}
                   </div>
