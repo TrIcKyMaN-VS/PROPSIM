@@ -146,14 +146,31 @@ export default function WeeklyReviewPage() {
     return Math.min(...losses);
   }, [weekTradesList, defaultPlannedRisk]);
 
+  // Daily Journals for this week
+  const [weekDailyJournals, setWeekDailyJournals] = useState<any[]>([]);
+
   // Discipline Tax — Total R lost specifically on trades that broke rules (PDF Page 11-12)
   const disciplineTaxTrades = useMemo(() => {
     return weekTradesList.filter(t => {
-      const psych = t.psychology || tradePsychology.find(p => p.tradeId === t.id);
-      const brokeRule = psych?.brokeRules || (t.mistakes && /broke\s+rule|rule\s+break|violated|model\s+broken/i.test(t.mistakes));
-      return brokeRule && t.pnl < 0;
+      const psychFromStore = tradePsychology.find(p => p.tradeId === t.id);
+      const rawGrade = (t.psychology?.executionGrade || psychFromStore?.executionGrade || (t as any).executionGrade || "");
+      const isGradeD = typeof rawGrade === "string" && rawGrade.trim().toUpperCase().startsWith("D");
+      const isGradeC = typeof rawGrade === "string" && rawGrade.trim().toUpperCase().startsWith("C");
+      const brokeRuleFlag = t.psychology?.brokeRules || psychFromStore?.brokeRules || (t as any).brokeRules;
+      const mistakesRule = t.mistakes && /broke\s*rule|rule\s*break|violated|outside\s*model|forced/i.test(t.mistakes);
+
+      // Check if the daily journal for this trade's date logged broken rules
+      const d = new Date(Number(t.timestamp));
+      const tradeDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const dayJournal = weekDailyJournals.find(j => j.date === tradeDate);
+      const hasDailyRuleBreak = dayJournal?.rulesBroken && dayJournal.rulesBroken.trim() !== "" && dayJournal.rulesBroken.toLowerCase() !== "none";
+
+      const isDisciplineBreach = isGradeD || brokeRuleFlag || mistakesRule || (hasDailyRuleBreak && (isGradeC || isGradeD || mistakesRule));
+      const isLoss = t.pnl < 0 || (t.netR !== null && t.netR !== undefined && t.netR < 0);
+
+      return isDisciplineBreach && isLoss;
     });
-  }, [weekTradesList, tradePsychology]);
+  }, [weekTradesList, tradePsychology, weekDailyJournals]);
 
   const disciplineTaxR = useMemo(() => {
     return disciplineTaxTrades.reduce((sum, t) => sum + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0);
@@ -162,9 +179,6 @@ export default function WeeklyReviewPage() {
   const disciplineTaxDollar = useMemo(() => {
     return disciplineTaxTrades.reduce((sum, t) => sum + t.pnl, 0);
   }, [disciplineTaxTrades]);
-
-  // Daily Journals for this week
-  const [weekDailyJournals, setWeekDailyJournals] = useState<any[]>([]);
 
   const gradeColor = (g?: string) => {
     if (!g) return "border-border text-muted-foreground"
@@ -1392,9 +1406,14 @@ const cleanUnicodeEscapes = (str: string) => {
           {weekDates.map(date => {
             const dj = weekDailyJournals.find(j => j.date === date);
             const dateObj = new Date(date + "T12:00:00");
+            const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const dayName = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
 
             if (!dj) {
+              // Saturday and Sunday are market holidays — do not show unlogged warning
+              if (isWeekend) return null;
+
               return (
                 <div key={date} className="p-3.5 rounded-xl border border-dashed border-border/60 bg-muted/10 flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">

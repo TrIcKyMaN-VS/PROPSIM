@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, Suspense } from "react"
+import { useSearchParams } from "next/navigation"
 import { usePropStore } from "@/lib/store"
 import { getDailyJournal, getLatestDailyJournal, saveDailyJournal, uploadImageFormData } from "@/app/actions/journal-actions"
 import { getRuleBookEntries } from "@/app/actions/rulebook-actions"
@@ -333,8 +334,16 @@ export type DailyMissedTrade = {
   screenshots: string[]
 }
 
-export default function DailyJournalPage() {
-  const [date, setDate] = useState(today())
+function DailyJournalContent() {
+  const searchParams = useSearchParams()
+  const paramDate = searchParams?.get("date")
+  const [date, setDate] = useState(() => paramDate || today())
+
+  useEffect(() => {
+    if (paramDate && paramDate !== date) {
+      setDate(paramDate)
+    }
+  }, [paramDate])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -1453,3 +1462,12 @@ export default function DailyJournalPage() {
     </div>
   )
 }
+
+export default function DailyJournalPage() {
+  return (
+    <Suspense fallback={<div className="p-12 text-center text-muted-foreground text-sm">Loading daily journal...</div>}>
+      <DailyJournalContent />
+    </Suspense>
+  )
+}
+
