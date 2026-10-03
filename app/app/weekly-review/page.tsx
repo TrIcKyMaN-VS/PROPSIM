@@ -25,7 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil, Target, CheckCircle2, Circle } from "lucide-react";
+import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload, X, ChevronDown, ChevronUp, AlertCircle, Pencil, Target, CheckCircle2, Circle, ShieldAlert, FileText, Flame, ArrowRight } from "lucide-react";
 import {
   getRuleBookEntries,
   createRuleBookEntry,
@@ -145,6 +145,26 @@ export default function WeeklyReviewPage() {
     if (losses.length === 0) return 0;
     return Math.min(...losses);
   }, [weekTradesList, defaultPlannedRisk]);
+
+  // Discipline Tax — Total R lost specifically on trades that broke rules (PDF Page 11-12)
+  const disciplineTaxTrades = useMemo(() => {
+    return weekTradesList.filter(t => {
+      const psych = t.psychology || tradePsychology.find(p => p.tradeId === t.id);
+      const brokeRule = psych?.brokeRules || (t.mistakes && /broke\s+rule|rule\s+break|violated|model\s+broken/i.test(t.mistakes));
+      return brokeRule && t.pnl < 0;
+    });
+  }, [weekTradesList, tradePsychology]);
+
+  const disciplineTaxR = useMemo(() => {
+    return disciplineTaxTrades.reduce((sum, t) => sum + (t.netR ?? (t.pnl / defaultPlannedRisk)), 0);
+  }, [disciplineTaxTrades, defaultPlannedRisk]);
+
+  const disciplineTaxDollar = useMemo(() => {
+    return disciplineTaxTrades.reduce((sum, t) => sum + t.pnl, 0);
+  }, [disciplineTaxTrades]);
+
+  // Daily Journals for this week
+  const [weekDailyJournals, setWeekDailyJournals] = useState<any[]>([]);
 
   const gradeColor = (g?: string) => {
     if (!g) return "border-border text-muted-foreground"
@@ -779,6 +799,48 @@ const cleanUnicodeEscapes = (str: string) => {
       setIsGenerating(false)
     }
   }
+
+  const handleConvertPatternToRule = (patternText: string) => {
+    // Clean leading bullets, dashes, icons, and label prefix
+    const clean = patternText
+      .replace(/^[-*•⚠️\s]+Persisting:\s*/i, "")
+      .replace(/^[-*•⚠️\s]+/i, "")
+      .trim();
+
+    let whenClause = "Valid setup confirms with candle close at key level";
+    let thenClause = "Execute immediately according to plan without second-guessing";
+
+    if (/hesitat/i.test(clean)) {
+      whenClause = "Valid setup meets all criteria on candle close at key level";
+      thenClause = "Enter market order within 10 seconds — do not wait for another confirmation candle";
+    } else if (/stop|trail/i.test(clean)) {
+      whenClause = "Trade moves into profit before reaching planned take profit";
+      thenClause = "Do not trail stop loss manually until 1R profit or structural pivot forms";
+    } else if (/rush|early|before.*confirm/i.test(clean)) {
+      whenClause = "Price approaches key level without complete candle close confirmation";
+      thenClause = "Wait for full candle close confirmation before placing entry order";
+    } else if (/overtrad|revenge|chase|spiral/i.test(clean)) {
+      whenClause = "A trade hits stop loss or a valid setup was missed";
+      thenClause = "Take a mandatory 15-minute screen pause before considering next trade";
+    } else if (/absorp|aggress|order\s*flow|delta/i.test(clean)) {
+      whenClause = "Delta Reload setup forms with absorption or aggression";
+      thenClause = "Verify candle close at delta level before placing entry";
+    }
+
+    const newRule = {
+      when: whenClause,
+      then: thenClause,
+      from: `Targeting persistent trap: "${clean.slice(0, 55)}..."`,
+    };
+
+    setRulesBuilt(prev => [...prev, newRule]);
+    toast.success("Rule drafted in Section 2 targeting this persistent pattern!");
+
+    setTimeout(() => {
+      const el = document.getElementById("section-2-rules");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
   
 
   useEffect(() => {
@@ -845,9 +907,10 @@ const cleanUnicodeEscapes = (str: string) => {
             } catch { weeklyMissed = []; }
           }
 
-          // Auto-pull daily missed setups from DailyJournals of this week
+          // Auto-pull daily missed setups and daily journals of this week
           try {
             const dailyJournals = await getDailyJournalsForDates(weekDates);
+            setWeekDailyJournals(dailyJournals || []);
             const pulledDailyMissed: MissedTrade[] = [];
             dailyJournals.forEach(dj => {
               if (dj.missedTrades) {
@@ -911,9 +974,10 @@ const cleanUnicodeEscapes = (str: string) => {
           setOneRuleNotBreak("");
           setRuleStatusUpdates("");
 
-          // Auto-pull daily missed setups for fresh week
+          // Auto-pull daily missed setups and daily journals for fresh week
           try {
             const dailyJournals = await getDailyJournalsForDates(weekDates);
+            setWeekDailyJournals(dailyJournals || []);
             const pulledDailyMissed: MissedTrade[] = [];
             dailyJournals.forEach(dj => {
               if (dj.missedTrades) {
@@ -1210,7 +1274,7 @@ const cleanUnicodeEscapes = (str: string) => {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Week Of</Label>
               <WeekPicker value={weekOf} onChange={setWeekOf} />
@@ -1241,6 +1305,46 @@ const cleanUnicodeEscapes = (str: string) => {
                 className="bg-muted/50 cursor-not-allowed font-mono font-bold text-cyan-400"
               />
             </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1 text-xs">
+                  <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                  Discipline Tax
+                </Label>
+                <Badge variant="outline" className="font-mono text-[9px] px-1.5 py-0.5 bg-rose-500/10 text-rose-400 border-rose-500/30 font-bold uppercase">
+                  PDF P.11
+                </Badge>
+              </div>
+              <Input
+                value={disciplineTaxR < 0 ? `${disciplineTaxR.toFixed(2)}R (${fmtPnl(disciplineTaxDollar, pnlDisplayMode, accountBalance)})` : "0.00R (Clean 🛡️)"}
+                readOnly
+                title="Total R lost on trades that broke rules (Hayeder Trading Journal PDF p.11)"
+                className={cn(
+                  "cursor-not-allowed font-mono font-bold text-xs",
+                  disciplineTaxR < 0 ? "text-rose-400 border-rose-500/40 bg-rose-500/5" : "text-emerald-400 border-emerald-500/40 bg-emerald-500/5"
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Review Protocol Banner */}
+          <div className="mt-5 pt-4 border-t border-border/60 flex items-center justify-between flex-wrap gap-2 text-xs">
+            <span className="font-bold text-muted-foreground uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+              <ClipboardCheck className="w-3.5 h-3.5 text-primary" /> Review Protocol:
+            </span>
+            <div className="flex items-center gap-2 flex-wrap text-[11px]">
+              <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold flex items-center gap-1">
+                1. Read Daily Digest &amp; Trade Log
+              </span>
+              <span className="text-muted-foreground/60">➔</span>
+              <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold flex items-center gap-1">
+                2. AI Pattern &amp; Persistence Audit
+              </span>
+              <span className="text-muted-foreground/60">➔</span>
+              <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold flex items-center gap-1">
+                3. Convert Traps to Rules &amp; Backtest
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -1258,6 +1362,126 @@ const cleanUnicodeEscapes = (str: string) => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* WEEK'S DAILY JOURNALS DIGEST */}
+      <details className="group">
+        <summary className="cursor-pointer select-none list-none flex items-center justify-between p-4 rounded-xl border bg-card text-card-foreground shadow-sm mb-4 transition-colors hover:bg-muted/50">
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Week&apos;s Daily Journals Digest
+            </h2>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground ml-2">
+              <Badge variant="secondary" className="font-mono">
+                {weekDailyJournals.length} written
+              </Badge>
+              <span>•</span>
+              <span className="text-xs">
+                {weekDailyJournals.filter(j => j.isRedDay).length > 0 ? (
+                  <span className="text-rose-400 font-bold">{weekDailyJournals.filter(j => j.isRedDay).length} Red Day(s)</span>
+                ) : (
+                  <span className="text-emerald-400">0 Red Days</span>
+                )}
+              </span>
+            </div>
+          </div>
+          <ChevronDown className="w-5 h-5 text-muted-foreground transition-transform duration-200 group-open:-rotate-180" />
+        </summary>
+
+        <div className="space-y-4 pt-1 pb-6 px-1">
+          {weekDates.map(date => {
+            const dj = weekDailyJournals.find(j => j.date === date);
+            const dateObj = new Date(date + "T12:00:00");
+            const dayName = dateObj.toLocaleDateString("en-US", { weekday: 'long', month: 'short', day: 'numeric' });
+
+            if (!dj) {
+              return (
+                <div key={date} className="p-3.5 rounded-xl border border-dashed border-border/60 bg-muted/10 flex items-center justify-between text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground/80">{dayName}</span>
+                    <span>— No daily journal logged</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 text-xs text-primary hover:underline px-2"
+                    onClick={() => router.push(`/app/daily?date=${date}`)}
+                  >
+                    + Write Journal
+                  </Button>
+                </div>
+              );
+            }
+
+            return (
+              <div key={date} className={cn("p-4 rounded-xl border transition-all space-y-3", dj.isRedDay ? "border-rose-500/30 bg-rose-500/5" : "border-border/60 bg-card/60")}>
+                <div className="flex items-center justify-between flex-wrap gap-2 border-b border-border/40 pb-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="font-bold text-sm tracking-tight">{dayName}</span>
+                    {dj.isRedDay && (
+                      <Badge variant="destructive" className="text-[10px] uppercase font-bold px-2 py-0">
+                        🔴 Red Day
+                      </Badge>
+                    )}
+                    {dj.stateCheck !== null && dj.stateCheck !== undefined && (
+                      <Badge variant="outline" className="text-[10px] font-mono border-border/80">
+                        Mental State: {dj.stateCheck}/10
+                      </Badge>
+                    )}
+                    {dj.rulesBroken && (
+                      <Badge variant="outline" className="text-[10px] font-mono text-rose-400 border-rose-500/30 bg-rose-500/10">
+                        Broken: {dj.rulesBroken}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs">
+                    <span className="text-muted-foreground text-[11px]">
+                      Plan Acc: <strong className="text-foreground">{dj.planAccuracy ?? "—"}/10</strong> | Adh: <strong className="text-foreground">{dj.planAdherence ?? "—"}/10</strong>
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[11px] text-primary hover:underline px-1.5 flex items-center gap-1"
+                      onClick={() => router.push(`/app/daily?date=${date}`)}
+                    >
+                      View Day <ArrowRight className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Journal Content Highlights */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-sans">
+                  {/* Pre-Market Prep */}
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/40 space-y-1.5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400" /> Pre-Market Context &amp; Key Levels
+                    </div>
+                    <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed line-clamp-3">
+                      {dj.htfContext || dj.keyLevels ? `${dj.htfContext || ''} ${dj.keyLevels ? ' | ' + dj.keyLevels : ''}` : <span className="italic text-muted-foreground/60">No context logged</span>}
+                    </p>
+                  </div>
+
+                  {/* Post-Session Reflection */}
+                  <div className="p-3 rounded-lg bg-muted/20 border border-border/40 space-y-1.5">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-purple-400" /> Post-Session Thought Process
+                    </div>
+                    <p className="text-foreground/90 whitespace-pre-wrap leading-relaxed line-clamp-3">
+                      {dj.overallThoughtProcess || <span className="italic text-muted-foreground/60">No reflection notes</span>}
+                    </p>
+                    {dj.isRedDay && dj.redCorrectiveAction && (
+                      <p className="text-[11px] text-rose-300 font-semibold pt-1 border-t border-rose-500/20">
+                        Action: {dj.redCorrectiveAction}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </details>
 
       {/* WEEK'S TRADE LOG */}
       <details className="group">
@@ -1486,19 +1710,33 @@ const cleanUnicodeEscapes = (str: string) => {
               </CardTitle>
             </div>
             <CardDescription className="text-xs mt-1 text-amber-400/80">
-              These patterns appeared in prior weekly reviews AND reoccurred this week. These are your highest-priority issues.
+              These patterns appeared in prior weekly reviews AND reoccurred this week. Click &quot;Convert to Rule&quot; to build an enforceable IF/THEN rule.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {persistentPatterns.trim() === "" || persistentPatterns === "No persistent patterns found across the past 3 weeks." ? (
               <p className="text-sm text-muted-foreground italic">No persistent patterns found — none of last week&apos;s flagged issues reappeared this week.</p>
             ) : (
-              <div className="space-y-2">
-                {persistentPatterns.split("\n\n").filter(Boolean).map((line, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm text-amber-200/90 font-medium">
-                    <span>{line.trim()}</span>
-                  </div>
-                ))}
+              <div className="space-y-2.5">
+                {persistentPatterns.split("\n\n").filter(Boolean).map((line, i) => {
+                  const trimmed = line.trim();
+                  const isActionable = trimmed.startsWith("-") || trimmed.startsWith("⚠️") || trimmed.toLowerCase().includes("persisting");
+                  return (
+                    <div key={i} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-sm text-amber-200">
+                      <span className="flex-1 font-medium leading-relaxed">{trimmed}</span>
+                      {isActionable && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleConvertPatternToRule(trimmed)}
+                          className="h-7 text-xs font-bold shrink-0 self-start sm:self-center border-amber-500/40 bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 hover:text-amber-100"
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Convert to Rule
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
@@ -1506,8 +1744,7 @@ const cleanUnicodeEscapes = (str: string) => {
       )}
 
       {/* 2. RULES BUILT */}
-
-      <Card>
+      <Card id="section-2-rules" className="scroll-mt-6">
         <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
           <div>
             <CardTitle>2. Rules Built From This Week</CardTitle>

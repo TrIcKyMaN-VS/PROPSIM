@@ -235,10 +235,7 @@ export async function getDailyJournalsForDates(dates: string[]) {
       userId: session.user.id,
       date: { in: dates }
     },
-    select: {
-      date: true,
-      missedTrades: true,
-    }
+    orderBy: { date: "asc" }
   })
 }
 
