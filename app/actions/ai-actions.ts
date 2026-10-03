@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { generateTherapistSession, generateDailyReview, generateMonthlySummary } from "@/lib/ai/therapist"
+import { generateMonthComparison } from "@/lib/ai/monthly-comparison"
 
 const prisma = new PrismaClient()
 
@@ -182,37 +183,63 @@ export async function generateDailyReviewAction(trades: any[], dateKey: string) 
   return analysis
 }
 
-export async function generateMonthlySummaryAction(trades: any[], dateKey: string) {
+export async function generateMonthComparisonAction(currentMonth: string) {
   const userId = await getAuthUserId()
 
-  const cached = await prisma.aiReview.findUnique({
-    where: {
-      userId_type_dateKey: {
-        userId,
-        type: "MONTHLY",
-        dateKey
-      }
+  // Derive previous month key (e.g. "2024-10" → "2024-09", "2024-01" → "2023-12")
+  const [yearStr, monthStr] = currentMonth.split("-")
+  const year = parseInt(yearStr)
+  const month = parseInt(monthStr)
+  const prevYear  = month === 1 ? year - 1 : year
+  const prevMonth = month === 1 ? 12 : month - 1
+  const previousMonth = `${prevYear}-${String(prevMonth).padStart(2, "0")}`
+
+  // Fetch both recaps
+  const [currentRecap, previousRecap] = await Promise.all([
+    prisma.monthlyRecap.findUnique({
+      where: { userId_month: { userId, month: currentMonth } }
+    }),
+    prisma.monthlyRecap.findUnique({
+      where: { userId_month: { userId, month: previousMonth } }
+    }),
+  ])
+
+  // Guard: need at least the current month to have any content
+  if (!currentRecap) {
+    return {
+      repeatedMistakes: "",
+      commitmentsKept: "",
+      highestLeverage: "",
+      status: "no_current_recap" as const,
     }
-  })
-  if (cached) {
-    const analysis = JSON.parse(cached.summary)
-    if (analysis && !analysis.metadata) {
-      analysis.metadata = { provider: cached.source || "PROGRAMMATIC", model: "" }
-    }
-    return analysis
   }
 
-  const analysis = await generateMonthlySummary(trades, userId)
-
-  await prisma.aiReview.create({
-    data: {
-      userId,
-      type: "MONTHLY",
-      dateKey,
-      summary: JSON.stringify(analysis),
-      source: analysis.metadata.provider
+  // Guard: need the previous month to do a comparison
+  if (!previousRecap) {
+    return {
+      repeatedMistakes: "",
+      commitmentsKept: "",
+      highestLeverage: "",
+      status: "no_previous_recap" as const,
+      previousMonth,
     }
-  })
+  }
 
-  return analysis
+  const result = await generateMonthComparison(
+    currentMonth,
+    previousMonth,
+    currentRecap as Record<string, any>,
+    previousRecap as Record<string, any>,
+    userId
+  )
+
+  return {
+    repeatedMistakes: result.repeatedMistakes,
+    commitmentsKept: result.commitmentsKept,
+    highestLeverage: result.highestLeverage,
+    status: "ok" as const,
+    isFallback: result.isFallback,
+    metadata: result.metadata,
+  }
 }
+

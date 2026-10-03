@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma"
 import { runWithAiFallback, trackAiUsage } from "@/lib/ai/provider"
 import { generateObject } from "ai"
 import { z } from "zod"
-import { getISOWeekKey } from "@/lib/date-utils"
+import { getISOWeekKey, getWeekRange } from "@/lib/date-utils"
 
 
 export async function generateWeeklyPatterns(weekOf: string) {
@@ -31,6 +31,31 @@ export async function generateWeeklyPatterns(weekOf: string) {
     }
   })
 
+  // ── Fetch last 3 weeks' saved pattern outputs for cross-week accountability ─
+  const { from: currentWeekMonday } = getWeekRange(weekOf)
+  const previousWeekKeys: string[] = []
+  for (let i = 1; i <= 3; i++) {
+    const prevMonday = new Date(currentWeekMonday)
+    prevMonday.setDate(currentWeekMonday.getDate() - 7 * i)
+    previousWeekKeys.push(getISOWeekKey(prevMonday))
+  }
+
+  const previousWeekReviews = await prisma.weeklyReview.findMany({
+    where: {
+      userId: session.user.id,
+      weekOf: { in: previousWeekKeys }
+    },
+    select: {
+      weekOf: true,
+      repeatedMistakes: true,
+      repeatedWinConditions: true,
+      emotionalTimingPatterns: true,
+    },
+    orderBy: { weekOf: "desc" }
+  })
+
+
+
   // ── Filter to this week ────────────────────────────────────────────────────
   const weekJournals = allJournals.filter(j => getISOWeekKey(j.date) === weekOf)
 
@@ -46,7 +71,8 @@ export async function generateWeeklyPatterns(weekOf: string) {
     return {
       repeatedMistakes: "⚠️ No daily journals or trades found for this week. Log at least one daily journal or trade to generate patterns.",
       repeatedWinConditions: "⚠️ No daily journals or trades found for this week.",
-      emotionalTimingPatterns: "⚠️ No daily journals or trades found for this week."
+      emotionalTimingPatterns: "⚠️ No daily journals or trades found for this week.",
+      persistentPatterns: null as string | null,
     }
   }
 
@@ -152,6 +178,17 @@ export async function generateWeeklyPatterns(weekOf: string) {
         return lines.join("\n")
       }).join("\n---\n")
 
+  // ── Build previous weeks pattern history block ─────────────────────────────
+  const previousWeeksBlock = previousWeekReviews.length === 0
+    ? "  ⚠️  No saved weekly pattern outputs found for the past 3 weeks. This is the first comparison available."
+    : previousWeekReviews.map(r => {
+        const parts: string[] = [`Week: ${r.weekOf}`]
+        if (r.repeatedMistakes?.trim())        parts.push(`  Repeated Mistakes:\n${r.repeatedMistakes.trim().split("\n").map(l => `    ${l}`).join("\n")}`)
+        if (r.repeatedWinConditions?.trim())   parts.push(`  Best Trade Conditions:\n${r.repeatedWinConditions.trim().split("\n").map(l => `    ${l}`).join("\n")}`)
+        if (r.emotionalTimingPatterns?.trim()) parts.push(`  Emotional/Timing Patterns:\n${r.emotionalTimingPatterns.trim().split("\n").map(l => `    ${l}`).join("\n")}`)
+        return parts.join("\n")
+      }).join("\n\n---\n\n")
+
   // ── Full prompt data ───────────────────────────────────────────────────────
   const compiledText = `
 === TRADE EXECUTIONS ===
@@ -159,6 +196,9 @@ ${tradesBlock}
 
 === DAILY JOURNAL REFLECTIONS ===
 ${journalBlock}
+
+=== PATTERN HISTORY FROM PREVIOUS WEEKS ===
+${previousWeeksBlock}
 `
 
   const schema = z.object({
@@ -179,8 +219,18 @@ ${journalBlock}
       "STRICT STYLE: Each insight must be EXACTLY ONE concise sentence of MAXIMUM 25 words directly identifying the pattern without trade-by-trade backstory. " +
       "Each insight must begin with exactly one of: 'Repeated pattern:', 'Possible pattern:', or 'Observation:'. " +
       "Return exactly ['Insufficient evidence'] if no meaningful insight exists."
-    )
+    ),
+    persistentPatterns: z.array(z.string()).describe(
+      "CROSS-WEEK ACCOUNTABILITY: Compare the current week's evidence against the PATTERN HISTORY FROM PREVIOUS WEEKS section. " +
+      "Return ONLY patterns that appeared in at least one previous week AND have clear evidence of reoccurring this week. " +
+      "Each item must be EXACTLY ONE sentence of MAXIMUM 30 words naming the specific pattern and how many consecutive or recent weeks it has appeared. " +
+      "Each item must begin with: '⚠️ Persisting:' followed by the pattern description and week count (e.g. '⚠️ Persisting: Entering before confirmation reappeared for the 3rd consecutive week.'). " +
+      "Return exactly ['No persistent patterns found.'] if no pattern from a previous week reappears this week. " +
+      "Do NOT invent persistence — only flag patterns that are clearly evidenced in BOTH the current week data AND the previous week history provided. " +
+      "Do NOT list patterns that only appeared in prior weeks but have no evidence this week."
+    ),
   })
+
 
   const result = await runWithAiFallback(session.user.id, async (model, providerInfo) => {
     const { object, usage } = await generateObject({
@@ -560,6 +610,22 @@ Use "Repeated pattern:" only when the relationship is genuinely recurring and me
 
 Never manufacture a pattern just to fill a section.
 
+23. CROSS-WEEK ACCOUNTABILITY (PERSISTENT PATTERNS)
+
+The data includes a section called "PATTERN HISTORY FROM PREVIOUS WEEKS" which contains the AI-generated pattern outputs that were saved from the last 1–3 weekly reviews.
+
+Your job in section D (persistentPatterns) is:
+- Read the pattern history for the previous weeks.
+- Compare those historical patterns against the current week's trade data and journal entries.
+- Identify ONLY patterns that:
+  a) Were flagged in at least one previous week's output, AND
+  b) Have clear supporting evidence in the CURRENT week's data (trades or journals).
+- For each persistent pattern, state the pattern name and how many weeks (consecutive or recent) it has appeared.
+- Use: "⚠️ Persisting: [pattern description] — appeared [N] week(s) in a row / over the past [N] weeks."
+- If the previous weeks history is empty or this is the first comparison, return ["No persistent patterns found."]
+- Do NOT flag a pattern as persisting just because it appears in the history. It must also have evidence this week.
+- Do NOT add patterns to this section that are not in the history. That is what sections A, B, C are for.
+
 ==================================================
 DATA TO ANALYZE
 ==================================================
@@ -605,7 +671,13 @@ ${compiledText}`
       emotionalTimingPatterns: formatSection(
         object.emotionalTimingPatterns,
         weekTrades.length === 0 ? "⚠️ No trades logged this week." : "No emotional or timing patterns found."
-      )
+      ),
+      persistentPatterns: previousWeekReviews.length === 0
+        ? null  // No history available yet — don't show the section at all
+        : formatSection(
+            object.persistentPatterns,
+            "No persistent patterns found across the past 3 weeks."
+          ),
     }
   })
 

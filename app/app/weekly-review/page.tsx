@@ -166,6 +166,7 @@ export default function WeeklyReviewPage() {
   const [repeatedMistakes, setRepeatedMistakes] = useState("");
   const [repeatedWinConditions, setRepeatedWinConditions] = useState("");
   const [emotionalTimingPatterns, setEmotionalTimingPatterns] = useState("");
+  const [persistentPatterns, setPersistentPatterns] = useState<string | null>(null);
 
   // 2. Rules Built
   const [rulesBuilt, setRulesBuilt] = useState<
@@ -769,6 +770,8 @@ const cleanUnicodeEscapes = (str: string) => {
       setRepeatedMistakes(cleanUnicodeEscapes(res.repeatedMistakes || ""))
       setRepeatedWinConditions(cleanUnicodeEscapes(res.repeatedWinConditions || ""))
       setEmotionalTimingPatterns(cleanUnicodeEscapes(res.emotionalTimingPatterns || ""))
+      // persistentPatterns is null when no prior week history exists (section hidden)
+      setPersistentPatterns(res.persistentPatterns !== undefined ? (res.persistentPatterns !== null ? cleanUnicodeEscapes(res.persistentPatterns || "") : null) : null)
       toast.success("Successfully summarized daily journals!")
     } catch (err: any) {
       toast.error(err.message || "Failed to generate patterns")
@@ -777,6 +780,7 @@ const cleanUnicodeEscapes = (str: string) => {
     }
   }
   
+
   useEffect(() => {
 
     async function loadData() {
@@ -1471,7 +1475,38 @@ const cleanUnicodeEscapes = (str: string) => {
         </CardContent>
       </Card>
 
+      {/* PERSISTENT PATTERNS — Cross-Week Accountability (only shown when prior history exists) */}
+      {persistentPatterns !== null && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+              <CardTitle className="text-sm font-black uppercase tracking-wider text-amber-500">
+                ⚠️ Patterns Persisting From Previous Weeks
+              </CardTitle>
+            </div>
+            <CardDescription className="text-xs mt-1 text-amber-400/80">
+              These patterns appeared in prior weekly reviews AND reoccurred this week. These are your highest-priority issues.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {persistentPatterns.trim() === "" || persistentPatterns === "No persistent patterns found across the past 3 weeks." ? (
+              <p className="text-sm text-muted-foreground italic">No persistent patterns found — none of last week&apos;s flagged issues reappeared this week.</p>
+            ) : (
+              <div className="space-y-2">
+                {persistentPatterns.split("\n\n").filter(Boolean).map((line, i) => (
+                  <div key={i} className="flex items-start gap-2 text-sm text-amber-200/90 font-medium">
+                    <span>{line.trim()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* 2. RULES BUILT */}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between gap-2 flex-wrap">
           <div>

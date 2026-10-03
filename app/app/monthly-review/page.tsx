@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { getMonthlyRecap, saveMonthlyRecap } from "@/app/actions/journal-actions"
+import { generateMonthComparisonAction } from "@/app/actions/ai-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,7 @@ export default function MonthlyRecapPage() {
   const [month, setMonth] = useState(currentMonth())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [runningAI, setRunningAI] = useState(false)
 
   const activeAccountId = usePropStore(s => s.activeAccountId)
   const trades = usePropStore(s => s.trades) || []
@@ -121,6 +123,39 @@ export default function MonthlyRecapPage() {
       toast.error("Failed to save recap")
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleAIComparison = async () => {
+    setRunningAI(true)
+    try {
+      const result = await generateMonthComparisonAction(month)
+
+      if (result.status === "no_current_recap") {
+        toast.error("Save at least some content in this month's recap before running the AI comparison.")
+        return
+      }
+
+      if (result.status === "no_previous_recap") {
+        const prev = (result as any).previousMonth ?? "the previous month"
+        toast.error(`No recap found for ${prev}. Complete at least 2 monthly recaps to unlock AI comparison.`)
+        return
+      }
+
+      // status === "ok" — fill the three textareas
+      if (result.repeatedMistakes) setMonthVsMonthRepeatedMistakes(result.repeatedMistakes)
+      if (result.commitmentsKept) setMonthVsMonthCommitmentsKept(result.commitmentsKept)
+      if (result.highestLeverage) setMonthVsMonthHighestLeverage(result.highestLeverage)
+
+      if ((result as any).isFallback) {
+        toast.warning("AI analysis completed using fallback. Check your API key in Settings → AI Settings.")
+      } else {
+        toast.success("AI Month-over-Month comparison complete — review and edit before saving.")
+      }
+    } catch (err: any) {
+      toast.error(err?.message ?? "AI comparison failed. Please try again.")
+    } finally {
+      setRunningAI(false)
     }
   }
 
@@ -259,22 +294,42 @@ export default function MonthlyRecapPage() {
       {/* ── MONTH VS MONTH COMPARISON ───────────────────────────────────── */}
       <Card className="bg-card/60 backdrop-blur-xl border-amber-500/20">
         <CardHeader className="pb-3 border-b border-border/40">
-          <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-amber-400">
-            <TrendingUp className="w-4 h-4" /> Month-Over-Month Progression
-          </CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <CardTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2 text-amber-400">
+              <TrendingUp className="w-4 h-4" /> Month-Over-Month Progression
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleAIComparison}
+                disabled={runningAI || loading}
+                className="h-8 text-xs font-bold border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/60"
+              >
+                {runningAI
+                  ? <><Loader2 className="w-3 h-3 animate-spin mr-1.5" />Comparing…</>
+                  : <><Sparkles className="w-3 h-3 mr-1.5" />Run AI Comparison</>
+                }
+              </Button>
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+            Reads your written recaps for this month and last month. Requires 2 saved monthly recaps.
+            AI output fills the fields below — review and edit before saving.
+          </p>
         </CardHeader>
         <CardContent className="pt-5 space-y-5">
           <div>
             <Label className={labelCls}>Did I repeat any mistakes from last month?</Label>
-            <Textarea className={textCls} value={monthVsMonthRepeatedMistakes} onChange={e => setMonthVsMonthRepeatedMistakes(e.target.value)} placeholder="..." />
+            <Textarea className={textCls} value={monthVsMonthRepeatedMistakes} onChange={e => setMonthVsMonthRepeatedMistakes(e.target.value)} placeholder="e.g. Entering before confirmation — same as last month's pattern..." />
           </div>
           <div>
             <Label className={labelCls}>Which previous commitments were successfully kept?</Label>
-            <Textarea className={textCls} value={monthVsMonthCommitmentsKept} onChange={e => setMonthVsMonthCommitmentsKept(e.target.value)} placeholder="..." />
+            <Textarea className={textCls} value={monthVsMonthCommitmentsKept} onChange={e => setMonthVsMonthCommitmentsKept(e.target.value)} placeholder="e.g. Stopped trading the lunch session as committed last month..." />
           </div>
           <div>
             <Label className={labelCls}>Highest-leverage adjustment for the upcoming month</Label>
-            <Textarea className={textCls} value={monthVsMonthHighestLeverage} onChange={e => setMonthVsMonthHighestLeverage(e.target.value)} placeholder="..." />
+            <Textarea className={textCls} value={monthVsMonthHighestLeverage} onChange={e => setMonthVsMonthHighestLeverage(e.target.value)} placeholder="e.g. Eliminate all entries between 11:30 AM–1 PM NY..." />
           </div>
         </CardContent>
       </Card>
