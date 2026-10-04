@@ -869,80 +869,87 @@ export default function MonthlyRecapPage() {
       {/* ── IN-PLACE TRADE INSPECTOR DIALOG ─────────────────────────────────── */}
       <Dialog open={!!selectedTrade} onOpenChange={(open) => !open && setSelectedTrade(null)}>
         {selectedTrade && (
-          <DialogContent className="max-w-2xl bg-card border-border/80 shadow-2xl p-6 space-y-5 max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="pb-2 border-b border-border/50">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
+          <DialogContent className="w-full sm:max-w-3xl bg-card border-border/80 shadow-2xl p-6 sm:p-7 space-y-6 max-h-[90vh] overflow-y-auto rounded-2xl">
+            <DialogHeader className="pb-3 border-b border-border/50 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <span className={cn(
-                    "text-xs font-bold px-2 py-0.5 rounded uppercase",
-                    selectedTrade.direction === "long" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"
+                    "text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider",
+                    selectedTrade.direction === "long" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
                   )}>
                     {selectedTrade.direction}
                   </span>
-                  <DialogTitle className="text-lg font-bold text-foreground">
-                    {selectedTrade.instrument} — {selectedTrade.playbookName || "Discretionary Trade"}
+                  <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
+                    {selectedTrade.instrument} &mdash; {selectedTrade.playbookName || "Discretionary Trade"}
                   </DialogTitle>
                 </div>
 
-                <Badge variant={selectedTrade.pnl >= 0 ? "default" : "destructive"} className="text-xs font-mono font-bold">
-                  {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
-                  <span className="mx-1 opacity-50">•</span>
-                  {fmtPnl(selectedTrade.pnl, pnlDisplayMode, accountBalance, { sign: true })}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className={cn(
+                    "text-xs font-mono font-bold px-2.5 py-1",
+                    selectedTrade.pnl >= 0 ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                  )}>
+                    {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
+                    <span className="mx-1.5 opacity-40">&bull;</span>
+                    {fmtPnl(selectedTrade.pnl, pnlDisplayMode, accountBalance, { sign: true })}
+                  </Badge>
+                </div>
               </div>
 
-              <DialogDescription className="text-xs text-muted-foreground">
-                {new Date(Number(selectedTrade.timestamp)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} • Session: {selectedTrade.session || "N/A"}
+              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                <span>{new Date(Number(selectedTrade.timestamp)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                <span>&bull;</span>
+                <span>Session: <strong className="text-foreground">{selectedTrade.session || "N/A"}</strong></span>
               </DialogDescription>
             </DialogHeader>
 
-            {/* Financial Telemetry */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-muted/20 border border-border/40 text-xs">
-              <div>
-                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Entry Price</span>
-                <span className="font-mono font-bold text-foreground">{selectedTrade.entry}</span>
+            {/* Financial Telemetry 4-Card Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-muted/20 border border-border/50 text-xs">
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Entry Price</span>
+                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.entry}</span>
               </div>
-              <div>
-                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Exit Price</span>
-                <span className="font-mono font-bold text-foreground">{selectedTrade.exit}</span>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Exit Price</span>
+                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.exit}</span>
               </div>
-              <div>
-                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Contracts</span>
-                <span className="font-mono font-bold text-foreground">{selectedTrade.contracts}</span>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Contracts / Size</span>
+                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.contracts}</span>
               </div>
-              <div>
-                <span className="text-muted-foreground text-[10px] uppercase font-bold block">Net R</span>
-                <span className={cn("font-mono font-bold", selectedTrade.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Net Outcome</span>
+                <span className={cn("font-mono text-sm font-bold", selectedTrade.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                   {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
                 </span>
               </div>
             </div>
 
-            {/* Execution & Discipline Tags */}
-            <div className="space-y-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Execution Quality & Psychology
+            {/* Execution Quality & Psychology */}
+            <div className="space-y-2.5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Execution Quality &amp; Psychology
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
-                <Badge variant="outline" className="border-border">
+                <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
                   Grade: <strong className="ml-1 text-foreground">{selectedTrade.psychology?.executionGrade || "A"}</strong>
                 </Badge>
                 {selectedTrade.psychology?.exitReason && (
-                  <Badge variant="outline" className="border-border">
+                  <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
                     Exit: <strong className="ml-1 text-foreground">{selectedTrade.psychology.exitReason}</strong>
                   </Badge>
                 )}
                 {selectedTrade.psychology?.brokeRules ? (
-                  <Badge variant="destructive" className="bg-rose-500/20 text-rose-400 border-rose-500/40">
+                  <Badge variant="destructive" className="bg-rose-500/20 text-rose-400 border-rose-500/40 font-semibold px-2.5 py-1">
                     Broke Trading Rules
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10">
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-semibold px-2.5 py-1">
                     Followed Rules
                   </Badge>
                 )}
                 {selectedTrade.psychology?.emotionAffected && (
-                  <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10">
+                  <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold px-2.5 py-1">
                     Emotion-Affected
                   </Badge>
                 )}
@@ -952,15 +959,15 @@ export default function MonthlyRecapPage() {
             {/* Qualitative Notes */}
             <div className="space-y-3">
               {selectedTrade.resultVsExpectation && (
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/40 space-y-1">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Result vs Expectation</div>
+                <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Result vs Expectation</div>
                   <div className="text-xs text-foreground leading-relaxed">{selectedTrade.resultVsExpectation}</div>
                 </div>
               )}
 
               {(selectedTrade.mistakes || selectedTrade.executionImprovement) && (
-                <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20 space-y-1">
-                  <div className="text-[10px] font-bold uppercase text-rose-400">Mistakes & Execution Improvement</div>
+                <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/25 space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Mistakes &amp; Execution Improvement</div>
                   <div className="text-xs text-foreground leading-relaxed">
                     {selectedTrade.mistakes || selectedTrade.executionImprovement}
                   </div>
@@ -968,8 +975,8 @@ export default function MonthlyRecapPage() {
               )}
 
               {selectedTrade.notes && (
-                <div className="p-3 rounded-lg bg-muted/20 border border-border/40 space-y-1">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground">Trade Notes / Logic</div>
+                <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Trade Notes / Logic</div>
                   <div className="text-xs text-foreground leading-relaxed">{selectedTrade.notes}</div>
                 </div>
               )}
@@ -977,17 +984,17 @@ export default function MonthlyRecapPage() {
 
             {/* Screenshots */}
             {selectedTrade.screenshots && selectedTrade.screenshots.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <div className="space-y-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                   Trade Screenshots ({selectedTrade.screenshots.length})
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {selectedTrade.screenshots.map((s: any, idx: number) => {
                     const url = typeof s === "string" ? s : s?.url
                     if (!url) return null
                     return (
-                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-border/60 hover:opacity-90 transition-opacity">
-                        <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-32 object-cover" />
+                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-border/60 hover:border-primary/50 transition-all bg-black/40">
+                        <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-44 object-contain group-hover:scale-[1.02] transition-transform" />
                       </a>
                     )
                   })}
@@ -996,7 +1003,7 @@ export default function MonthlyRecapPage() {
             )}
 
             {/* Modal Footer Actions */}
-            <div className="pt-3 border-t border-border/50 flex items-center justify-between">
+            <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-3">
               <Button
                 variant="outline"
                 size="sm"

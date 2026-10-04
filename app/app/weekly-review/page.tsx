@@ -30,6 +30,7 @@ import { Plus, Trash, Save, Loader2, Sparkles, ClipboardCheck, BookOpen, Upload,
 import {
   getRuleBookEntries,
   createRuleBookEntry,
+  deleteRuleBookEntry,
   applyRuleVerdict,
   updateRuleBookStatus,
   syncRuleBookStats,
@@ -218,6 +219,7 @@ export default function WeeklyReviewPage() {
     { when: string; then: string; from: string }[]
   >([]);
   const [deleteRuleIdx, setDeleteRuleIdx] = useState<number | null>(null);
+  const [deleteMasterRuleId, setDeleteMasterRuleId] = useState<string | null>(null);
   const [deleteMissedScreenshotIdx, setDeleteMissedScreenshotIdx] = useState<number | null>(null);
 
   // 3. Backtest
@@ -1281,10 +1283,42 @@ const cleanUnicodeEscapes = (str: string) => {
     setRulesBuilt(updated);
   };
 
-  const removeRule = (index: number) => {
-    const updated = [...rulesBuilt];
-    updated.splice(index, 1);
+  const removeRule = async (index: number) => {
+    const ruleToDelete = rulesBuilt[index];
+    if (!ruleToDelete) return;
+
+    const updated = rulesBuilt.filter((_, i) => i !== index);
     setRulesBuilt(updated);
+
+    // If this rule was added to the master Rule Book, delete it from the DB
+    const sig = (ruleToDelete.when?.trim() || "") + "||" + (ruleToDelete.then?.trim() || "");
+    const ruleBookId = ruleIdMap[sig] || ruleBookEntries.find((r: any) => 
+      r.condition?.trim() === ruleToDelete.when?.trim() && 
+      r.action?.trim() === ruleToDelete.then?.trim()
+    )?.id;
+
+    if (ruleBookId) {
+      try {
+        await deleteRuleBookEntry(ruleBookId);
+        await loadRuleBook();
+      } catch (err) {
+        console.error("Failed to delete rule from rulebook:", err);
+      }
+    }
+
+    // Persist to WeeklyReview in database so it does not reappear on reload
+    try {
+      await saveWeeklyReview(weekOf, {
+        rulesBuilt: updated.length > 0 ? JSON.stringify(updated) : null
+      });
+    } catch (err) {
+      console.error("Failed to persist updated rules to weekly review:", err);
+    }
+
+    // Remove from rule evaluations if present
+    setRuleEvaluations(prev => prev.filter(e => 
+      !(e.when === ruleToDelete.when && e.then === ruleToDelete.then)
+    ));
   };
 
   const [showMasterRulesRef, setShowMasterRulesRef] = useState(false);
@@ -3052,33 +3086,49 @@ const cleanUnicodeEscapes = (str: string) => {
                               </div>
                             </div>
 
-                            {/* 3-way status toggle */}
-                            <div className="flex items-center gap-1.5 shrink-0 bg-muted/40 p-1 rounded-lg border border-border/60">
-                              {(["testing", "active", "retired"] as const).map((s) => {
-                                const isSelected = status === s;
-                                return (
-                                  <button
-                                    key={s}
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleUpdateRuleStatus(rule.id, s);
-                                    }}
-                                    className={cn(
-                                      "px-2.5 py-1 rounded-md font-mono text-[10px] font-bold uppercase transition-all",
-                                      isSelected
-                                        ? s === "active"
-                                          ? "bg-emerald-500 text-black shadow-sm font-black"
-                                          : s === "testing"
-                                          ? "bg-amber-500 text-black shadow-sm font-black"
-                                          : "bg-muted-foreground/30 text-foreground shadow-sm"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                                    )}
-                                  >
-                                    {s === "testing" ? "Testing (W1-3)" : s}
-                                  </button>
-                                );
-                              })}
+                            {/* 3-way status toggle & Delete Rule */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex items-center gap-1.5 shrink-0 bg-muted/40 p-1 rounded-lg border border-border/60">
+                                {(["testing", "active", "retired"] as const).map((s) => {
+                                  const isSelected = status === s;
+                                  return (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleUpdateRuleStatus(rule.id, s);
+                                      }}
+                                      className={cn(
+                                        "px-2.5 py-1 rounded-md font-mono text-[10px] font-bold uppercase transition-all",
+                                        isSelected
+                                          ? s === "active"
+                                            ? "bg-emerald-500 text-black shadow-sm font-black"
+                                            : s === "testing"
+                                            ? "bg-amber-500 text-black shadow-sm font-black"
+                                            : "bg-muted-foreground/30 text-foreground shadow-sm"
+                                          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                                      )}
+                                    >
+                                      {s === "testing" ? "Testing (W1-3)" : s}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteMasterRuleId(rule.id);
+                                }}
+                                className="h-8 w-8 text-destructive hover:bg-destructive/10 shrink-0"
+                                title="Delete Rule from Rule Book"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </Button>
                             </div>
                           </div>
 
@@ -3228,18 +3278,56 @@ const cleanUnicodeEscapes = (str: string) => {
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Rule?</AlertDialogTitle>
           <AlertDialogDescription>
-            Are you sure you want to delete this rule built from this week?
+            Are you sure you want to delete this rule built from this week? It will be removed from your weekly review and Master Rule Book.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => setDeleteRuleIdx(null)}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={() => {
+            onClick={async () => {
               if (deleteRuleIdx !== null) {
-                removeRule(deleteRuleIdx);
+                const idx = deleteRuleIdx;
                 setDeleteRuleIdx(null);
-                toast.success("Rule removed");
+                await removeRule(idx);
+                toast.success("Rule deleted completely");
+              }
+            }}
+          >
+            Delete
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Delete Master Rule Confirmation Dialog */}
+    <AlertDialog open={deleteMasterRuleId !== null} onOpenChange={(open) => !open && setDeleteMasterRuleId(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete Rule From Rule Book?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to permanently delete this rule from your Master Rule Book?
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setDeleteMasterRuleId(null)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={async () => {
+              if (deleteMasterRuleId) {
+                const idToDelete = deleteMasterRuleId;
+                setDeleteMasterRuleId(null);
+                try {
+                  await deleteRuleBookEntry(idToDelete);
+                  await loadRuleBook();
+                  setRulesBuilt(prev => prev.filter(r => {
+                    const sig = (r.when?.trim() || "") + "||" + (r.then?.trim() || "");
+                    return ruleIdMap[sig] !== idToDelete;
+                  }));
+                  toast.success("Rule deleted from Rule Book");
+                } catch {
+                  toast.error("Failed to delete rule");
+                }
               }
             }}
           >
