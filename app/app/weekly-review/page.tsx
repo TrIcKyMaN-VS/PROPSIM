@@ -87,6 +87,16 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
 export default function WeeklyReviewPage() {
   const [weekOf, setWeekOf] = useState(getCurrentWeekKey());
   const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const w = params.get("week");
+      if (w && /^\d{4}-W\d{2}$/.test(w)) {
+        setWeekOf(w);
+      }
+    }
+  }, []);
   const rawTrades = usePropStore(s => s.trades);
   const tradePsychology = usePropStore(s => s.tradePsychology);
   const displayTimeMode = usePropStore(s => s.displayTimeMode);
