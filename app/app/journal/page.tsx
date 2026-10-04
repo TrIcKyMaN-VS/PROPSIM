@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import { Plus, Search, SlidersHorizontal, X, RefreshCw, Plug, Trash2, ArrowUp, ArrowDown, NotebookPen, Layers, TrendingUp, TrendingDown, Scale, Filter } from "lucide-react"
+import { Plus, Search, SlidersHorizontal, X, RefreshCw, Plug, Trash2, ArrowUp, ArrowDown, NotebookPen, Layers, TrendingUp, TrendingDown, Scale, Filter, Crosshair } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { getApiTokens } from "@/app/actions/integration-actions"
@@ -23,6 +23,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
 
 const GRADE_STYLES: Record<string, string> = {
@@ -39,6 +46,10 @@ export default function JournalPage() {
   const trades = usePropStore(s => s.trades)
   const tradePsychology = usePropStore(s => s.tradePsychology)
   const playbooks = usePropStore(s => s.playbooks) || []
+  const customSetups = usePropStore(s => s.customSetups) || []
+  const deletedSetups = usePropStore(s => s.deletedSetups) || []
+  const addCustomSetup = usePropStore(s => s.addCustomSetup)
+  const deleteCustomSetup = usePropStore(s => s.deleteCustomSetup)
   const accountTrades = trades.filter(t => t.accountId === activeAccountId)
   const syncWithDb = usePropStore(s => s.syncWithDb)
   const removeTrade = usePropStore(s => s.removeTrade)
@@ -87,15 +98,23 @@ export default function JournalPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [filterDirection, setFilterDirection] = useState<"" | "long" | "short">("")
   const [filterSession, setFilterSession] = useState("")
-  const [filterPlaybook, setFilterPlaybook] = useState("")
+  const [filterSetup, setFilterSetup] = useState("")
   const [filterResult, setFilterResult] = useState<"" | "win" | "loss" | "open">("")
   const [filterInstrument, setFilterInstrument] = useState("")
 
-  const playbookNames = useMemo(() => {
+  // Setup management dialog state
+  const [manageSetupsOpen, setManageSetupsOpen] = useState(false)
+  const [newSetupInput, setNewSetupInput] = useState("")
+  const [setupToDelete, setSetupToDelete] = useState<string | null>(null)
+
+  const setupNames = useMemo(() => {
     const names = new Set<string>()
-    accountTrades.forEach(t => { if (t.playbookName) names.add(t.playbookName) })
-    return [...names].sort()
-  }, [accountTrades])
+    accountTrades.forEach(t => { if (t.playbookName?.trim()) names.add(t.playbookName.trim()) })
+    playbooks.filter((p: any) => !p.deletedAt && p.name?.trim()).forEach((p: any) => names.add(p.name.trim()))
+    customSetups.forEach(s => { if (s?.trim()) names.add(s.trim()) })
+    const deletedLower = new Set(deletedSetups.map(d => d.toLowerCase().trim()))
+    return Array.from(names).filter(n => !deletedLower.has(n.toLowerCase())).sort((a, b) => a.localeCompare(b))
+  }, [accountTrades, playbooks, customSetups, deletedSetups])
 
   const instruments = useMemo(() => {
     const set = new Set<string>()
@@ -127,7 +146,7 @@ export default function JournalPage() {
         }
         if (filterDirection && t.direction !== filterDirection) return false
         if (filterSession && t.session !== filterSession) return false
-        if (filterPlaybook && t.playbookName !== filterPlaybook) return false
+        if (filterSetup && t.playbookName !== filterSetup) return false
         if (filterInstrument && t.instrument !== filterInstrument) return false
         if (filterResult) {
           if (filterResult === "win" && t.pnl <= 0) return false
@@ -136,7 +155,7 @@ export default function JournalPage() {
         }
         return true
       })
-  }, [accountTrades, search, filterDirection, filterSession, filterPlaybook, filterInstrument, filterResult])
+  }, [accountTrades, search, filterDirection, filterSession, filterSetup, filterInstrument, filterResult])
 
   const stats = useMemo(() => {
     const total = accountTrades.length
@@ -150,11 +169,11 @@ export default function JournalPage() {
     return { total, wins, losses, winRate, netPnl, profitFactor }
   }, [accountTrades])
 
-  const activeFilters = [filterDirection, filterSession, filterPlaybook, filterInstrument, filterResult].filter(Boolean).length
+  const activeFilters = [filterDirection, filterSession, filterSetup, filterInstrument, filterResult].filter(Boolean).length
   const clearFilters = () => {
     setFilterDirection("")
     setFilterSession("")
-    setFilterPlaybook("")
+    setFilterSetup("")
     setFilterInstrument("")
     setFilterResult("")
     setSearch("")
@@ -342,14 +361,23 @@ export default function JournalPage() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase">Playbook</label>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase">Setup</label>
+                <button
+                  type="button"
+                  onClick={() => setManageSetupsOpen(true)}
+                  className="text-[10px] text-primary hover:underline font-sans cursor-pointer"
+                >
+                  Manage
+                </button>
+              </div>
               <select
                 className="flex h-9 w-full rounded-xl border border-border bg-card px-3 py-1 text-xs font-bold"
-                value={filterPlaybook}
-                onChange={e => { setFilterPlaybook(e.target.value); setPage(1); }}
+                value={filterSetup}
+                onChange={e => { setFilterSetup(e.target.value); setPage(1); }}
               >
-                <option value="">All Playbooks</option>
-                {playbookNames.map(n => (
+                <option value="">All Setups</option>
+                {setupNames.map(n => (
                   <option key={n} value={n}>{n}</option>
                 ))}
               </select>
@@ -380,6 +408,7 @@ export default function JournalPage() {
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Date &amp; Time</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Instrument</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Direction</TableHead>
+                  <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Setup</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Session</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-muted-foreground">Grade</TableHead>
                   <TableHead className="font-mono text-xs font-bold uppercase text-cyan-400">Net R</TableHead>
@@ -390,7 +419,7 @@ export default function JournalPage() {
               <TableBody className="divide-y divide-border/40 font-mono text-xs">
                 {filteredTrades.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center text-muted-foreground py-12">
+                    <TableCell colSpan={9} className="text-center text-muted-foreground py-12">
                       {search || activeFilters > 0 ? "No trades match your filters." : "No trades found. Import a CSV or add a manual entry to get started."}
                     </TableCell>
                   </TableRow>
@@ -441,6 +470,21 @@ export default function JournalPage() {
                           {trade.direction === "long" ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
                           {trade.direction}
                         </span>
+                      </TableCell>
+
+                      {/* Setup */}
+                      <TableCell className="py-3.5">
+                        {trade.playbookName ? (
+                          <Badge
+                            variant="outline"
+                            className="font-mono text-xs font-semibold bg-muted/40 text-foreground border-border/80 max-w-[150px] truncate"
+                            title={trade.playbookName}
+                          >
+                            {trade.playbookName}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground/30 text-xs">—</span>
+                        )}
                       </TableCell>
 
                       {/* Session */}
@@ -539,7 +583,7 @@ export default function JournalPage() {
         </CardContent>
       </Card>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Trade Confirmation Dialog */}
       <AlertDialog open={deleteTradeId !== null} onOpenChange={(open) => !open && setDeleteTradeId(null)}>
         <AlertDialogContent className="bg-card/95 backdrop-blur-xl border-border/80">
           <AlertDialogHeader>
@@ -567,6 +611,126 @@ export default function JournalPage() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90 font-bold"
             >
               Delete Trade
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Manage Setups Dialog */}
+      <Dialog open={manageSetupsOpen} onOpenChange={setManageSetupsOpen}>
+        <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-xl border-border/80 font-sans">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <Crosshair className="w-5 h-5 text-primary" /> Manage Trading Setups
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Manage your model setups. Setups appear across your Journal, Daily Routine, and Weekly Reviews.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Quick Create Input */}
+          <div className="flex gap-2 pt-2">
+            <Input
+              placeholder="New setup name (e.g. FVG Reversal)..."
+              value={newSetupInput}
+              onChange={(e) => setNewSetupInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newSetupInput.trim()) {
+                  const val = newSetupInput.trim()
+                  addCustomSetup(val)
+                  setNewSetupInput("")
+                  toast.success(`Setup "${val}" created!`)
+                }
+              }}
+              className="font-mono text-xs h-9 bg-muted/40"
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (newSetupInput.trim()) {
+                  const val = newSetupInput.trim()
+                  addCustomSetup(val)
+                  setNewSetupInput("")
+                  toast.success(`Setup "${val}" created!`)
+                }
+              }}
+              disabled={!newSetupInput.trim()}
+              className="font-bold shrink-0"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add
+            </Button>
+          </div>
+
+          {/* Existing Setups List */}
+          <div className="space-y-1.5 max-h-72 overflow-y-auto pr-1 pt-2">
+            {setupNames.length === 0 ? (
+              <p className="text-center text-xs text-muted-foreground py-6 italic">
+                No setups defined yet. Add your first setup above.
+              </p>
+            ) : (
+              setupNames.map((name) => {
+                const count = accountTrades.filter((t) => t.playbookName === name).length
+                return (
+                  <div
+                    key={name}
+                    className="flex items-center justify-between p-2.5 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 truncate mr-2">
+                      <Badge variant="outline" className="font-mono text-xs font-bold bg-primary/10 text-primary border-primary/20">
+                        {name}
+                      </Badge>
+                      <span className="text-[11px] font-mono text-muted-foreground">
+                        {count} trade{count === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSetupToDelete(name)}
+                      className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                      title={`Delete "${name}"`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Setup Confirmation Dialog */}
+      <AlertDialog open={!!setupToDelete} onOpenChange={(open) => !open && setSetupToDelete(null)}>
+        <AlertDialogContent className="font-sans">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-400">
+              <Trash2 className="w-5 h-5" /> Delete Setup Option?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-sm">
+              Are you sure you want to remove <strong className="text-foreground font-mono">&quot;{setupToDelete}&quot;</strong> from your setup options?
+              <br /><br />
+              Existing trades with this setup will keep their record, but it will no longer appear in future dropdown options.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (setupToDelete) {
+                  const target = setupToDelete
+                  setSetupToDelete(null)
+                  await deleteCustomSetup(target)
+                  if (filterSetup === target) {
+                    setFilterSetup("")
+                  }
+                  toast.success(`Setup "${target}" deleted`)
+                }
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete Setup
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

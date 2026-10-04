@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { ArrowLeft, Upload, Clipboard, Trash2, ImageIcon, Maximize2 } from "lucide-react"
+import { SetupCombobox } from "@/components/app/setup-combobox"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -85,6 +86,7 @@ export default function TradeDetailsPage() {
   const addScreenshot    = usePropStore(s => s.addScreenshot)
   const deleteScreenshot = usePropStore(s => s.deleteScreenshot)
   const saveTradePsychology = usePropStore(s => s.saveTradePsychology)
+  const addCustomSetup   = usePropStore(s => s.addCustomSetup)
 
   const trade   = trades.find(t => t.id === tradeId)
   const psyc    = tradePsychology.find(p => p.tradeId === tradeId) || {} as any
@@ -95,6 +97,7 @@ export default function TradeDetailsPage() {
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
   const [isZoomed, setIsZoomed] = useState(false)
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({})
+  const [setupName, setSetupName] = useState("")
 
   // ---- section ----
 
@@ -132,6 +135,7 @@ export default function TradeDetailsPage() {
       mistakes:             trade.mistakes             ?? "",
       executionImprovement: (trade as any).executionImprovement ?? "",
     })
+    setSetupName(trade.playbookName ?? "")
     setCheckedItems(trade.playbookChecklist ?? {})
   }, [trade?.id]) // eslint-disable-line
 
@@ -243,6 +247,10 @@ export default function TradeDetailsPage() {
     if (!trade) return
     setSaving(true)
     try {
+      const trimmedSetup = setupName.trim()
+      if (trimmedSetup) {
+        addCustomSetup(trimmedSetup)
+      }
       await saveTradePsychology({
         tradeId: trade.id,
         executionGrade: stratForm.executionGrade,
@@ -256,6 +264,7 @@ export default function TradeDetailsPage() {
         takeProfit:     parseFloat(riskForm.takeProfit)|| undefined,
         plannedRisk:    parseFloat(riskForm.riskAmount)|| undefined,
         netR:           parseFloat(riskForm.riskAmount) > 0 ? ((parseFloat(execForm.pnl) || trade.pnl) / parseFloat(riskForm.riskAmount)) : undefined,
+        playbookName:   trimmedSetup || null,
         reasonForEntry: stratForm.reasonForEntry,
         resultVsExpectation: stratForm.resultVsExpectation,
         expectedRR:     stratForm.expectedRR,
@@ -327,9 +336,9 @@ export default function TradeDetailsPage() {
                 {trade.session}
               </span>
             )}
-            {trade.playbookName && (
+            {(setupName || trade.playbookName) && (
               <span className="text-xs bg-primary/10 border border-primary/25 text-primary px-2.5 py-0.5 rounded-full font-medium">
-                {trade.playbookName}
+                {setupName || trade.playbookName}
               </span>
             )}
             {parsedTags.map(tag => (
@@ -415,10 +424,20 @@ export default function TradeDetailsPage() {
           <Card>
             <CardHeader className="pb-3 border-b border-border/60">
               <CardTitle className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">
-                Execution
+                Execution &amp; Setup
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-5 space-y-3">
+              <div>
+                <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">SETUP / MODEL</Label>
+                <div className="mt-1">
+                  <SetupCombobox
+                    value={setupName}
+                    onChange={setSetupName}
+                    placeholder="Select or enter setup..."
+                  />
+                </div>
+              </div>
               {([
                 { label: "ENTRY PRICE",  key: "entry" },
                 { label: "EXIT PRICE",   key: "exit" },

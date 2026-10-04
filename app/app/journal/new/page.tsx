@@ -12,6 +12,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload } from "lucide-react"
+import { SetupCombobox } from "@/components/app/setup-combobox"
 import { toast } from "sonner"
 import type { TradeDirection } from "@/lib/types"
 import {
@@ -61,6 +62,7 @@ export default function NewManualTradePage() {
   const addTrade = usePropStore(s => s.addTrade)
   const saveTradePsychology = usePropStore(s => s.saveTradePsychology)
   const addScreenshot = usePropStore(s => s.addScreenshot)
+  const addCustomSetup = usePropStore(s => s.addCustomSetup)
   const playbooks = (usePropStore(s => s.playbooks) || []).filter(p => !p.deletedAt)
 
   const [loading, setLoading] = useState(false)
@@ -78,6 +80,7 @@ export default function NewManualTradePage() {
     exit: "",
     pnl: "",
     netR: "",
+    setupName: "",
     reasoning: "",
     resultVsExpectation: "",
     mistakes: "",
@@ -169,9 +172,16 @@ export default function NewManualTradePage() {
       const pnlNum = parseFloat(form.pnl) || 0
       const netRNum = form.netR ? parseFloat(form.netR) : null
 
+      const trimmedSetup = form.setupName.trim()
+      if (trimmedSetup) {
+        addCustomSetup(trimmedSetup)
+      }
+      const matchingPb = playbooks.find((p: any) => p.name?.toLowerCase() === trimmedSetup.toLowerCase())
+
       const createdTrade = await addTrade({
         accountId: activeAccountId,
-        playbookId: playbookId || undefined,
+        playbookId: matchingPb?.id || playbookId || undefined,
+        playbookName: trimmedSetup || undefined,
         instrument: form.instrument,
         direction: form.direction,
         entry: parseFloat(form.entry) || 0,
@@ -230,16 +240,12 @@ export default function NewManualTradePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-muted-foreground tracking-wider">Setup Name</Label>
-              <select 
-                className="flex h-10 w-full rounded-md border border-input bg-muted/20 px-3 py-2 text-sm ring-offset-background"
-                value={playbookId} 
-                onChange={e => setPlaybookId(e.target.value)}
-              >
-                <option value="">-- Select Playbook Setup --</option>
-                {playbooks.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+              <SetupCombobox 
+                value={form.setupName}
+                onChange={(val) => setForm(f => ({ ...f, setupName: val }))}
+                placeholder="Select or enter setup..."
+                className="h-10 bg-muted/20"
+              />
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">

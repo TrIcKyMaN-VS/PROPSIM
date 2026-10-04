@@ -125,6 +125,10 @@ interface PropState {
   setDefaultPlannedRisk: (val: number) => void
   toggleCompare: (firmId: string) => void
   tradesFor: (accountId: string) => Trade[]
+  customSetups: string[]
+  deletedSetups: string[]
+  addCustomSetup: (name: string) => void
+  deleteCustomSetup: (name: string) => Promise<void>
   setAnimationMode: (mode: "Full" | "Reduced" | "Off") => void
 }
 
@@ -134,6 +138,8 @@ export const usePropStore = create<PropState>()(
       accounts: [],
       trades: [],
       playbooks: [],
+      customSetups: [],
+      deletedSetups: [],
       dailyPerformances: [],
       tradePsychology: [],
       tradeScreenshots: [],
@@ -190,7 +196,7 @@ export const usePropStore = create<PropState>()(
 
           // Simple comparison to prevent unnecessary state triggers and db query cascades
           const tradesEqual = currentTrades.length === dbTrades.length && 
-            currentTrades.every((t, i) => t.id === dbTrades[i]?.id && Number(t.pnl) === Number(dbTrades[i]?.pnl) && Number(t.exitTime) === Number(dbTrades[i]?.exitTime));
+            currentTrades.every((t, i) => t.id === dbTrades[i]?.id && Number(t.pnl) === Number(dbTrades[i]?.pnl) && Number(t.exitTime) === Number(dbTrades[i]?.exitTime) && t.playbookName === dbTrades[i]?.playbookName);
           
           const accountsEqual = currentAccounts.length === parsedAccounts.length &&
             currentAccounts.every((a, i) => a.id === parsedAccounts[i]?.id && a.status === parsedAccounts[i]?.status && a.brokerAccountName === parsedAccounts[i]?.brokerAccountName);
@@ -491,6 +497,42 @@ export const usePropStore = create<PropState>()(
         }),
 
       tradesFor: (accountId) => get().trades.filter((t) => t.accountId === accountId),
+
+      addCustomSetup: (name) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        set((s) => {
+          const prevCustom = s.customSetups || []
+          const prevDeleted = s.deletedSetups || []
+          const filteredDeleted = prevDeleted.filter(d => d.toLowerCase() !== trimmed.toLowerCase())
+          const exists = prevCustom.some(cs => cs.toLowerCase() === trimmed.toLowerCase())
+          if (exists) {
+            return { deletedSetups: filteredDeleted }
+          }
+          return {
+            customSetups: [...prevCustom, trimmed],
+            deletedSetups: filteredDeleted
+          }
+        })
+      },
+
+      deleteCustomSetup: async (name) => {
+        const trimmed = name.trim()
+        if (!trimmed) return
+        const playbooks = get().playbooks || []
+        const matchingPb = playbooks.find((p: any) => p.name?.toLowerCase() === trimmed.toLowerCase())
+        if (matchingPb?.id) {
+          try {
+            await get().removePlaybook(matchingPb.id)
+          } catch (err) {
+            console.error("Failed to delete DB playbook:", err)
+          }
+        }
+        set((s) => ({
+          customSetups: (s.customSetups || []).filter(cs => cs.toLowerCase() !== trimmed.toLowerCase()),
+          deletedSetups: [...new Set([...(s.deletedSetups || []), trimmed])]
+        }))
+      },
     }),
     {
       name: "propsim-store",
@@ -501,6 +543,8 @@ export const usePropStore = create<PropState>()(
         displayTimeMode: state.displayTimeMode,
         pnlDisplayMode: state.pnlDisplayMode,
         routineConfig: state.routineConfig,
+        customSetups: state.customSetups,
+        deletedSetups: state.deletedSetups,
         seeded: state.seeded,
       }),
     },
