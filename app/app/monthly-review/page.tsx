@@ -39,10 +39,14 @@ import {
   Layers,
   Zap,
   Maximize2,
-  FileText
+  FileText,
+  Target,
+  Brain,
+  Compass
 } from "lucide-react"
 import { toast } from "sonner"
 import { usePropStore } from "@/lib/store"
+import { SetupCombobox } from "@/components/app/setup-combobox"
 import { fmtPnl, fmtCurrency } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import { Trade } from "@/lib/types"
@@ -50,6 +54,23 @@ import { Trade } from "@/lib/types"
 const currentMonth = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+}
+
+function formatHoldDuration(entryTs?: number, exitTs?: number): string {
+  if (!entryTs || !exitTs || exitTs <= entryTs) return "—"
+  const diffMs = exitTs - entryTs
+  const diffSec = Math.floor(diffMs / 1000)
+  const hours = Math.floor(diffSec / 3600)
+  const minutes = Math.floor((diffSec % 3600) / 60)
+  const seconds = diffSec % 60
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds}s`
+  }
+  return `${seconds}s`
 }
 
 const textCls = "min-h-[90px] text-sm mt-1.5 bg-muted/20 border-border/80 focus:border-primary resize-none rounded-xl"
@@ -74,6 +95,19 @@ export default function MonthlyRecapPage() {
   const tradePsychology = usePropStore(s => s.tradePsychology) || []
   const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
   const pnlDisplayMode = usePropStore(s => s.pnlDisplayMode)
+  const updateTrade = usePropStore(s => s.updateTrade)
+
+  const handleUpdateSetup = async (tradeId: string, newSetup: string) => {
+    try {
+      await updateTrade(tradeId, { playbookName: newSetup })
+      if (selectedTrade && selectedTrade.id === tradeId) {
+        setSelectedTrade({ ...selectedTrade, playbookName: newSetup })
+      }
+      toast.success(newSetup ? `Setup tagged as "${newSetup}"` : "Setup cleared")
+    } catch (err) {
+      toast.error("Failed to update setup")
+    }
+  }
 
   const account = useMemo(() => accounts.find(a => a.id === activeAccountId), [accounts, activeAccountId])
   const accountBalance = account?.rules?.startingBalance ?? 100000
@@ -126,7 +160,7 @@ export default function MonthlyRecapPage() {
   const winningSetupsBreakdown = useMemo(() => {
     const map: Record<string, { count: number; totalPnl: number; totalR: number }> = {}
     winningTrades.forEach(t => {
-      const name = t.playbookName || "Discretionary / Unnamed"
+      const name = t.playbookName || "Untagged Setup"
       if (!map[name]) map[name] = { count: 0, totalPnl: 0, totalR: 0 }
       map[name].count++
       map[name].totalPnl += t.pnl
@@ -269,7 +303,7 @@ export default function MonthlyRecapPage() {
       return psych?.executionGrade === "A" || psych?.executionGrade === "B"
     }).length
     
-    setWinsBestTradesCommon(`Largest win was +${bestWinR.toFixed(2)}R on ${bestWin.instrument} (${bestWin.playbookName || "Discretionary"}). Across all ${winningTrades.length} wins, ${commonGradeCount} followed Grade A/B model execution without forced early entry.`)
+    setWinsBestTradesCommon(`Largest win was +${bestWinR.toFixed(2)}R on ${bestWin.instrument} (${bestWin.playbookName || "Untagged Setup"}). Across all ${winningTrades.length} wins, ${commonGradeCount} followed Grade A/B model execution without forced early entry.`)
     toast.success("Win patterns extracted from trades into reflection fields!")
   }
 
@@ -336,7 +370,7 @@ export default function MonthlyRecapPage() {
   // Filtered winning trades by selected setup chip
   const displayedWinningTrades = useMemo(() => {
     if (!activeSetupFilter) return winningTrades
-    return winningTrades.filter(t => (t.playbookName || "Discretionary / Unnamed") === activeSetupFilter)
+    return winningTrades.filter(t => (t.playbookName || "Untagged Setup") === activeSetupFilter)
   }, [winningTrades, activeSetupFilter])
 
   // Filtered losing trades by selected mistake chip
@@ -577,7 +611,7 @@ export default function MonthlyRecapPage() {
                           </span>
                           <span className="font-bold text-xs text-foreground shrink-0">{t.instrument}</span>
                           <span className="text-xs text-foreground font-medium truncate max-w-[160px] md:max-w-[240px]">
-                            {t.playbookName || "Discretionary"}
+                            {t.playbookName || "Untagged Setup"}
                           </span>
                           {t.resultVsExpectation && (
                             <span className="text-[11px] text-muted-foreground italic truncate hidden lg:inline max-w-[200px]">
@@ -743,7 +777,7 @@ export default function MonthlyRecapPage() {
                           </span>
                           <span className="font-bold text-xs text-foreground shrink-0">{t.instrument}</span>
                           <span className="text-xs text-foreground font-medium truncate max-w-[140px] md:max-w-[200px]">
-                            {t.playbookName || "Discretionary"}
+                            {t.playbookName || "Untagged Setup"}
                           </span>
                           <span className="text-[10px] font-semibold text-rose-400/90 bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded truncate max-w-[180px] hidden sm:inline">
                             ⚠️ {mistakeLabel}
@@ -868,161 +902,311 @@ export default function MonthlyRecapPage() {
 
       {/* ── IN-PLACE TRADE INSPECTOR DIALOG ─────────────────────────────────── */}
       <Dialog open={!!selectedTrade} onOpenChange={(open) => !open && setSelectedTrade(null)}>
-        {selectedTrade && (
-          <DialogContent className="w-full sm:max-w-3xl bg-card border-border/80 shadow-2xl p-6 sm:p-7 space-y-6 max-h-[90vh] overflow-y-auto rounded-2xl">
-            <DialogHeader className="pb-3 border-b border-border/50 space-y-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 flex-wrap">
-                  <span className={cn(
-                    "text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider",
-                    selectedTrade.direction === "long" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                  )}>
-                    {selectedTrade.direction}
+        {selectedTrade && (() => {
+          const selectedPsych = selectedTrade.psychology || tradePsychology.find(p => p.tradeId === selectedTrade.id)
+          const hasQualitativeNotes = !!(
+            selectedTrade.reasonForEntry ||
+            selectedTrade.tradeIdea ||
+            selectedTrade.resultVsExpectation ||
+            selectedTrade.mistakes ||
+            selectedTrade.executionImprovement ||
+            selectedTrade.lessonsLearned ||
+            selectedTrade.psychologyNotes ||
+            selectedPsych?.preNotes ||
+            selectedTrade.marketBias
+          )
+
+          return (
+            <DialogContent className="w-full sm:max-w-3xl bg-card border-border/80 shadow-2xl p-6 sm:p-7 space-y-6 max-h-[90vh] overflow-y-auto rounded-2xl">
+              <DialogHeader className="pb-3 border-b border-border/50 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className={cn(
+                      "text-xs font-black px-2.5 py-1 rounded-md uppercase tracking-wider",
+                      selectedTrade.direction === "long" ? "bg-blue-500/20 text-blue-400 border border-blue-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                    )}>
+                      {selectedTrade.direction}
+                    </span>
+                    <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
+                      {selectedTrade.instrument}
+                    </DialogTitle>
+                    <div className="w-[190px] sm:w-[230px]">
+                      <SetupCombobox
+                        value={selectedTrade.playbookName || ""}
+                        onChange={(newSetup) => handleUpdateSetup(selectedTrade.id, newSetup)}
+                        placeholder="Untagged (Click to tag)"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className={cn(
+                      "text-xs font-mono font-bold px-2.5 py-1",
+                      selectedTrade.pnl >= 0 ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                    )}>
+                      {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
+                      <span className="mx-1.5 opacity-40">&bull;</span>
+                      {fmtPnl(selectedTrade.pnl, pnlDisplayMode, accountBalance, { sign: true })}
+                    </Badge>
+                  </div>
+                </div>
+
+                <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                  <span>{new Date(Number(selectedTrade.timestamp)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>&bull;</span>
+                  <span>Session: <strong className="text-foreground">{selectedTrade.session || "N/A"}</strong></span>
+                  {selectedTrade.exitTime && (
+                    <>
+                      <span>&bull;</span>
+                      <span>Hold Time: <strong className="text-foreground">{formatHoldDuration(Number(selectedTrade.timestamp), Number(selectedTrade.exitTime))}</strong></span>
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Financial & Risk Telemetry Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-muted/20 border border-border/50 text-xs">
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Entry Price</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.entry}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Exit Price</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.exit}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Stop Loss</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.stopLoss != null ? selectedTrade.stopLoss : "—"}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Take Profit</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.takeProfit != null ? selectedTrade.takeProfit : "—"}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Contracts / Size</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.contracts}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Planned Risk</span>
+                  <span className="font-mono text-sm font-bold text-foreground">
+                    {selectedTrade.plannedRisk != null
+                      ? fmtCurrency(selectedTrade.plannedRisk)
+                      : selectedTrade.riskAmount != null
+                      ? fmtCurrency(selectedTrade.riskAmount)
+                      : "—"}
                   </span>
-                  <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
-                    {selectedTrade.instrument} &mdash; {selectedTrade.playbookName || "Discretionary Trade"}
-                  </DialogTitle>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={cn(
-                    "text-xs font-mono font-bold px-2.5 py-1",
-                    selectedTrade.pnl >= 0 ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-rose-500/40 text-rose-400 bg-rose-500/10"
-                  )}>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Target R:R</span>
+                  <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.expectedRR || "—"}</span>
+                </div>
+                <div className="space-y-0.5">
+                  <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Net Outcome</span>
+                  <span className={cn("font-mono text-sm font-bold", selectedTrade.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
                     {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
-                    <span className="mx-1.5 opacity-40">&bull;</span>
-                    {fmtPnl(selectedTrade.pnl, pnlDisplayMode, accountBalance, { sign: true })}
-                  </Badge>
+                    <span className="ml-1 text-[11px] opacity-80">({fmtPnl(selectedTrade.pnl, pnlDisplayMode, accountBalance, { sign: true })})</span>
+                  </span>
                 </div>
               </div>
 
-              <DialogDescription className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
-                <span>{new Date(Number(selectedTrade.timestamp)).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                <span>&bull;</span>
-                <span>Session: <strong className="text-foreground">{selectedTrade.session || "N/A"}</strong></span>
-              </DialogDescription>
-            </DialogHeader>
-
-            {/* Financial Telemetry 4-Card Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-muted/20 border border-border/50 text-xs">
-              <div className="space-y-0.5">
-                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Entry Price</span>
-                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.entry}</span>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Exit Price</span>
-                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.exit}</span>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Contracts / Size</span>
-                <span className="font-mono text-sm font-bold text-foreground">{selectedTrade.contracts}</span>
-              </div>
-              <div className="space-y-0.5">
-                <span className="text-muted-foreground text-[10px] uppercase font-bold tracking-wider block">Net Outcome</span>
-                <span className={cn("font-mono text-sm font-bold", selectedTrade.pnl >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                  {selectedTrade.pnl >= 0 ? "+" : ""}{(selectedTrade.netR ?? (selectedTrade.pnl / defaultPlannedRisk)).toFixed(2)} R
-                </span>
-              </div>
-            </div>
-
-            {/* Execution Quality & Psychology */}
-            <div className="space-y-2.5">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Execution Quality &amp; Psychology
-              </div>
-              <div className="flex flex-wrap gap-2 text-xs">
-                <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
-                  Grade: <strong className="ml-1 text-foreground">{selectedTrade.psychology?.executionGrade || "A"}</strong>
-                </Badge>
-                {selectedTrade.psychology?.exitReason && (
+              {/* Execution Quality & Psychology */}
+              <div className="space-y-2.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+                  <span>Execution Quality &amp; Psychology</span>
+                  {selectedPsych?.convictionScore != null && (
+                    <span className="text-[10px] text-muted-foreground font-mono">
+                      Conviction: <strong className="text-foreground">{selectedPsych.convictionScore}/10</strong>
+                    </span>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 text-xs">
                   <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
-                    Exit: <strong className="ml-1 text-foreground">{selectedTrade.psychology.exitReason}</strong>
+                    Grade: <strong className="ml-1 text-foreground">{selectedPsych?.executionGrade || "A"}</strong>
                   </Badge>
+                  {selectedPsych?.exitReason && (
+                    <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
+                      Exit: <strong className="ml-1 text-foreground">{selectedPsych.exitReason}</strong>
+                    </Badge>
+                  )}
+                  {selectedPsych?.brokeRules ? (
+                    <Badge variant="destructive" className="bg-rose-500/20 text-rose-400 border-rose-500/40 font-semibold px-2.5 py-1">
+                      Broke Trading Rules
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-semibold px-2.5 py-1">
+                      Followed Rules
+                    </Badge>
+                  )}
+                  {selectedPsych?.emotionAffected && (
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold px-2.5 py-1">
+                      Emotion-Affected
+                    </Badge>
+                  )}
+                  {selectedPsych?.hesitated && (
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold px-2.5 py-1">
+                      Hesitated on Entry
+                    </Badge>
+                  )}
+                  {selectedPsych?.movedStop && (
+                    <Badge variant="outline" className="border-rose-500/40 text-rose-400 bg-rose-500/10 font-semibold px-2.5 py-1">
+                      Moved Stop Loss
+                    </Badge>
+                  )}
+                  {selectedPsych?.movedTarget && (
+                    <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold px-2.5 py-1">
+                      Moved Take Profit
+                    </Badge>
+                  )}
+                  {selectedPsych?.addedSize && (
+                    <Badge variant="outline" className="border-purple-500/40 text-purple-400 bg-purple-500/10 font-semibold px-2.5 py-1">
+                      Added Size / Oversized
+                    </Badge>
+                  )}
+                  {selectedPsych?.preFeeling && (
+                    <Badge variant="outline" className="border-blue-500/40 text-blue-400 bg-blue-500/10 font-semibold px-2.5 py-1">
+                      Pre-trade: <strong className="ml-1 text-foreground">{selectedPsych.preFeeling}</strong>
+                    </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Qualitative Journal Breakdown */}
+              <div className="space-y-3">
+                {(selectedTrade.reasonForEntry || selectedTrade.tradeIdea) && (
+                  <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Target className="w-3 h-3 text-primary" /> Reasoning &amp; Trade Logic / Confirmation
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.reasonForEntry || selectedTrade.tradeIdea}
+                    </div>
+                  </div>
                 )}
-                {selectedTrade.psychology?.brokeRules ? (
-                  <Badge variant="destructive" className="bg-rose-500/20 text-rose-400 border-rose-500/40 font-semibold px-2.5 py-1">
-                    Broke Trading Rules
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 font-semibold px-2.5 py-1">
-                    Followed Rules
-                  </Badge>
+
+                {selectedTrade.resultVsExpectation && (
+                  <div className="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/20 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
+                      <Activity className="w-3 h-3 text-blue-400" /> Result vs Expectation
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">{selectedTrade.resultVsExpectation}</div>
+                  </div>
                 )}
-                {selectedTrade.psychology?.emotionAffected && (
-                  <Badge variant="outline" className="border-amber-500/40 text-amber-400 bg-amber-500/10 font-semibold px-2.5 py-1">
-                    Emotion-Affected
-                  </Badge>
+
+                {selectedTrade.mistakes && (
+                  <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/25 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                      <AlertTriangle className="w-3 h-3 text-rose-400" /> Mistakes Identified
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.mistakes}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTrade.executionImprovement && (
+                  <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/25 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
+                      <Zap className="w-3 h-3 text-amber-400" /> How Execution Could Improve
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.executionImprovement}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTrade.lessonsLearned && (
+                  <div className="p-3.5 rounded-xl bg-emerald-500/5 border border-emerald-500/25 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Lightbulb className="w-3 h-3 text-emerald-400" /> Lessons Learned
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.lessonsLearned}
+                    </div>
+                  </div>
+                )}
+
+                {(selectedTrade.psychologyNotes || selectedPsych?.preNotes) && (
+                  <div className="p-3.5 rounded-xl bg-purple-500/5 border border-purple-500/20 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                      <Brain className="w-3 h-3 text-purple-400" /> Psychology &amp; Mindset Notes
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.psychologyNotes || selectedPsych?.preNotes}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTrade.marketBias && (
+                  <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Compass className="w-3 h-3 text-muted-foreground" /> Market Bias / Macro Context
+                    </div>
+                    <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedTrade.marketBias}
+                    </div>
+                  </div>
+                )}
+
+                {!hasQualitativeNotes && (
+                  <div className="p-4 rounded-xl border border-dashed border-border/70 text-center space-y-2 bg-muted/10">
+                    <p className="text-xs text-muted-foreground">
+                      No qualitative reflections logged yet for this trade.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs gap-1.5 h-7"
+                      onClick={() => window.open(`/app/journal/${selectedTrade.id}`, '_blank')}
+                    >
+                      <FileText className="w-3.5 h-3.5 text-primary" />
+                      Add Reasoning, Mistakes &amp; Lessons in Journal
+                    </Button>
+                  </div>
                 )}
               </div>
-            </div>
 
-            {/* Qualitative Notes */}
-            <div className="space-y-3">
-              {selectedTrade.resultVsExpectation && (
-                <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Result vs Expectation</div>
-                  <div className="text-xs text-foreground leading-relaxed">{selectedTrade.resultVsExpectation}</div>
-                </div>
-              )}
-
-              {(selectedTrade.mistakes || selectedTrade.executionImprovement) && (
-                <div className="p-3.5 rounded-xl bg-rose-500/5 border border-rose-500/25 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-400">Mistakes &amp; Execution Improvement</div>
-                  <div className="text-xs text-foreground leading-relaxed">
-                    {selectedTrade.mistakes || selectedTrade.executionImprovement}
+              {/* Screenshots */}
+              {selectedTrade.screenshots && selectedTrade.screenshots.length > 0 && (
+                <div className="space-y-2.5">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Trade Screenshots ({selectedTrade.screenshots.length})
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {selectedTrade.screenshots.map((s: any, idx: number) => {
+                      const url = typeof s === "string" ? s : s?.url
+                      if (!url) return null
+                      return (
+                        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-border/60 hover:border-primary/50 transition-all bg-black/40">
+                          <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-44 object-contain group-hover:scale-[1.02] transition-transform" />
+                        </a>
+                      )
+                    })}
                   </div>
                 </div>
               )}
 
-              {selectedTrade.notes && (
-                <div className="p-3.5 rounded-xl bg-muted/20 border border-border/50 space-y-1">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Trade Notes / Logic</div>
-                  <div className="text-xs text-foreground leading-relaxed">{selectedTrade.notes}</div>
-                </div>
-              )}
-            </div>
-
-            {/* Screenshots */}
-            {selectedTrade.screenshots && selectedTrade.screenshots.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Trade Screenshots ({selectedTrade.screenshots.length})
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {selectedTrade.screenshots.map((s: any, idx: number) => {
-                    const url = typeof s === "string" ? s : s?.url
-                    if (!url) return null
-                    return (
-                      <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-border/60 hover:border-primary/50 transition-all bg-black/40">
-                        <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-44 object-contain group-hover:scale-[1.02] transition-transform" />
-                      </a>
-                    )
-                  })}
-                </div>
+              {/* Modal Footer Actions */}
+              <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => window.open(`/app/journal/${selectedTrade.id}`, '_blank')}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Open Full Trade in Journal
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setSelectedTrade(null)}
+                >
+                  Close
+                </Button>
               </div>
-            )}
-
-            {/* Modal Footer Actions */}
-            <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5"
-                onClick={() => window.open(`/app/journal/${selectedTrade.id}`, '_blank')}
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-                Open Full Trade in Journal
-              </Button>
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setSelectedTrade(null)}
-              >
-                Close
-              </Button>
-            </div>
-          </DialogContent>
-        )}
+            </DialogContent>
+          )
+        })()}
       </Dialog>
     </div>
   )
