@@ -405,30 +405,32 @@ export function CoachView() {
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
-          {historicalReports.length > 0 && (
-            <select
-              value={selectedReportId}
-              onChange={(e) => handleSelectReport(e.target.value)}
-              className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              <option value="" disabled>-- Select Historical Report --</option>
-              {historicalReports.map((report) => (
-                <option key={report.id} value={report.id}>
-                  Report: {new Date(report.createdAt).toLocaleDateString()} ({report.score1 ? `Survival: ${report.score1}%` : "No Score"}){report.source ? ` [${report.source.toUpperCase()}]` : ""}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button onClick={handleAnalyze} disabled={loading || totalTrades < 1}>
-            {loading ? "Analyzing Engine..." : "Generate AI Report"}
-            <Brain className="ml-2 w-4 h-4" />
-          </Button>
-        </div>
+        {activeTab === "coach" && (
+          <div className="flex items-center gap-2">
+            {historicalReports.length > 0 && (
+              <select
+                value={selectedReportId}
+                onChange={(e) => handleSelectReport(e.target.value)}
+                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              >
+                <option value="" disabled>-- Select Historical Report --</option>
+                {historicalReports.map((report) => (
+                  <option key={report.id} value={report.id}>
+                    Report: {new Date(report.createdAt).toLocaleDateString()} ({report.score1 ? `Survival: ${report.score1}%` : "No Score"}){report.source ? ` [${report.source.toUpperCase()}]` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Button onClick={handleAnalyze} disabled={loading || totalTrades < 1}>
+              {loading ? "Analyzing Engine..." : "Generate AI Report"}
+              <Brain className="ml-2 w-4 h-4" />
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Source Indicator & Fallback Warning Banner */}
-      {analysis && (
+      {analysis && activeTab === "coach" && (
         <div className="flex flex-col gap-3">
           {(analysis.isFallback || (analysis.metadata?.provider || analysis.source) === "PROGRAMMATIC") && (
             <div className="bg-destructive/10 text-destructive border border-destructive/20 rounded-lg p-3.5 text-sm font-medium flex items-center gap-2">
