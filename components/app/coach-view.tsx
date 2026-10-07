@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import type { Trade } from "@/lib/types"
 import { fmtCurrency, fmtPct } from "@/lib/format"
 import { evaluate } from "@/lib/rule-engine"
+import { AiCoachChat } from "@/components/app/ai-coach-chat"
 
 // ── Circular Progress Gauge for Survival Score ──────────────────────────────
 
@@ -90,7 +91,7 @@ export function CoachView() {
   const [analysis, setAnalysis] = useState<any>(null)
   const [historicalReports, setHistoricalReports] = useState<any[]>([])
   const [selectedReportId, setSelectedReportId] = useState<string>("")
-  const [activeTab, setActiveTab] = useState<"coach" | "insights" | "leaderboard">("coach")
+  const [activeTab, setActiveTab] = useState<"chat" | "coach" | "insights" | "leaderboard">("chat")
 
   // Load historical reviews
   const loadHistory = async () => {
@@ -467,22 +468,43 @@ export function CoachView() {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-border gap-2">
-        {(["coach", "insights", "leaderboard"] as const).map(tab => (
+      <div className="flex border-b border-border gap-2 overflow-x-auto scrollbar-none">
+        {(["chat", "coach", "insights", "leaderboard"] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={cn(
-              "px-4 py-2.5 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors",
+              "px-4 py-2.5 text-sm font-semibold capitalize border-b-2 -mb-px transition-colors shrink-0 flex items-center gap-2",
               activeTab === tab
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             )}
           >
-            {tab === "coach" ? "AI Coaching Report" : tab === "insights" ? "Trade Intelligence Insights" : "Leaderboard"}
+            {tab === "chat" ? (
+              <>
+                <Brain className="w-4 h-4 text-primary animate-pulse" />
+                <span>AI Coach Chat</span>
+                <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full font-mono uppercase font-black">
+                  Live
+                </span>
+              </>
+            ) : tab === "coach" ? (
+              "AI Coaching Report"
+            ) : tab === "insights" ? (
+              "Trade Intelligence Insights"
+            ) : (
+              "Leaderboard"
+            )}
           </button>
         ))}
       </div>
+
+      {/* ── Tab 0: AI Coach Chat (Live Interactive Assistant) ─────────────── */}
+      {activeTab === "chat" && (
+        <div className="space-y-4">
+          <AiCoachChat />
+        </div>
+      )}
 
       {/* ── Tab 1: AI Coach ──────────────────────────────────────────────── */}
       {activeTab === "coach" && (
