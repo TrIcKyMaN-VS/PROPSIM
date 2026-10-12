@@ -19,7 +19,9 @@ import {
   ShieldCheck,
   Zap,
   Activity,
-  CornerDownLeft
+  CornerDownLeft,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -41,32 +43,38 @@ const STORAGE_KEY = "propsim-ai-coach-chat-history"
 const SUGGESTION_PROMPTS = [
   {
     icon: Activity,
-    label: "How am I trading overall from scratch to today?",
+    title: "Overall Health",
+    prompt: "How am I trading overall from scratch to today?",
     color: "hover:border-primary/50 hover:bg-primary/5 text-primary border-border/70"
   },
   {
     icon: AlertTriangle,
-    label: "What is my #1 leak costing me money?",
+    title: "My #1 Leak",
+    prompt: "What is my #1 leak costing me money?",
     color: "hover:border-rose-500/50 hover:bg-rose-500/5 text-rose-400 border-border/70"
   },
   {
     icon: Target,
-    label: "Analyze my Delta Reload and setup win rates",
+    title: "Delta Reload & Setups",
+    prompt: "Analyze my Delta Reload and setup win rates",
     color: "hover:border-emerald-500/50 hover:bg-emerald-500/5 text-emerald-400 border-border/70"
   },
   {
     icon: ShieldCheck,
-    label: "Check my prop firm consistency & drawdown risk",
+    title: "Prop Firm Consistency",
+    prompt: "Check my prop firm consistency & drawdown risk",
     color: "hover:border-amber-500/50 hover:bg-amber-500/5 text-amber-400 border-border/70"
   },
   {
     icon: Zap,
-    label: "How do hesitation and emotions affect my results?",
+    title: "Hesitation & Emotions",
+    prompt: "How do hesitation and emotions affect my results?",
     color: "hover:border-purple-500/50 hover:bg-purple-500/5 text-purple-400 border-border/70"
   },
   {
     icon: Sparkles,
-    label: "Give me 3 strict rules for my next trading session",
+    title: "Next Session Rules",
+    prompt: "Give me 3 strict rules for my next trading session",
     color: "hover:border-blue-500/50 hover:bg-blue-500/5 text-blue-400 border-border/70"
   }
 ]
@@ -255,6 +263,17 @@ export function AiCoachChat() {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const suggestionsRef = useRef<HTMLDivElement>(null)
+
+  const scrollSuggestions = (direction: "left" | "right") => {
+    if (suggestionsRef.current) {
+      const scrollAmount = 260
+      suggestionsRef.current.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth"
+      })
+    }
+  }
 
   // Load chat history from localStorage
   useEffect(() => {
@@ -538,29 +557,61 @@ Click any quick suggestion chip below or type your question!`,
       </div>
 
       {/* ── Suggested Questions Carousel / Chips ────────────────────────────── */}
-      <div className="px-4 py-2.5 bg-muted/10 border-t border-border/40 overflow-x-auto scrollbar-none flex items-center gap-2 shrink-0">
+      <div className="relative px-3 sm:px-4 py-2 bg-muted/10 border-t border-border/40 flex items-center gap-1.5 shrink-0">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground shrink-0 mr-1 flex items-center gap-1">
           <Sparkles className="w-3 h-3 text-primary" /> Suggestions:
         </span>
-        <div className="flex items-center gap-2 pr-4">
+
+        {/* Scroll Left Button */}
+        <button
+          type="button"
+          onClick={() => scrollSuggestions("left")}
+          aria-label="Scroll suggestions left"
+          className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border/50 transition-colors shadow-sm"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Scrollable Container */}
+        <div
+          ref={suggestionsRef}
+          onWheel={(e) => {
+            if (e.deltaY !== 0) {
+              e.currentTarget.scrollLeft += e.deltaY
+            }
+          }}
+          className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none scroll-smooth py-1"
+        >
           {SUGGESTION_PROMPTS.map((prompt, idx) => {
             const Icon = prompt.icon
             return (
               <button
                 key={idx}
+                type="button"
                 disabled={loading}
-                onClick={() => handleSend(prompt.label)}
+                title={prompt.prompt}
+                onClick={() => handleSend(prompt.prompt)}
                 className={cn(
-                  "shrink-0 text-xs px-3 py-1.5 rounded-lg border bg-card/70 hover:bg-card transition-all flex items-center gap-1.5 shadow-sm",
+                  "shrink-0 text-xs px-2.5 py-1.5 rounded-lg border bg-card/80 hover:bg-card transition-all flex items-center gap-1.5 shadow-sm active:scale-95",
                   prompt.color
                 )}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
-                <span className="whitespace-nowrap">{prompt.label}</span>
+                <span className="whitespace-nowrap font-medium">{prompt.title}</span>
               </button>
             )
           })}
         </div>
+
+        {/* Scroll Right Button */}
+        <button
+          type="button"
+          onClick={() => scrollSuggestions("right")}
+          aria-label="Scroll suggestions right"
+          className="shrink-0 p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-border/50 transition-colors shadow-sm"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* ── Input Box & Controls ────────────────────────────────────────────── */}
@@ -596,17 +647,21 @@ Click any quick suggestion chip below or type your question!`,
         </div>
 
         {/* Dedicated Helper Hint Bar Below the Input — completely avoids text overlap */}
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-2 px-1">
-          <span className="flex items-center gap-1 text-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] text-muted-foreground mt-2.5 px-1">
+          <span className="flex items-center gap-1.5 text-[11px]">
             <Sparkles className="w-3 h-3 text-primary shrink-0" />
             <span>Chat in English, Tamil, or Tanglish</span>
           </span>
           <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
-            <span>Press</span>
-            <kbd className="font-mono bg-muted border border-border px-1.5 py-0.5 rounded text-[10px] text-foreground font-semibold flex items-center gap-0.5">
+            <kbd className="font-mono bg-muted/80 border border-border/80 px-1.5 py-0.5 rounded text-[10px] text-foreground font-semibold flex items-center gap-0.5">
               Enter <CornerDownLeft className="w-2.5 h-2.5" />
             </kbd>
-            <span>to send &bull; Shift+Enter for newline</span>
+            <span>send</span>
+            <span className="opacity-40">&bull;</span>
+            <kbd className="font-mono bg-muted/80 border border-border/80 px-1.5 py-0.5 rounded text-[10px] text-foreground font-semibold">
+              Shift+Enter
+            </kbd>
+            <span>newline</span>
           </span>
         </div>
       </div>

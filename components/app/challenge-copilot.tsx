@@ -2,7 +2,7 @@
 
 import { usePropStore } from "@/lib/store"
 import { evaluate } from "@/lib/rule-engine"
-import { AlertTriangle, Info, AlertCircle } from "lucide-react"
+import { AlertTriangle, Info, AlertCircle, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 
@@ -12,6 +12,7 @@ export function ChallengeCopilot() {
   const allTrades = usePropStore(s => s.trades)
   
   const [warnings, setWarnings] = useState<{ id: string, msg: string, level: "info" | "warn" | "critical" }[]>([])
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     const account = accounts.find(a => a.id === activeId)
@@ -47,27 +48,40 @@ export function ChallengeCopilot() {
     setWarnings(newWarnings)
   }, [accounts, activeId, allTrades])
 
-  if (warnings.length === 0) return null
+  const visibleWarnings = warnings.filter(w => !dismissedIds.has(w.id))
+
+  if (visibleWarnings.length === 0) return null
+
+  const handleDismiss = (id: string) => {
+    setDismissedIds(prev => new Set(prev).add(id))
+  }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-[320px]">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-[340px]">
       <AnimatePresence>
-        {warnings.map(w => (
+        {visibleWarnings.map(w => (
           <motion.div
             key={w.id}
             initial={{ opacity: 0, y: 20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className={`p-4 rounded-xl border shadow-lg flex gap-3 ${
-              w.level === "critical" ? "bg-destructive/10 border-destructive text-destructive" :
-              w.level === "warn" ? "bg-warning/10 border-warning text-warning-foreground" :
-              "bg-card border-primary/20 text-foreground"
+            className={`p-3.5 rounded-xl border shadow-xl flex items-start gap-2.5 ${
+              w.level === "critical" ? "bg-destructive/15 border-destructive text-destructive" :
+              w.level === "warn" ? "bg-amber-500/15 border-amber-500/40 text-amber-200" :
+              "bg-card/95 border-primary/30 text-foreground backdrop-blur-md"
             }`}
           >
-            {w.level === "critical" ? <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" /> : 
-             w.level === "warn" ? <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" /> :
-             <Info className="w-5 h-5 shrink-0 mt-0.5 text-primary" />}
-            <div className="text-sm font-medium leading-tight">{w.msg}</div>
+            {w.level === "critical" ? <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" /> : 
+             w.level === "warn" ? <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" /> :
+             <Info className="w-4 h-4 shrink-0 mt-0.5 text-primary" />}
+            <div className="text-xs font-medium leading-relaxed flex-1">{w.msg}</div>
+            <button
+              onClick={() => handleDismiss(w.id)}
+              className="shrink-0 p-1 rounded-md opacity-70 hover:opacity-100 hover:bg-white/10 transition-colors"
+              title="Dismiss warning"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </motion.div>
         ))}
       </AnimatePresence>

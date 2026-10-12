@@ -155,3 +155,23 @@
     linear-gradient(to bottom, oklch(1 0 0 / 4%) 1px, transparent 1px);
   background-size: 56px 56px;
 }
+
+/* Custom dark scrollbar for sleek modern UI */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 16%);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 30%);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(1 0 0 / 16%) transparent;
+}
