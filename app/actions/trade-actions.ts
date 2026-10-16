@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { Trade } from "@/lib/types"
 import { calculateTradeScores } from "@/lib/ai/scoring-engine"
+import { calculateTradeCommission } from "@/lib/trade-commission"
 import fs from "fs"
 import path from "path"
 import { createClient } from "@supabase/supabase-js"
@@ -67,6 +68,15 @@ export async function getTrades(accountId?: string) {
     confidenceScore: t.confidenceScore ?? undefined,
     adverseExcursion: t.adverseExcursion ?? undefined,
     favorableExcursion: t.favorableExcursion ?? undefined,
+    commission: t.commission ?? 0,
+    grossPnl: t.grossPnl ?? undefined,
+    plannedStopLoss: t.plannedStopLoss ?? undefined,
+    plannedTarget: t.plannedTarget ?? undefined,
+    plannedTargetUsd: t.plannedTargetUsd ?? undefined,
+    plannedRR: t.plannedRR ?? undefined,
+    plannedDuration: t.plannedDuration ?? undefined,
+    plannedExitRules: t.plannedExitRules ?? undefined,
+    exitType: t.exitType ?? undefined,
     psychology: t.psychology ? {
       preFeeling: t.psychology.preFeeling ?? undefined,
       preNotes: t.psychology.preNotes ?? undefined,
@@ -106,6 +116,13 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
   const exitTime = trade.exitTime ?? null
   const timingIncomplete = trade.timingIncomplete ?? !trade.exitTime
   
+  // Calculate commission and net PnL
+  const comm = trade.commission !== undefined
+    ? trade.commission
+    : calculateTradeCommission(trade.instrument, trade.contracts)
+  const grossPnl = trade.grossPnl != null ? trade.grossPnl : trade.pnl
+  const netPnl = trade.grossPnl != null ? Number((trade.grossPnl - comm).toFixed(2)) : trade.pnl
+
   // Calculate scores deterministically
   const scores = calculateTradeScores(trade, null)
 
@@ -120,7 +137,18 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       exit: trade.exit,
       stopLoss: trade.stopLoss || null,
       contracts: trade.contracts,
-      pnl: trade.pnl,
+      commission: comm,
+      grossPnl,
+      pnl: netPnl,
+      netR: trade.netR,
+      plannedRisk: trade.plannedRisk,
+      plannedStopLoss: trade.plannedStopLoss ?? trade.stopLoss ?? null,
+      plannedTarget: trade.plannedTarget ?? trade.takeProfit ?? null,
+      plannedTargetUsd: trade.plannedTargetUsd ?? null,
+      plannedRR: trade.plannedRR ?? null,
+      plannedDuration: trade.plannedDuration || null,
+      plannedExitRules: trade.plannedExitRules || null,
+      exitType: trade.exitType || null,
       calculatedPnl: trade.calculatedPnl,
       pnlMode: trade.pnlMode || "AUTO",
       day: trade.day,
@@ -489,11 +517,16 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
     const exitTime = t.exitTime ?? null
     const timingIncomplete = t.timingIncomplete ?? !t.exitTime
     
-    // Calculate default scores for imported trades
-    const scores = calculateTradeScores(t, null)
-    
+    // Calculate commission and net PnL
+    const comm = t.commission !== undefined
+      ? t.commission
+      : calculateTradeCommission(t.instrument, t.contracts)
+    const grossPnl = t.grossPnl != null ? t.grossPnl : t.pnl
+    const netPnl = Number((grossPnl - comm).toFixed(2))
+
     const plannedRisk = t.plannedRisk || defaultRisk
-    const netR = t.pnl / plannedRisk
+    const netR = plannedRisk > 0 ? Number((netPnl / plannedRisk).toFixed(2)) : null
+    const scores = calculateTradeScores(t as any, null)
 
     return {
       accountId,
@@ -502,7 +535,9 @@ export async function importTradesBatch(accountId: string, trades: Omit<Trade, "
       entry: t.entry,
       exit: t.exit,
       contracts: t.contracts,
-      pnl: t.pnl,
+      commission: comm,
+      grossPnl,
+      pnl: netPnl,
       plannedRisk,
       netR,
       day: t.day,

@@ -58,6 +58,7 @@ export default function JournalPage() {
   const accounts = usePropStore(s => s.accounts)
   const account = accounts.find(a => a.id === activeAccountId)
   const accountBalance = account?.rules?.startingBalance ?? 100000
+  const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk) || 100
   const router = useRouter()
 
   const [search, setSearch] = useState("")
@@ -436,7 +437,7 @@ export default function JournalPage() {
                   
                   const psy = tradePsychology.find(p => p.tradeId === trade.id)
                   const grade = psy?.executionGrade || ""
-                  const tradeNetR = trade.netR != null ? trade.netR : (trade.pnl / 100)
+                  const tradeNetR = trade.netR != null ? trade.netR : (trade.pnl / defaultPlannedRisk)
 
                   return (
                     <TableRow
@@ -472,19 +473,26 @@ export default function JournalPage() {
                         </span>
                       </TableCell>
 
-                      {/* Setup */}
+                      {/* Setup & Exit Type */}
                       <TableCell className="py-3.5">
-                        {trade.playbookName ? (
-                          <Badge
-                            variant="outline"
-                            className="font-mono text-xs font-semibold bg-muted/40 text-foreground border-border/80 max-w-[150px] truncate"
-                            title={trade.playbookName}
-                          >
-                            {trade.playbookName}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground/30 text-xs">—</span>
-                        )}
+                        <div className="space-y-1">
+                          {trade.playbookName ? (
+                            <Badge
+                              variant="outline"
+                              className="font-mono text-xs font-semibold bg-muted/40 text-foreground border-border/80 max-w-[150px] truncate block"
+                              title={trade.playbookName}
+                            >
+                              {trade.playbookName}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground/30 text-xs">—</span>
+                          )}
+                          {trade.exitType && (
+                            <span className="text-[10px] text-cyan-400 font-medium block truncate max-w-[140px]" title={trade.exitType}>
+                              {trade.exitType}
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
 
                       {/* Session */}

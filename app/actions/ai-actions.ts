@@ -8,6 +8,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { generateTherapistSession, generateDailyReview, generateMonthlySummary } from "@/lib/ai/therapist"
 import { generateMonthComparison } from "@/lib/ai/monthly-comparison"
+import { generateText } from "ai"
+import { runWithAiFallback, trackAiUsage } from "@/lib/ai/provider"
+import { buildGeminiTradePrompt } from "@/lib/trade-plan-review"
 
 const prisma = new PrismaClient()
 
@@ -242,4 +245,40 @@ export async function generateMonthComparisonAction(currentMonth: string) {
     metadata: result.metadata,
   }
 }
+
+export async function reviewSingleTradeWithAiAction(trade: any, accountName?: string) {
+  const userId = await getAuthUserId()
+  const prompt = buildGeminiTradePrompt(trade, accountName)
+
+  try {
+    const { result, metadata } = await runWithAiFallback(userId, async (model, providerInfo) => {
+      const { text, usage } = await generateText({
+        model: model,
+        prompt: prompt,
+        system: "You are an elite prop trading performance coach specializing in trade execution, plan adherence, and risk management. Provide direct, objective, constructive feedback without fluff. Evaluate plan adherence, exit timing, risk rules, and highlight repeated patterns.",
+      })
+
+      if (usage) {
+        await trackAiUsage(userId, usage.totalTokens || 0, providerInfo.provider)
+      }
+
+      return text
+    })
+
+    return {
+      success: true,
+      review: result,
+      metadata,
+      prompt,
+    }
+  } catch (err: any) {
+    console.error("Single Trade AI review error:", err)
+    return {
+      success: false,
+      error: err.message || "Failed to generate AI review.",
+      prompt,
+    }
+  }
+}
+
 

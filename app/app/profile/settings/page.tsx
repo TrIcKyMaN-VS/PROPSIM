@@ -292,14 +292,27 @@ function AiSettingsCard() {
 function TradingPreferencesCard() {
   const defaultPlannedRisk = usePropStore(s => s.defaultPlannedRisk)
   const setDefaultPlannedRisk = usePropStore(s => s.setDefaultPlannedRisk)
-  const [val, setVal] = useState(defaultPlannedRisk.toString())
+  const [val, setVal] = useState(defaultPlannedRisk ? defaultPlannedRisk.toString() : "100")
+  const [saving, setSaving] = useState(false)
 
-  // We need Input from ui components, already imported at top
-  const handleSave = () => {
+  useEffect(() => {
+    if (defaultPlannedRisk !== undefined && defaultPlannedRisk !== null) {
+      setVal(defaultPlannedRisk.toString())
+    }
+  }, [defaultPlannedRisk])
+
+  const handleSave = async () => {
     const num = parseFloat(val)
     if (!isNaN(num) && num > 0) {
-      setDefaultPlannedRisk(num)
-      toast.success("Trading preferences updated.")
+      setSaving(true)
+      try {
+        setDefaultPlannedRisk(num)
+        toast.success(`Default planned risk updated to $${num}`)
+      } catch (err) {
+        toast.error("Failed to update trading preferences.")
+      } finally {
+        setSaving(false)
+      }
     } else {
       toast.error("Please enter a valid dollar amount.")
     }
@@ -324,12 +337,14 @@ function TradingPreferencesCard() {
               <Input
                 type="number"
                 step="any"
-                className="pl-7 h-9"
+                className="pl-7 h-9 font-semibold"
                 value={val}
                 onChange={e => setVal(e.target.value)}
               />
             </div>
-            <Button size="sm" onClick={handleSave}>Save</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving..." : "Save"}
+            </Button>
           </div>
         </div>
       </CardContent>

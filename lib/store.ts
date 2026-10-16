@@ -7,7 +7,7 @@ import { getFirm, SESSIONS, INSTRUMENTS } from "./firms"
 import { getAccounts, createAccount as createDbAccount, deleteAccountPermanently as deleteDbAccountPermanently, archiveAccount as archiveDbAccount, restoreAccount as restoreDbAccount, cloneAccount as cloneDbAccount, archiveAllFailedChallenges as archiveAllFailedDbChallenges, resetToOfficialRules as resetDbAccountRules, renameAccount as renameDbAccount } from "@/app/actions/account-actions"
 import { getTrades, addTrade as addDbTrade, deleteTrade as deleteDbTrade, importTradesBatch } from "@/app/actions/trade-actions"
 import { getPlaybooks, createPlaybook as createDbPlaybook, updatePlaybook as updateDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
-import { getRoutineConfig, updateRoutineConfig } from "@/app/actions/user-actions"
+import { getRoutineConfig, updateRoutineConfig, getDefaultPlannedRisk, updateDefaultPlannedRisk } from "@/app/actions/user-actions"
 import { getChecklistTemplates } from "@/app/actions/checklist-actions"
 import { getTradePsychology, saveTradePsychology as saveDbTradePsychology, getDailyPerformances, saveDailyPerformance as saveDbDailyPerformance, getLessonsLearned, saveLessonLearned as saveDbLessonLearned } from "@/app/actions/psychology-actions"
 
@@ -162,7 +162,10 @@ export const usePropStore = create<PropState>()(
       setAnimationMode: (mode) => set({ animationMode: mode }),
       setPnlDisplayMode: (mode) => set({ pnlDisplayMode: mode }),
       
-      setDefaultPlannedRisk: (val) => set({ defaultPlannedRisk: val }),
+      setDefaultPlannedRisk: (val) => {
+        set({ defaultPlannedRisk: val })
+        updateDefaultPlannedRisk(val).catch(console.error)
+      },
 
       setRoutineConfig: (config) => {
         set({ routineConfig: config })
@@ -194,9 +197,15 @@ export const usePropStore = create<PropState>()(
           const currentTrades = get().trades
           const currentAccounts = get().accounts
 
-          // Simple comparison to prevent unnecessary state triggers and db query cascades
           const tradesEqual = currentTrades.length === dbTrades.length && 
-            currentTrades.every((t, i) => t.id === dbTrades[i]?.id && Number(t.pnl) === Number(dbTrades[i]?.pnl) && Number(t.exitTime) === Number(dbTrades[i]?.exitTime) && t.playbookName === dbTrades[i]?.playbookName);
+            currentTrades.every((t, i) => 
+              t.id === dbTrades[i]?.id && 
+              Number(t.pnl) === Number(dbTrades[i]?.pnl) && 
+              Number(t.commission || 0) === Number(dbTrades[i]?.commission || 0) &&
+              t.exitType === dbTrades[i]?.exitType &&
+              Number(t.exitTime) === Number(dbTrades[i]?.exitTime) && 
+              t.playbookName === dbTrades[i]?.playbookName
+            );
           
           const accountsEqual = currentAccounts.length === parsedAccounts.length &&
             currentAccounts.every((a, i) => a.id === parsedAccounts[i]?.id && a.status === parsedAccounts[i]?.status && a.brokerAccountName === parsedAccounts[i]?.brokerAccountName);
@@ -213,6 +222,7 @@ export const usePropStore = create<PropState>()(
           const [
             dbPlaybooks,
             routine,
+            userPlannedRisk,
             dbChecklists,
             dbPsychology,
             dbPerformances,
@@ -221,6 +231,7 @@ export const usePropStore = create<PropState>()(
           ] = await Promise.all([
             getPlaybooks(),
             getRoutineConfig(),
+            getDefaultPlannedRisk(),
             getChecklistTemplates(),
             getTradePsychology(),
             getDailyPerformances(),
@@ -242,7 +253,8 @@ export const usePropStore = create<PropState>()(
             activeAccountId: activeId,
             activeAccountViolations: violations,
             seeded: true,
-            ...(routine ? { routineConfig: routine } : {})
+            ...(routine ? { routineConfig: routine } : {}),
+            ...(userPlannedRisk !== null && userPlannedRisk !== undefined ? { defaultPlannedRisk: userPlannedRisk } : {})
           })
         } catch (e) {
           // not logged in or error
@@ -543,6 +555,7 @@ export const usePropStore = create<PropState>()(
         displayTimeMode: state.displayTimeMode,
         pnlDisplayMode: state.pnlDisplayMode,
         routineConfig: state.routineConfig,
+        defaultPlannedRisk: state.defaultPlannedRisk,
         customSetups: state.customSetups,
         deletedSetups: state.deletedSetups,
         seeded: state.seeded,

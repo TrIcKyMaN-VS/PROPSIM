@@ -4,6 +4,8 @@ export type DrawdownType = "trailing" | "static" | "eod" | "intraday" | "hybrid"
 
 export type Difficulty = "Easy" | "Moderate" | "Advanced" | "Expert"
 
+export type TradeDirection = "long" | "short"
+
 export interface ChallengeRules {
   startingBalance: number
   profitTarget: number
@@ -44,7 +46,20 @@ export interface PropFirm {
   sizes: ChallengeSize[]
 }
 
-export type TradeDirection = "long" | "short"
+export const EXIT_TYPES = [
+  "Take Profit Hit (TP)",
+  "Stop Loss Hit (SL)",
+  "Breakeven (BE)",
+  "Early Profit Exit",
+  "Early Loss Exit",
+  "Trailing Stop Loss Hit",
+  "Partial Profit Exit",
+  "Manual Exit",
+  "Time-Based Exit",
+  "Other",
+] as const
+
+export type ExitType = (typeof EXIT_TYPES)[number]
 
 export interface Trade {
   id: string
@@ -59,6 +74,15 @@ export interface Trade {
   plannedRisk?: number | null
   contracts: number
   pnl: number
+  grossPnl?: number | null
+  commission?: number
+  plannedStopLoss?: number | null
+  plannedTarget?: number | null
+  plannedTargetUsd?: number | null
+  plannedRR?: number | null
+  plannedDuration?: string | null
+  plannedExitRules?: string | null
+  exitType?: ExitType | string | null
   netR?: number | null
   calculatedPnl?: number | null
   pnlMode?: string

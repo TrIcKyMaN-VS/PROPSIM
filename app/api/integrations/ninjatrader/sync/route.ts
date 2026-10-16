@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { reindexTradeDays } from "@/app/actions/trade-actions"
 import { calculateTradeScores } from "@/lib/ai/scoring-engine"
+import { calculateTradeCommission } from "@/lib/trade-commission"
 
 export async function POST(req: Request) {
   try {
@@ -20,6 +21,12 @@ export async function POST(req: Request) {
     // Update lastUsed
     await prisma.apiToken.update({ where: { id: apiToken.id }, data: { lastUsed: new Date() } })
     
+    const user = await prisma.user.findUnique({
+      where: { id: apiToken.userId },
+      select: { defaultPlannedRisk: true }
+    })
+    const defaultRisk = user?.defaultPlannedRisk || 100
+
     const body = await req.json()
     const isArray = Array.isArray(body)
     const payloads = isArray ? body : [body]
@@ -125,6 +132,11 @@ export async function POST(req: Request) {
         }
       })
       
+      const grossPnl = Number(payload.pnl)
+      const commission = calculateTradeCommission(payload.instrument, payload.contracts)
+      const netPnl = Number((grossPnl - commission).toFixed(2))
+      const netR = defaultRisk > 0 ? Number((netPnl / defaultRisk).toFixed(2)) : null
+
       if (existing) {
         // Update existing trade
         const updated = await prisma.trade.update({
@@ -135,7 +147,10 @@ export async function POST(req: Request) {
             entry: payload.entryPrice,
             exit: payload.exitPrice,
             contracts: payload.contracts,
-            pnl: payload.pnl,
+            grossPnl,
+            commission,
+            pnl: netPnl,
+            netR,
             exitTime: exitTimeMs ? BigInt(exitTimeMs) : null,
             timingIncomplete,
             setupQualityScore: scores.setupQualityScore,
@@ -151,6 +166,10 @@ export async function POST(req: Request) {
           timestamp: Number(updated.timestamp),
           exitTime: updated.exitTime ? Number(updated.exitTime) : null,
           timingIncomplete: updated.timingIncomplete,
+          grossPnl: updated.grossPnl,
+          commission: updated.commission,
+          pnl: updated.pnl,
+          netR: updated.netR,
           setupQualityScore: updated.setupQualityScore ?? undefined,
           entryQualityScore: updated.entryQualityScore ?? undefined,
           exitQualityScore: updated.exitQualityScore ?? undefined,
@@ -182,7 +201,11 @@ export async function POST(req: Request) {
           entry: payload.entryPrice,
           exit: payload.exitPrice,
           contracts: payload.contracts,
-          pnl: payload.pnl,
+          grossPnl,
+          commission,
+          pnl: netPnl,
+          plannedRisk: defaultRisk,
+          netR,
           day: 1, // Should be computed based on challenge start, defaulting to 1
           session,
           timestamp: BigInt(entryTimeMs),
@@ -204,6 +227,10 @@ export async function POST(req: Request) {
         timestamp: Number(trade.timestamp),
         exitTime: trade.exitTime ? Number(trade.exitTime) : null,
         timingIncomplete: trade.timingIncomplete,
+        grossPnl: trade.grossPnl,
+        commission: trade.commission,
+        pnl: trade.pnl,
+        netR: trade.netR,
         setupQualityScore: trade.setupQualityScore ?? undefined,
         entryQualityScore: trade.entryQualityScore ?? undefined,
         exitQualityScore: trade.exitQualityScore ?? undefined,

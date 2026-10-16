@@ -234,6 +234,15 @@ model Trade {
   stopLoss          Float?
   adverseExcursion  Float?
   favorableExcursion Float?
+  commission        Float             @default(0)
+  grossPnl          Float?
+  plannedStopLoss   Float?
+  plannedTarget     Float?
+  plannedTargetUsd  Float?
+  plannedRR         Float?
+  plannedDuration   String?
+  plannedExitRules  String?
+  exitType          String?
   timingIncomplete  Boolean           @default(false)
   setupQualityScore  Float?
   entryQualityScore  Float?
