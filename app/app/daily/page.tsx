@@ -29,6 +29,7 @@ import { toast } from "sonner"
 import { Trade } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { fmtPnl } from "@/lib/format"
+import { ImageLightbox } from "@/components/app/image-lightbox"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   const [val, setVal] = useState(props.value || '')
@@ -1588,26 +1589,12 @@ function DailyJournalContent() {
         </JournalField>
       </div>
 
-      <Dialog open={!!viewImage} onOpenChange={(o) => {
-        if (!o) { setIsZoomed(false); setViewImage(null) }
-      }}>
-        <DialogContent 
-          className="sm:max-w-[95vw] !max-w-[95vw] w-full max-h-[95vh] p-2 bg-black/95 border-border flex flex-col"
-        >
-          <div 
-            className="flex-1 flex items-center justify-center overflow-auto p-2"
-            onClick={() => setIsZoomed(!isZoomed)}
-          >
-            {viewImage && (
-              <img
-                src={viewImage}
-                alt="Expanded screenshot"
-                className={cn("rounded object-contain transition-all duration-300", isZoomed ? "max-h-none w-auto min-w-[150vw] cursor-zoom-out" : "max-h-[85vh] w-auto cursor-zoom-in")}
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ImageLightbox
+        open={!!viewImage}
+        src={viewImage}
+        alt="Daily Journal Screenshot"
+        onClose={() => setViewImage(null)}
+      />
     </div>
   )
 }

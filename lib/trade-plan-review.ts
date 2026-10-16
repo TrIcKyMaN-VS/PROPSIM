@@ -197,6 +197,7 @@ export function buildGeminiTradePrompt(trade: Trade, accountName?: string): stri
       entryPrice: trade.entry,
       exitPrice: trade.exit,
       exitType: trade.exitType || "Unavailable",
+      postExitQuality: trade.postExitResult || "Not Evaluated",
       actualDuration: formatMinutes(evalData.actualDurationMinutes),
       grossPnlUsd: `$${evalData.grossPnl.toFixed(2)}`,
       commissionUsd: `$${evalData.commission.toFixed(2)}`,
@@ -228,7 +229,7 @@ ${JSON.stringify(tradeData, null, 2)}
 
 Analyze the trade with an objective, disciplined prop trader perspective:
 1. **Plan Adherence**: Did I follow my initial pre-trade plan and parameters?
-2. **Exit Evaluation**: Was the exit planned or premature based on the facts?
+2. **Exit Evaluation**: Was the exit planned or premature based on the facts? If postExitQuality is present (e.g., Saved Me vs Cost Me), explicitly evaluate whether early exit / breakeven preserved capital or forfeited edge.
 3. **Risk Management**: Were dollar risk and stop-loss rules strictly honored?
 4. **Execution Assessment**: Identify any execution deviations or emotional trade management (e.g. moving stop, cutting winners early).
 5. **Concrete Action Item**: Provide 1-2 high-leverage process improvements supported by the data for my next trade.`

@@ -203,6 +203,7 @@ export const usePropStore = create<PropState>()(
               Number(t.pnl) === Number(dbTrades[i]?.pnl) && 
               Number(t.commission || 0) === Number(dbTrades[i]?.commission || 0) &&
               t.exitType === dbTrades[i]?.exitType &&
+              t.postExitResult === dbTrades[i]?.postExitResult &&
               Number(t.exitTime) === Number(dbTrades[i]?.exitTime) && 
               t.playbookName === dbTrades[i]?.playbookName
             );

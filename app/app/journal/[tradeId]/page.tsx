@@ -63,7 +63,7 @@ import {
 import { SetupCombobox } from "@/components/app/setup-combobox"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
-import { EXIT_TYPES, ExitType, Trade } from "@/lib/types"
+import { EXIT_TYPES, ExitType, POST_EXIT_RESULTS, PostExitResult, Trade } from "@/lib/types"
 import { calculateTradeCommission } from "@/lib/trade-commission"
 import {
   evaluatePlanVsActual,
@@ -71,6 +71,8 @@ import {
   formatMinutes,
 } from "@/lib/trade-plan-review"
 import { reviewSingleTradeWithAiAction } from "@/app/actions/ai-actions"
+import { ImageLightbox } from "@/components/app/image-lightbox"
+import { AiReviewFormatted } from "@/components/app/ai-review-card"
 
 function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   return (
@@ -142,6 +144,7 @@ export default function TradeDetailsPage() {
     commission: "",
     pnl: "",
     exitType: "",
+    postExitResult: "",
   })
 
   const [planForm, setPlanForm] = useState({
@@ -189,6 +192,7 @@ export default function TradeDetailsPage() {
       commission: initialComm.toFixed(2),
       pnl: trade.pnl?.toString() ?? "",
       exitType: trade.exitType ?? "",
+      postExitResult: trade.postExitResult ?? "",
     })
 
     const initialRisk =
@@ -376,6 +380,7 @@ export default function TradeDetailsPage() {
       commission: commNum,
       pnl: netPnlNum,
       exitType: execForm.exitType || trade.exitType || null,
+      postExitResult: execForm.postExitResult || trade.postExitResult || null,
       plannedStopLoss: parseFloat(planForm.plannedStopLoss) || null,
       plannedTarget: parseFloat(planForm.plannedTarget) || null,
       plannedRisk: riskNum > 0 ? riskNum : null,
@@ -445,6 +450,7 @@ export default function TradeDetailsPage() {
         commission: commNum,
         pnl: netPnlNum,
         exitType: execForm.exitType || null,
+        postExitResult: execForm.postExitResult || null,
         plannedStopLoss: parseFloat(planForm.plannedStopLoss) || null,
         plannedTarget: parseFloat(planForm.plannedTarget) || null,
         plannedRisk: riskNum || null,
@@ -884,6 +890,63 @@ export default function TradeDetailsPage() {
                 </Select>
               </div>
 
+              {/* Post-Exit Outcome (Did BE / Early Exit Help or Hurt?) */}
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-primary" />
+                    Post-Exit Quality (Did BE / Early Exit Help or Hurt?)
+                  </Label>
+                  {execForm.postExitResult && (
+                    <button
+                      type="button"
+                      onClick={() => setExecForm((f) => ({ ...f, postExitResult: "" }))}
+                      className="text-[10px] text-muted-foreground hover:text-foreground font-mono underline"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {POST_EXIT_RESULTS.map((res) => {
+                    const active = execForm.postExitResult === res
+                    const isSaved = res === "Saved Me (Hit SL)"
+                    const isCost = res === "Cost Me (Hit TP)"
+                    return (
+                      <button
+                        key={res}
+                        type="button"
+                        onClick={() =>
+                          setExecForm((f) => ({
+                            ...f,
+                            postExitResult: f.postExitResult === res ? "" : res,
+                          }))
+                        }
+                        className={cn(
+                          "px-2.5 py-1.5 rounded-lg border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-0.5",
+                          active
+                            ? isSaved
+                              ? "bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-sm"
+                              : isCost
+                              ? "bg-rose-500/15 border-rose-500 text-rose-400 shadow-sm"
+                              : "bg-muted border-foreground/40 text-foreground shadow-sm"
+                            : isSaved
+                            ? "bg-background/50 border-border/50 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"
+                            : isCost
+                            ? "bg-background/50 border-border/50 text-muted-foreground hover:border-rose-500/50 hover:text-rose-400"
+                            : "bg-background/50 border-border/50 text-muted-foreground hover:border-border hover:text-foreground"
+                        )}
+                      >
+                        <span className="text-[11px] font-bold tracking-tight">{res}</span>
+                        <span className="text-[9px] font-normal opacity-80">
+                          {isSaved ? "Avoided SL Loss" : isCost ? "Missed Target Gain" : "Neutral Effect"}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Plan vs Actual Factual Review Badges */}
               <div className="pt-2 border-t border-border/40 space-y-2">
                 <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block">
@@ -1145,8 +1208,8 @@ export default function TradeDetailsPage() {
               </Button>
 
               {aiReviewOutput && (
-                <div className="mt-3 p-3.5 rounded-lg border border-border/60 bg-muted/20 text-xs text-foreground whitespace-pre-wrap leading-relaxed font-sans max-h-96 overflow-y-auto">
-                  {aiReviewOutput}
+                <div className="mt-3 p-4 rounded-xl border border-cyan-500/30 bg-muted/30 shadow-inner max-h-[520px] overflow-y-auto">
+                  <AiReviewFormatted text={aiReviewOutput} />
                 </div>
               )}
             </CardContent>
@@ -1154,23 +1217,13 @@ export default function TradeDetailsPage() {
         </div>
       </div>
 
-      {/* Lightbox Modal for Screenshots */}
-      <Dialog open={!!expandedImage} onOpenChange={(open) => !open && setExpandedImage(null)}>
-        <DialogContent className="max-w-5xl p-2 bg-black/90 border-border">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Screenshot Preview</DialogTitle>
-          </DialogHeader>
-          {expandedImage && (
-            <div className="relative flex items-center justify-center max-h-[85vh] overflow-hidden">
-              <img
-                src={expandedImage}
-                alt="Trade full view"
-                className="max-h-[80vh] w-auto object-contain rounded-md"
-              />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Lightbox Modal for Screenshots — Full Screen & High-Res Zoom */}
+      <ImageLightbox
+        open={!!expandedImage}
+        src={expandedImage}
+        alt={`${trade.instrument} Chart Screenshot`}
+        onClose={() => setExpandedImage(null)}
+      />
 
       {/* Delete Screenshot Confirmation */}
       <AlertDialog

@@ -243,6 +243,7 @@ model Trade {
   plannedDuration   String?
   plannedExitRules  String?
   exitType          String?
+  postExitResult    String?
   timingIncomplete  Boolean           @default(false)
   setupQualityScore  Float?
   entryQualityScore  Float?

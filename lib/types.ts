@@ -61,6 +61,14 @@ export const EXIT_TYPES = [
 
 export type ExitType = (typeof EXIT_TYPES)[number]
 
+export const POST_EXIT_RESULTS = [
+  "Saved Me (Hit SL)",
+  "Cost Me (Hit TP)",
+  "Neutral",
+] as const
+
+export type PostExitResult = (typeof POST_EXIT_RESULTS)[number]
+
 export interface Trade {
   id: string
   accountId: string
@@ -83,6 +91,7 @@ export interface Trade {
   plannedDuration?: string | null
   plannedExitRules?: string | null
   exitType?: ExitType | string | null
+  postExitResult?: string | null
   netR?: number | null
   calculatedPnl?: number | null
   pnlMode?: string

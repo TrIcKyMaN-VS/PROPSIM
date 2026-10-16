@@ -25,6 +25,7 @@ import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { fmtPnl } from "@/lib/format"
 import { toast } from "sonner"
+import { ImageLightbox } from "@/components/app/image-lightbox"
 
 export function DailyReplaySheet({
   open,
@@ -95,26 +96,12 @@ export function DailyReplaySheet({
 
   return (
     <>
-      <Dialog open={!!viewImage} onOpenChange={(o) => {
-        if (!o) { setIsZoomed(false); setViewImage(null) }
-      }}>
-        <DialogContent 
-          className="max-w-[95vw] w-fit p-1 bg-black/90 border-0 flex items-center justify-center z-[100]"
-          onClick={() => setIsZoomed(!isZoomed)}
-        >
-          {viewImage && (
-            <img
-              src={viewImage}
-              alt="Trade screenshot expanded"
-              className={isZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
-              onClick={(e) => {
-                e.stopPropagation()
-                setIsZoomed(!isZoomed)
-              }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      <ImageLightbox
+        open={!!viewImage}
+        src={viewImage}
+        alt={`Daily Replay ${dateStr} Trade Screenshot`}
+        onClose={() => setViewImage(null)}
+      />
 
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-hidden flex flex-col p-0">

@@ -77,6 +77,7 @@ export async function getTrades(accountId?: string) {
     plannedDuration: t.plannedDuration ?? undefined,
     plannedExitRules: t.plannedExitRules ?? undefined,
     exitType: t.exitType ?? undefined,
+    postExitResult: t.postExitResult ?? undefined,
     psychology: t.psychology ? {
       preFeeling: t.psychology.preFeeling ?? undefined,
       preNotes: t.psychology.preNotes ?? undefined,
@@ -149,6 +150,7 @@ export async function addTrade(trade: Omit<Trade, "id" | "timestamp"> & { timest
       plannedDuration: trade.plannedDuration || null,
       plannedExitRules: trade.plannedExitRules || null,
       exitType: trade.exitType || null,
+      postExitResult: trade.postExitResult || null,
       calculatedPnl: trade.calculatedPnl,
       pnlMode: trade.pnlMode || "AUTO",
       day: trade.day,

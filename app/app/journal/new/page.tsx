@@ -11,11 +11,13 @@ import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload, Target, Layers, Scale } from "lucide-react"
+import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload, Target, Layers, Scale, Maximize2, ShieldAlert } from "lucide-react"
 import { SetupCombobox } from "@/components/app/setup-combobox"
 import { toast } from "sonner"
-import { EXIT_TYPES, type TradeDirection } from "@/lib/types"
+import { cn } from "@/lib/utils"
+import { EXIT_TYPES, POST_EXIT_RESULTS, type TradeDirection } from "@/lib/types"
 import { calculateTradeCommission } from "@/lib/trade-commission"
+import { ImageLightbox } from "@/components/app/image-lightbox"
 import {
   Select,
   SelectContent,
@@ -82,6 +84,7 @@ export default function NewManualTradePage() {
   const [deleteScreenshotIdx, setDeleteScreenshotIdx] = useState<number | null>(null)
   const [uploadingImg, setUploadingImg] = useState(false)
   const [screenshots, setScreenshots] = useState<string[]>([])
+  const [expandedImage, setExpandedImage] = useState<string | null>(null)
 
   const [form, setForm] = useState({
     instrument: "MNQ",
@@ -97,6 +100,7 @@ export default function NewManualTradePage() {
     pnl: "",
     netR: "",
     exitType: "",
+    postExitResult: "",
     setupName: "",
     // Pre-trade plan
     plannedStopLoss: "",
@@ -286,6 +290,7 @@ export default function NewManualTradePage() {
         plannedRR: livePlanMetrics.rrRatio ?? (parseFloat(form.plannedRR) || null),
         plannedExitRules: form.plannedExitRules || null,
         exitType: form.exitType || null,
+        postExitResult: form.postExitResult || null,
         session: form.session as any,
         day: 1,
         timestamp,
@@ -608,6 +613,63 @@ export default function NewManualTradePage() {
               </Select>
             </div>
 
+            {/* Post-Exit Outcome (Did BE / Early Exit Help or Hurt?) */}
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-primary" />
+                  Post-Exit Quality (Did BE / Early Exit Help or Hurt?)
+                </Label>
+                {form.postExitResult && (
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, postExitResult: "" })}
+                    className="text-xs text-muted-foreground hover:text-foreground font-mono underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {POST_EXIT_RESULTS.map((res) => {
+                  const active = form.postExitResult === res
+                  const isSaved = res === "Saved Me (Hit SL)"
+                  const isCost = res === "Cost Me (Hit TP)"
+                  return (
+                    <button
+                      key={res}
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          postExitResult: form.postExitResult === res ? "" : res,
+                        })
+                      }
+                      className={cn(
+                        "px-3 py-2 rounded-lg border text-xs font-semibold text-center transition-all flex flex-col items-center justify-center gap-0.5",
+                        active
+                          ? isSaved
+                            ? "bg-emerald-500/15 border-emerald-500 text-emerald-400 shadow-sm"
+                            : isCost
+                            ? "bg-rose-500/15 border-rose-500 text-rose-400 shadow-sm"
+                            : "bg-muted border-foreground/40 text-foreground shadow-sm"
+                          : isSaved
+                          ? "bg-muted/10 border-border/40 text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400"
+                          : isCost
+                          ? "bg-muted/10 border-border/40 text-muted-foreground hover:border-rose-500/50 hover:text-rose-400"
+                          : "bg-muted/10 border-border/40 text-muted-foreground hover:border-border hover:text-foreground"
+                      )}
+                    >
+                      <span className="font-bold text-xs">{res}</span>
+                      <span className="text-[10px] font-normal opacity-80">
+                        {isSaved ? "Avoided SL Loss" : isCost ? "Missed Target Gain" : "Neutral Effect"}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
             <div className="space-y-2 md:col-span-2">
               <Label>Setup / Model</Label>
               <SetupCombobox
@@ -716,17 +778,42 @@ export default function NewManualTradePage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {screenshots.map((sc, idx) => (
-                <div key={idx} className="relative rounded-lg overflow-hidden border aspect-video">
-                  <img src={sc} alt="Screenshot" className="w-full h-full object-cover" />
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      setDeleteScreenshotIdx(idx)
-                    }}
-                    className="absolute top-2 right-2 p-2 bg-black/60 hover:bg-destructive text-white rounded transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                <div
+                  key={idx}
+                  className="group relative rounded-lg overflow-hidden border aspect-video cursor-pointer"
+                  onClick={() => setExpandedImage(sc)}
+                >
+                  <img
+                    src={sc}
+                    alt="Screenshot"
+                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-white hover:bg-white/20"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandedImage(sc)
+                      }}
+                      title="Expand Screenshot"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-rose-400 hover:bg-rose-500/20"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setDeleteScreenshotIdx(idx)
+                      }}
+                      title="Delete Screenshot"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
               <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed border-border/40 rounded-xl py-12 text-center cursor-pointer hover:bg-muted/10 transition-colors group aspect-video">
@@ -754,6 +841,14 @@ export default function NewManualTradePage() {
           <Save className="w-4 h-4 mr-2" /> Save Trade Breakdown
         </Button>
       </div>
+
+      {/* Lightbox Modal for Screenshots — Full Screen & High-Res Zoom */}
+      <ImageLightbox
+        open={!!expandedImage}
+        src={expandedImage}
+        alt="Trade Screenshot Preview"
+        onClose={() => setExpandedImage(null)}
+      />
 
       {/* Delete Screenshot Dialog */}
       <AlertDialog open={deleteScreenshotIdx !== null} onOpenChange={(open) => !open && setDeleteScreenshotIdx(null)}>
