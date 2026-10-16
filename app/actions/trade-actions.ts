@@ -245,6 +245,12 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
   // but strip any non-primitive nested objects that cause validation errors
   delete data.account
   delete data.playbook
+  if (data.takeProfit !== undefined) {
+    if (data.plannedTarget === undefined) {
+      data.plannedTarget = data.takeProfit
+    }
+    delete data.takeProfit
+  }
 
   if (data.tags) data.tags = JSON.stringify(data.tags)
   if (data.playbookChecklist !== undefined) {
@@ -278,6 +284,7 @@ export async function updateTrade(id: string, updates: Partial<Trade>) {
       const safeData = { ...data }
       delete safeData.executionImprovement
       delete safeData.resultVsExpectation
+      delete safeData.takeProfit
       updated = await prisma.trade.update({
         where: {
           id,

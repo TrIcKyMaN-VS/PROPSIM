@@ -457,7 +457,6 @@ export default function TradeDetailsPage() {
         plannedRR: livePlanMetrics.rrRatio ?? (parseFloat(planForm.plannedRR) || null),
         plannedExitRules: planForm.plannedExitRules || null,
         stopLoss: parseFloat(planForm.plannedStopLoss) || trade.stopLoss || null,
-        takeProfit: parseFloat(planForm.plannedTarget) || trade.takeProfit || null,
         netR,
         playbookName: trimmedSetup || null,
         reasonForEntry: stratForm.reasonForEntry,
@@ -468,9 +467,9 @@ export default function TradeDetailsPage() {
       } as any)
 
       toast.success("Trade saved successfully!")
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      toast.error("Failed to save changes")
+      toast.error(err?.message || "Failed to save changes")
     } finally {
       setSaving(false)
     }
