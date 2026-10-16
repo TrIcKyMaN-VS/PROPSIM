@@ -5,21 +5,18 @@ export function parseDurationToMinutes(durationStr?: string | null): number | nu
   const clean = durationStr.trim().toLowerCase()
   if (!clean) return null
 
-  // Check for "X hour(s)" or "X h" or "X.Y hr"
   const hourMatch = clean.match(/^([\d.]+)\s*(h|hr|hrs|hour|hours)$/)
   if (hourMatch) {
     const hours = parseFloat(hourMatch[1])
     return isNaN(hours) ? null : Math.round(hours * 60)
   }
 
-  // Check for "X min(s)" or "X m"
   const minMatch = clean.match(/^([\d.]+)\s*(m|min|mins|minute|minutes)$/)
   if (minMatch) {
     const mins = parseFloat(minMatch[1])
     return isNaN(mins) ? null : Math.round(mins)
   }
 
-  // Check for "Xh Ym" or "Xh Ymin"
   const comboMatch = clean.match(/^(\d+)\s*(?:h|hr|hrs|hour|hours)\s*(\d+)\s*(?:m|min|mins|minute|minutes)?$/)
   if (comboMatch) {
     const h = parseInt(comboMatch[1], 10)
@@ -27,7 +24,6 @@ export function parseDurationToMinutes(durationStr?: string | null): number | nu
     return (h * 60) + m
   }
 
-  // If just a raw number, assume minutes
   const rawNum = parseFloat(clean)
   if (!isNaN(rawNum) && rawNum > 0) {
     return Math.round(rawNum)
@@ -49,12 +45,10 @@ export interface PlanVsActualEvaluation {
   targetReached: boolean | null
   stopLossHit: boolean | null
   exitedBeforeTarget: boolean | null
-  exitedBeforeDuration: boolean | null
   manuallyClosed: boolean
   movedStopLoss: boolean
   movedTarget: boolean
   actualDurationMinutes: number | null
-  plannedDurationMinutes: number | null
   plannedRR: number | null
   actualR: number | null
   rDelta: number | null
@@ -75,7 +69,6 @@ export function evaluatePlanVsActual(trade: Trade): PlanVsActualEvaluation {
 
   const plannedStop = trade.plannedStopLoss ?? trade.stopLoss ?? null
   const plannedTarget = trade.plannedTarget ?? trade.takeProfit ?? null
-  const plannedDurationMin = parseDurationToMinutes(trade.plannedDuration)
 
   let actualDurationMin: number | null = null
   if (trade.timestamp && trade.exitTime && Number(trade.exitTime) > Number(trade.timestamp)) {
@@ -86,9 +79,7 @@ export function evaluatePlanVsActual(trade: Trade): PlanVsActualEvaluation {
     plannedStop != null ||
     plannedTarget != null ||
     plannedRisk != null ||
-    plannedDurationMin != null ||
     trade.plannedExitRules ||
-    trade.plannedTargetUsd != null ||
     trade.plannedRR != null
   )
 
@@ -135,22 +126,18 @@ export function evaluatePlanVsActual(trade: Trade): PlanVsActualEvaluation {
     }
   }
 
-  // 4. Exited before holding duration?
-  let exitedBeforeDuration: boolean | null = null
-  if (plannedDurationMin != null && actualDurationMin != null) {
-    exitedBeforeDuration = actualDurationMin < (plannedDurationMin * 0.85) // at least 15% shorter
-  }
-
-  // 5. Moved stop or target
+  // 4. Moved stop or target
   const movedStopLoss = Boolean(trade.psychology?.movedStop)
   const movedTarget = Boolean(trade.psychology?.movedTarget)
 
-  // 6. R-Multiples
-  const plannedRR = trade.plannedRR ?? (
-    plannedStop && plannedTarget && Math.abs(entry - plannedStop) > 0
-      ? Number((Math.abs(plannedTarget - entry) / Math.abs(entry - plannedStop)).toFixed(2))
-      : null
-  )
+  // 5. R-Multiples: compute accurately from Stop & Target if available
+  let plannedRR: number | null = null
+  if (plannedStop != null && plannedTarget != null && !isNaN(entry) && Math.abs(entry - plannedStop) > 0) {
+    plannedRR = Number((Math.abs(plannedTarget - entry) / Math.abs(entry - plannedStop)).toFixed(2))
+  } else if (trade.plannedRR != null && trade.plannedRR > 0) {
+    plannedRR = trade.plannedRR
+  }
+
   const actualR = plannedRisk && plannedRisk > 0 ? Number((netPnl / plannedRisk).toFixed(2)) : (trade.netR ?? null)
   const rDelta = actualR != null && plannedRR != null ? Number((actualR - plannedRR).toFixed(2)) : null
 
@@ -159,12 +146,10 @@ export function evaluatePlanVsActual(trade: Trade): PlanVsActualEvaluation {
     targetReached,
     stopLossHit,
     exitedBeforeTarget,
-    exitedBeforeDuration,
     manuallyClosed: isManual,
     movedStopLoss,
     movedTarget,
     actualDurationMinutes: actualDurationMin,
-    plannedDurationMinutes: plannedDurationMin,
     plannedRR,
     actualR,
     rDelta,
@@ -204,10 +189,8 @@ export function buildGeminiTradePrompt(trade: Trade, accountName?: string): stri
     preTradePlan: {
       plannedStopLoss: trade.plannedStopLoss ?? trade.stopLoss ?? "Unavailable",
       plannedTarget: trade.plannedTarget ?? trade.takeProfit ?? "Unavailable",
-      plannedTargetUsd: trade.plannedTargetUsd ?? "Unavailable",
-      plannedRiskUsd: evalData.plannedRisk ?? "Unavailable",
-      plannedRR: evalData.plannedRR ?? trade.expectedRR ?? "Unavailable",
-      plannedDuration: trade.plannedDuration || "Unavailable",
+      plannedRiskUsd: evalData.plannedRisk != null ? `$${evalData.plannedRisk.toFixed(2)}` : "Unavailable",
+      plannedRR: evalData.plannedRR != null ? `${evalData.plannedRR}R` : "Unavailable",
       plannedExitRules: trade.plannedExitRules || "Unavailable",
     },
     actualExecution: {
@@ -224,7 +207,6 @@ export function buildGeminiTradePrompt(trade: Trade, accountName?: string): stri
       targetReached: evalData.targetReached === null ? "Unavailable" : evalData.targetReached ? "Yes" : "No",
       stopLossHit: evalData.stopLossHit === null ? "Unavailable" : evalData.stopLossHit ? "Yes" : "No",
       exitedBeforeTarget: evalData.exitedBeforeTarget === null ? "Unavailable" : evalData.exitedBeforeTarget ? "Yes" : "No",
-      exitedBeforePlannedDuration: evalData.exitedBeforeDuration === null ? "Unavailable" : evalData.exitedBeforeDuration ? "Yes" : "No",
       manuallyClosed: evalData.manuallyClosed ? "Yes" : "No",
       movedStopLossDuringTrade: evalData.movedStopLoss ? "Yes" : "No",
       movedTargetDuringTrade: evalData.movedTarget ? "Yes" : "No",

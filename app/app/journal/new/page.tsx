@@ -1,7 +1,7 @@
 "use client"
 
 import { uploadImageFormData } from "@/app/actions/journal-actions"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { usePropStore } from "@/lib/store"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload, Target, Layers } from "lucide-react"
+import { ChevronLeft, Save, Sparkles, Image as ImageIcon, Trash2, Upload, Target, Layers, Scale } from "lucide-react"
 import { SetupCombobox } from "@/components/app/setup-combobox"
 import { toast } from "sonner"
 import { EXIT_TYPES, type TradeDirection } from "@/lib/types"
@@ -67,8 +67,6 @@ function DebouncedTextarea(props: React.ComponentProps<typeof Textarea>) {
   )
 }
 
-const DURATION_PRESETS = ["30 mins", "45 mins", "1 hour", "1.5 hours", "2 hours", "3 hours"]
-
 export default function NewManualTradePage() {
   const router = useRouter()
   const activeAccountId = usePropStore((s) => s.activeAccountId)
@@ -103,10 +101,8 @@ export default function NewManualTradePage() {
     // Pre-trade plan
     plannedStopLoss: "",
     plannedTarget: "",
-    plannedTargetUsd: "",
     plannedRisk: defaultPlannedRisk.toString(),
     plannedRR: "",
-    plannedDuration: "1 hour",
     plannedExitRules: "",
     // Notes
     reasoning: "",
@@ -138,6 +134,56 @@ export default function NewManualTradePage() {
       netR: grossNum !== 0 ? calcR : f.netR,
     }))
   }
+
+  // Live calculation of Points Risk, Points Reward, and Planned R:R
+  const livePlanMetrics = useMemo(() => {
+    const entry = parseFloat(form.entry)
+    const sl = parseFloat(form.plannedStopLoss)
+    const tp = parseFloat(form.plannedTarget)
+    const riskUsd = parseFloat(form.plannedRisk) || defaultPlannedRisk
+
+    if (isNaN(entry) || isNaN(sl) || isNaN(tp) || entry <= 0 || sl <= 0 || tp <= 0) {
+      return {
+        hasCalculation: false,
+        riskPts: null,
+        rewardPts: null,
+        rrRatio: parseFloat(form.plannedRR) || null,
+        projectedRewardUsd: null,
+      }
+    }
+
+    const riskPts = Math.abs(entry - sl)
+    const rewardPts = Math.abs(tp - entry)
+    if (riskPts <= 0) {
+      return {
+        hasCalculation: false,
+        riskPts: null,
+        rewardPts: null,
+        rrRatio: parseFloat(form.plannedRR) || null,
+        projectedRewardUsd: null,
+      }
+    }
+
+    const rrRatio = Number((rewardPts / riskPts).toFixed(2))
+    const projectedRewardUsd = riskUsd > 0 ? Number((riskUsd * rrRatio).toFixed(2)) : null
+
+    return {
+      hasCalculation: true,
+      riskPts: Number(riskPts.toFixed(2)),
+      rewardPts: Number(rewardPts.toFixed(2)),
+      rrRatio,
+      projectedRewardUsd,
+    }
+  }, [form.entry, form.plannedStopLoss, form.plannedTarget, form.plannedRisk, form.plannedRR, defaultPlannedRisk])
+
+  useEffect(() => {
+    if (livePlanMetrics.hasCalculation && livePlanMetrics.rrRatio != null) {
+      const newRRStr = livePlanMetrics.rrRatio.toString()
+      if (form.plannedRR !== newRRStr) {
+        setForm((prev) => ({ ...prev, plannedRR: newRRStr }))
+      }
+    }
+  }, [livePlanMetrics.hasCalculation, livePlanMetrics.rrRatio]) // eslint-disable-line
 
   // Handle Ctrl+V paste
   useEffect(() => {
@@ -237,9 +283,7 @@ export default function NewManualTradePage() {
         plannedRisk: riskNum,
         plannedStopLoss: parseFloat(form.plannedStopLoss) || null,
         plannedTarget: parseFloat(form.plannedTarget) || null,
-        plannedTargetUsd: parseFloat(form.plannedTargetUsd) || null,
-        plannedRR: parseFloat(form.plannedRR) || null,
-        plannedDuration: form.plannedDuration || null,
+        plannedRR: livePlanMetrics.rrRatio ?? (parseFloat(form.plannedRR) || null),
         plannedExitRules: form.plannedExitRules || null,
         exitType: form.exitType || null,
         session: form.session as any,
@@ -294,59 +338,73 @@ export default function NewManualTradePage() {
       </div>
 
       {/* 1. Pre-Trade Plan Card */}
-      <Card className="border-border/80">
-        <CardHeader className="pb-3 border-b">
+      <Card className="border-border/50 bg-card/40 backdrop-blur-sm shadow-sm">
+        <CardHeader className="pb-3 border-b border-border/40">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+            <CardTitle className="text-sm font-bold text-foreground flex items-center gap-2">
               <Target className="w-4 h-4 text-primary" />
               1. Pre-Trade Plan
             </CardTitle>
-            <Badge variant="outline" className="text-[10px] uppercase font-mono">Plan Ahead</Badge>
+            <Badge variant="outline" className="text-[10px] text-muted-foreground font-mono">Plan Ahead</Badge>
           </div>
-          <CardDescription className="text-xs">
+          <CardDescription className="text-xs text-muted-foreground">
             Parameters decided BEFORE clicking execute.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-6 space-y-4">
+        <CardContent className="pt-5 space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Predefined Stop Loss ($ level)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Predefined Stop Loss</Label>
               <Input
                 type="number"
                 step="any"
                 placeholder="e.g. 19550.00"
                 value={form.plannedStopLoss}
                 onChange={(e) => setForm({ ...form, plannedStopLoss: e.target.value })}
-                className="bg-muted/20 font-mono"
+                className="bg-background/50 font-mono text-rose-400 font-semibold h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Planned Target ($ level)</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Planned Target</Label>
               <Input
                 type="number"
                 step="any"
                 placeholder="e.g. 19650.00"
                 value={form.plannedTarget}
                 onChange={(e) => setForm({ ...form, plannedTarget: e.target.value })}
-                className="bg-muted/20 font-mono"
+                className="bg-background/50 font-mono text-emerald-400 font-semibold h-9"
               />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Target Profit ($ USD)</Label>
-              <Input
-                type="number"
-                step="any"
-                placeholder="e.g. 300"
-                value={form.plannedTargetUsd}
-                onChange={(e) => setForm({ ...form, plannedTargetUsd: e.target.value })}
-                className="bg-muted/20 font-mono"
-              />
+          {/* Dynamic Points & R:R Calculator Pill */}
+          <div className="rounded-lg border border-border/50 bg-muted/20 p-3 space-y-1">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground font-medium flex items-center gap-1.5">
+                <Scale className="w-3.5 h-3.5 text-cyan-400" />
+                Auto-Calculated R:R
+              </span>
+              <span className="font-mono font-bold text-cyan-400">
+                {livePlanMetrics.rrRatio ? `${livePlanMetrics.rrRatio} : 1` : "--"}
+              </span>
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Initial Risk ($ USD)</Label>
+            {livePlanMetrics.hasCalculation ? (
+              <p className="text-[11px] text-muted-foreground font-mono">
+                Risk: <span className="text-rose-400 font-semibold">{livePlanMetrics.riskPts} pts</span> · Target: <span className="text-emerald-400 font-semibold">{livePlanMetrics.rewardPts} pts</span>
+                {livePlanMetrics.projectedRewardUsd && (
+                  <span className="text-foreground"> · Proj. Reward: <span className="text-emerald-400 font-bold">+${livePlanMetrics.projectedRewardUsd}</span></span>
+                )}
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/70">
+                Enter entry, stop-loss and target to see exact points risk &amp; reward.
+              </p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Initial Risk ($ USD)</Label>
               <Input
                 type="number"
                 step="any"
@@ -356,50 +414,27 @@ export default function NewManualTradePage() {
                   setForm({ ...form, plannedRisk: e.target.value })
                   handleRecalculatePnl(undefined, undefined, undefined, e.target.value)
                 }}
-                className="bg-muted/20 font-mono"
+                className="bg-background/50 font-mono h-9"
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-muted-foreground">Planned R:R</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground">Planned R:R (Override)</Label>
               <Input
                 type="text"
                 placeholder="e.g. 2.5"
                 value={form.plannedRR}
                 onChange={(e) => setForm({ ...form, plannedRR: e.target.value })}
-                className="bg-muted/20 font-mono text-cyan-400 font-bold"
+                className="bg-background/50 font-mono text-cyan-400 font-bold h-9"
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground">Planned Holding Duration</Label>
-            <Input
-              type="text"
-              placeholder="e.g. 1 hour"
-              value={form.plannedDuration}
-              onChange={(e) => setForm({ ...form, plannedDuration: e.target.value })}
-              className="bg-muted/20"
-            />
-            <div className="flex flex-wrap gap-1.5 pt-1">
-              {DURATION_PRESETS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setForm({ ...form, plannedDuration: p })}
-                  className="text-[10px] px-2 py-0.5 rounded-md border border-border bg-muted/30 text-muted-foreground hover:bg-muted"
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground">
-              Planned Exit Conditions &amp; Trade Management Rules
+          <div className="space-y-1.5">
+            <Label className="text-xs font-semibold text-muted-foreground">
+              Trade Invalidation &amp; Management Rules
             </Label>
             <AutoTextarea
-              className="bg-muted/20 text-sm border-0 focus-visible:ring-1"
+              className="bg-background/50 text-xs sm:text-sm"
               placeholder="e.g. Move SL to BE at +1R. Close position before economic news release at 10:00 AM..."
               value={form.plannedExitRules}
               onChange={(e) => setForm({ ...form, plannedExitRules: e.target.value })}
