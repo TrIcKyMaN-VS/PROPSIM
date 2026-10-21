@@ -205,13 +205,11 @@ export default function TradeDetailsPage() {
       : null
 
     const initialRisk =
-      trade.plannedRisk != null && trade.plannedRisk > 0
-        ? trade.plannedRisk.toString()
-        : autoRisk != null
+      autoRisk != null
         ? autoRisk.toString()
-        : trade.riskAmount != null && trade.riskAmount > 0
-        ? trade.riskAmount.toString()
-        : defaultPlannedRisk.toString()
+        : trade.plannedRisk != null && trade.plannedRisk > 0 && trade.plannedRisk !== defaultPlannedRisk
+        ? trade.plannedRisk.toString()
+        : ""
 
     let calcInitialRR = ""
     if (entryNum > 0 && slNum > 0 && tpNum > 0 && Math.abs(entryNum - slNum) > 0) {
@@ -358,11 +356,9 @@ export default function TradeDetailsPage() {
   useEffect(() => {
     if (!riskIsManual && livePlanMetrics.hasCalculation && livePlanMetrics.autoDollarRisk != null) {
       const autoStr = livePlanMetrics.autoDollarRisk.toString()
-      if (planForm.plannedRisk !== autoStr) {
-        setPlanForm((f) => ({ ...f, plannedRisk: autoStr }))
-      }
+      setPlanForm((f) => (f.plannedRisk === autoStr ? f : { ...f, plannedRisk: autoStr }))
     }
-  }, [livePlanMetrics.hasCalculation, livePlanMetrics.autoDollarRisk, riskIsManual]) // eslint-disable-line
+  }, [livePlanMetrics.hasCalculation, livePlanMetrics.autoDollarRisk, riskIsManual])
 
   // Upload file handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -780,7 +776,7 @@ export default function TradeDetailsPage() {
                   <Input
                     type="number"
                     step="any"
-                    placeholder="100"
+                    placeholder={livePlanMetrics.autoDollarRisk ? `Auto: $${livePlanMetrics.autoDollarRisk}` : "Enter SL to auto-calculate"}
                     value={planForm.plannedRisk}
                     onChange={(e) => {
                       setRiskIsManual(true)

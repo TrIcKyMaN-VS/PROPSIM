@@ -135,7 +135,7 @@ export async function POST(req: Request) {
       const grossPnl = Number(payload.pnl)
       const commission = calculateTradeCommission(payload.instrument, payload.contracts)
       const netPnl = Number((grossPnl - commission).toFixed(2))
-      const netR = defaultRisk > 0 ? Number((netPnl / defaultRisk).toFixed(2)) : null
+      const netR = (existing?.plannedRisk && existing.plannedRisk > 0) ? Number((netPnl / existing.plannedRisk).toFixed(2)) : null
 
       if (existing) {
         // Update existing trade
@@ -204,8 +204,8 @@ export async function POST(req: Request) {
           grossPnl,
           commission,
           pnl: netPnl,
-          plannedRisk: defaultRisk,
-          netR,
+          plannedRisk: null,
+          netR: null,
           day: 1, // Should be computed based on challenge start, defaulting to 1
           session,
           timestamp: BigInt(entryTimeMs),

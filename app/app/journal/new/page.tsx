@@ -106,7 +106,7 @@ export default function NewManualTradePage() {
     // Pre-trade plan
     plannedStopLoss: "",
     plannedTarget: "",
-    plannedRisk: defaultPlannedRisk.toString(),
+    plannedRisk: "",
     plannedRR: "",
     plannedExitRules: "",
     // Notes
@@ -201,12 +201,10 @@ export default function NewManualTradePage() {
   useEffect(() => {
     if (!riskIsManual && livePlanMetrics.hasCalculation && livePlanMetrics.autoDollarRisk != null) {
       const autoStr = livePlanMetrics.autoDollarRisk.toString()
-      if (form.plannedRisk !== autoStr) {
-        setForm((prev) => ({ ...prev, plannedRisk: autoStr }))
-        handleRecalculatePnl(undefined, undefined, undefined, autoStr)
-      }
+      setForm((prev) => (prev.plannedRisk === autoStr ? prev : { ...prev, plannedRisk: autoStr }))
+      handleRecalculatePnl(undefined, undefined, undefined, autoStr)
     }
-  }, [livePlanMetrics.hasCalculation, livePlanMetrics.autoDollarRisk, riskIsManual]) // eslint-disable-line
+  }, [livePlanMetrics.hasCalculation, livePlanMetrics.autoDollarRisk, riskIsManual])
 
   // Handle Ctrl+V paste
   useEffect(() => {
@@ -449,7 +447,7 @@ export default function NewManualTradePage() {
               <Input
                 type="number"
                 step="any"
-                placeholder="e.g. 100"
+                placeholder={livePlanMetrics.autoDollarRisk ? `Auto: $${livePlanMetrics.autoDollarRisk}` : "Enter SL to auto-calculate"}
                 value={form.plannedRisk}
                 onChange={(e) => {
                   setRiskIsManual(true)
