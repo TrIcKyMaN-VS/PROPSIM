@@ -40,3 +40,32 @@ export function calculatePnl(
 
   return Number(pnl.toFixed(2))
 }
+
+export function getInstrumentPointMultiplier(instrument?: string | null): number {
+  if (!instrument) return 2
+  const clean = instrument.trim().toUpperCase()
+  const base = clean.split(/[\s_\-\/]/)[0]
+  if (CONTRACT_MULTIPLIERS[base] !== undefined) return CONTRACT_MULTIPLIERS[base]
+  if (CONTRACT_MULTIPLIERS[clean] !== undefined) return CONTRACT_MULTIPLIERS[clean]
+  if (clean.startsWith("MNQ")) return 2
+  if (clean.startsWith("NQ")) return 20
+  if (clean.startsWith("MES")) return 5
+  if (clean.startsWith("ES")) return 50
+  if (clean.startsWith("MYM")) return 0.5
+  if (clean.startsWith("YM")) return 5
+  if (clean.startsWith("M2K")) return 5
+  if (clean.startsWith("RTY")) return 50
+  if (clean.startsWith("CL")) return 1000
+  if (clean.startsWith("GC")) return 100
+  return 2
+}
+
+export function calculateDollarRiskFromPoints(
+  instrument: string | undefined | null,
+  riskPoints: number,
+  contracts: number = 1
+): number {
+  const mult = getInstrumentPointMultiplier(instrument)
+  const qty = Math.max(1, Number(contracts) || 1)
+  return Number((Math.abs(riskPoints) * mult * qty).toFixed(2))
+}

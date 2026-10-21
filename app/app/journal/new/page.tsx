@@ -17,6 +17,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { EXIT_TYPES, POST_EXIT_RESULTS, type TradeDirection } from "@/lib/types"
 import { calculateTradeCommission } from "@/lib/trade-commission"
+import { calculateDollarRiskFromPoints } from "@/lib/pnl-calculator"
 import { ImageLightbox } from "@/components/app/image-lightbox"
 import {
   Select,
@@ -139,46 +140,53 @@ export default function NewManualTradePage() {
     }))
   }
 
+  const [riskIsManual, setRiskIsManual] = useState(false)
+
   // Live calculation of Points Risk, Points Reward, and Planned R:R
   const livePlanMetrics = useMemo(() => {
     const entry = parseFloat(form.entry)
     const sl = parseFloat(form.plannedStopLoss)
     const tp = parseFloat(form.plannedTarget)
-    const riskUsd = parseFloat(form.plannedRisk) || defaultPlannedRisk
+    const contractsNum = parseFloat(form.contracts) || 1
 
-    if (isNaN(entry) || isNaN(sl) || isNaN(tp) || entry <= 0 || sl <= 0 || tp <= 0) {
+    if (isNaN(entry) || isNaN(sl) || entry <= 0 || sl <= 0) {
       return {
         hasCalculation: false,
         riskPts: null,
         rewardPts: null,
         rrRatio: parseFloat(form.plannedRR) || null,
+        autoDollarRisk: null,
         projectedRewardUsd: null,
       }
     }
 
     const riskPts = Math.abs(entry - sl)
-    const rewardPts = Math.abs(tp - entry)
     if (riskPts <= 0) {
       return {
         hasCalculation: false,
         riskPts: null,
         rewardPts: null,
         rrRatio: parseFloat(form.plannedRR) || null,
+        autoDollarRisk: null,
         projectedRewardUsd: null,
       }
     }
 
-    const rrRatio = Number((rewardPts / riskPts).toFixed(2))
-    const projectedRewardUsd = riskUsd > 0 ? Number((riskUsd * rrRatio).toFixed(2)) : null
+    const autoDollarRisk = calculateDollarRiskFromPoints(form.instrument, riskPts, contractsNum)
+    const rewardPts = !isNaN(tp) && tp > 0 ? Math.abs(tp - entry) : null
+    const rrRatio = rewardPts != null && riskPts > 0 ? Number((rewardPts / riskPts).toFixed(2)) : (parseFloat(form.plannedRR) || null)
+    const riskUsd = parseFloat(form.plannedRisk) || autoDollarRisk || defaultPlannedRisk
+    const projectedRewardUsd = rrRatio != null && riskUsd > 0 ? Number((riskUsd * rrRatio).toFixed(2)) : null
 
     return {
       hasCalculation: true,
       riskPts: Number(riskPts.toFixed(2)),
-      rewardPts: Number(rewardPts.toFixed(2)),
+      rewardPts: rewardPts != null ? Number(rewardPts.toFixed(2)) : null,
       rrRatio,
+      autoDollarRisk,
       projectedRewardUsd,
     }
-  }, [form.entry, form.plannedStopLoss, form.plannedTarget, form.plannedRisk, form.plannedRR, defaultPlannedRisk])
+  }, [form.entry, form.contracts, form.instrument, form.plannedStopLoss, form.plannedTarget, form.plannedRisk, form.plannedRR, defaultPlannedRisk])
 
   useEffect(() => {
     if (livePlanMetrics.hasCalculation && livePlanMetrics.rrRatio != null) {
@@ -188,6 +196,17 @@ export default function NewManualTradePage() {
       }
     }
   }, [livePlanMetrics.hasCalculation, livePlanMetrics.rrRatio]) // eslint-disable-line
+
+  // Auto-sync calculated Dollar Risk into form if not manually overridden
+  useEffect(() => {
+    if (!riskIsManual && livePlanMetrics.hasCalculation && livePlanMetrics.autoDollarRisk != null) {
+      const autoStr = livePlanMetrics.autoDollarRisk.toString()
+      if (form.plannedRisk !== autoStr) {
+        setForm((prev) => ({ ...prev, plannedRisk: autoStr }))
+        handleRecalculatePnl(undefined, undefined, undefined, autoStr)
+      }
+    }
+  }, [livePlanMetrics.hasCalculation, livePlanMetrics.autoDollarRisk, riskIsManual]) // eslint-disable-line
 
   // Handle Ctrl+V paste
   useEffect(() => {
@@ -262,7 +281,7 @@ export default function NewManualTradePage() {
       const commNum = parseFloat(form.commission) ?? calculateTradeCommission(form.instrument, contractsNum)
       const grossNum = form.grossPnl ? parseFloat(form.grossPnl) : parseFloat(form.pnl) + commNum
       const netPnlNum = form.pnl ? parseFloat(form.pnl) : Number((grossNum - commNum).toFixed(2))
-      const riskNum = parseFloat(form.plannedRisk) || defaultPlannedRisk
+      const riskNum = parseFloat(form.plannedRisk) || livePlanMetrics.autoDollarRisk || defaultPlannedRisk
       const netRNum = riskNum > 0 ? Number((netPnlNum / riskNum).toFixed(2)) : null
 
       const trimmedSetup = form.setupName.trim()
@@ -395,7 +414,7 @@ export default function NewManualTradePage() {
             </div>
             {livePlanMetrics.hasCalculation ? (
               <p className="text-[11px] text-muted-foreground font-mono">
-                Risk: <span className="text-rose-400 font-semibold">{livePlanMetrics.riskPts} pts</span> · Target: <span className="text-emerald-400 font-semibold">{livePlanMetrics.rewardPts} pts</span>
+                Risk: <span className="text-rose-400 font-semibold">{livePlanMetrics.riskPts} pts{livePlanMetrics.autoDollarRisk ? ` ($${livePlanMetrics.autoDollarRisk})` : ""}</span>{livePlanMetrics.rewardPts != null && <> · Target: <span className="text-emerald-400 font-semibold">{livePlanMetrics.rewardPts} pts</span></>}
                 {livePlanMetrics.projectedRewardUsd && (
                   <span className="text-foreground"> · Proj. Reward: <span className="text-emerald-400 font-bold">+${livePlanMetrics.projectedRewardUsd}</span></span>
                 )}
@@ -409,13 +428,31 @@ export default function NewManualTradePage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-muted-foreground">Initial Risk ($ USD)</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground">Initial Risk ($ USD)</Label>
+                {livePlanMetrics.autoDollarRisk != null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRiskIsManual(false)
+                      setForm((f) => ({ ...f, plannedRisk: livePlanMetrics.autoDollarRisk!.toString() }))
+                      handleRecalculatePnl(undefined, undefined, undefined, livePlanMetrics.autoDollarRisk!.toString())
+                      toast.info(`Snapped risk to chart SL: $${livePlanMetrics.autoDollarRisk}`)
+                    }}
+                    className="text-[10px] font-mono text-cyan-400 hover:text-cyan-300 transition-colors flex items-center gap-0.5"
+                    title="Reset to auto-calculated risk from Stop Loss"
+                  >
+                    ⚡ Auto: ${livePlanMetrics.autoDollarRisk}
+                  </button>
+                )}
+              </div>
               <Input
                 type="number"
                 step="any"
                 placeholder="e.g. 100"
                 value={form.plannedRisk}
                 onChange={(e) => {
+                  setRiskIsManual(true)
                   setForm({ ...form, plannedRisk: e.target.value })
                   handleRecalculatePnl(undefined, undefined, undefined, e.target.value)
                 }}
