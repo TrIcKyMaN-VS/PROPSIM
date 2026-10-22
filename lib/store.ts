@@ -4,7 +4,7 @@ import { create } from "zustand"
 import { persist } from "zustand/middleware"
 import type { ChallengeAccount, Trade, TradeDirection } from "./types"
 import { getFirm, SESSIONS, INSTRUMENTS } from "./firms"
-import { getAccounts, createAccount as createDbAccount, deleteAccountPermanently as deleteDbAccountPermanently, archiveAccount as archiveDbAccount, restoreAccount as restoreDbAccount, cloneAccount as cloneDbAccount, archiveAllFailedChallenges as archiveAllFailedDbChallenges, resetToOfficialRules as resetDbAccountRules, renameAccount as renameDbAccount } from "@/app/actions/account-actions"
+import { getAccounts, createAccount as createDbAccount, deleteAccountPermanently as deleteDbAccountPermanently, archiveAccount as archiveDbAccount, restoreAccount as restoreDbAccount, cloneAccount as cloneDbAccount, archiveAllFailedChallenges as archiveAllFailedDbChallenges, resetToOfficialRules as resetDbAccountRules, renameAccount as renameDbAccount, updateAccount as updateDbAccount, recoverAccount as recoverDbAccount, UpdateAccountInput } from "@/app/actions/account-actions"
 import { getTrades, addTrade as addDbTrade, deleteTrade as deleteDbTrade, importTradesBatch } from "@/app/actions/trade-actions"
 import { getPlaybooks, createPlaybook as createDbPlaybook, updatePlaybook as updateDbPlaybook, deletePlaybook as deleteDbPlaybook, assignTradeToPlaybook as assignDbTrade, PlaybookInput } from "@/app/actions/playbook-actions"
 import { getRoutineConfig, updateRoutineConfig, getDefaultPlannedRisk, updateDefaultPlannedRisk } from "@/app/actions/user-actions"
@@ -94,6 +94,8 @@ interface PropState {
   createAccount: (firmId: string, sizeLabel: string, challengeType?: "OFFICIAL" | "CUSTOM", customOverrides?: Record<string, any>) => Promise<string>
   resetToOfficialRules: (accountId: string) => Promise<void>
   renameAccount: (id: string, name: string) => Promise<void>
+  updateAccount: (id: string, input: UpdateAccountInput) => Promise<void>
+  recoverAccount: (id: string, newDailyLossLimit?: number) => Promise<void>
   setActive: (id: string) => void
   removeAccount: (id: string) => Promise<void>
   archiveAccount: (id: string) => Promise<void>
@@ -298,6 +300,50 @@ export const usePropStore = create<PropState>()(
         await renameDbAccount(id, name)
         set((s) => ({
           accounts: s.accounts.map((a) => a.id === id ? { ...a, name } : a)
+        }))
+      },
+
+      updateAccount: async (id, input) => {
+        const updatedDb = await updateDbAccount(id, input)
+        const parsedRules = JSON.parse(updatedDb.rules as any)
+        set((s) => ({
+          accounts: s.accounts.map((a) => {
+            if (a.id === id) {
+              return {
+                ...a,
+                name: updatedDb.name,
+                brokerAccountName: updatedDb.brokerAccountName,
+                status: updatedDb.status as any,
+                rules: parsedRules,
+                failReason: updatedDb.failReason || undefined,
+                failureAt: updatedDb.failureAt ? Number(new Date(updatedDb.failureAt).getTime()) : undefined,
+                failureSnapshot: updatedDb.failureSnapshot || undefined,
+                customOverrides: updatedDb.customOverrides ? JSON.parse(updatedDb.customOverrides as string) : a.customOverrides,
+              }
+            }
+            return a
+          })
+        }))
+      },
+
+      recoverAccount: async (id, newDailyLossLimit) => {
+        const updatedDb = await recoverDbAccount(id, newDailyLossLimit)
+        const parsedRules = JSON.parse(updatedDb.rules as any)
+        set((s) => ({
+          accounts: s.accounts.map((a) => {
+            if (a.id === id) {
+              return {
+                ...a,
+                status: "active",
+                failReason: undefined,
+                failureAt: undefined,
+                failureSnapshot: undefined,
+                rules: parsedRules,
+                customOverrides: updatedDb.customOverrides ? JSON.parse(updatedDb.customOverrides as string) : a.customOverrides,
+              }
+            }
+            return a
+          })
         }))
       },
 

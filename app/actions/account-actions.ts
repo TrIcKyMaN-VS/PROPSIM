@@ -191,3 +191,105 @@ export async function renameAccount(accountId: string, newName: string) {
 
   return { success: true }
 }
+
+export interface UpdateAccountInput {
+  name?: string
+  status?: "active" | "passed" | "failed"
+  brokerAccountName?: string
+  rules?: {
+    startingBalance?: number
+    profitTarget?: number
+    dailyLossLimit?: number
+    maxDrawdown?: number
+    drawdownType?: "trailing" | "static" | "eod" | "intraday" | "hybrid"
+    maxContracts?: number
+    minTradingDays?: number
+    consistencyPct?: number
+    trailingLockProfit?: number
+  }
+}
+
+export async function updateAccount(accountId: string, input: UpdateAccountInput) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const account = await prisma.challengeAccount.findUnique({
+    where: { id: accountId }
+  })
+  if (!account || account.userId !== session.user.id) throw new Error("Account not found")
+
+  const currentRules = JSON.parse(account.rules || "{}")
+  const currentOverrides = account.customOverrides ? JSON.parse(account.customOverrides) : {}
+
+  const updatedRules = input.rules ? { ...currentRules, ...input.rules } : currentRules
+  const updatedOverrides = input.rules ? { ...currentOverrides, ...input.rules } : currentOverrides
+
+  const updateData: any = {
+    name: input.name !== undefined ? (input.name.trim() || null) : account.name,
+    brokerAccountName: input.brokerAccountName !== undefined ? (input.brokerAccountName.trim() || null) : account.brokerAccountName,
+  }
+
+  if (input.rules) {
+    updateData.rules = JSON.stringify(updatedRules)
+    updateData.customOverrides = JSON.stringify(updatedOverrides)
+    updateData.challengeType = "CUSTOM"
+  }
+
+  if (input.status !== undefined) {
+    updateData.status = input.status
+    if (input.status === "active") {
+      updateData.failReason = null
+      updateData.failureAt = null
+      updateData.failureSnapshot = null
+
+      await prisma.ruleViolation.updateMany({
+        where: { accountId, isResolved: false },
+        data: { isResolved: true, resolvedAt: new Date() }
+      })
+    }
+  }
+
+  const updated = await prisma.challengeAccount.update({
+    where: { id: accountId },
+    data: updateData
+  })
+
+  return updated
+}
+
+export async function recoverAccount(accountId: string, newDailyLossLimit?: number) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) throw new Error("Unauthorized")
+
+  const account = await prisma.challengeAccount.findUnique({
+    where: { id: accountId }
+  })
+  if (!account || account.userId !== session.user.id) throw new Error("Account not found")
+
+  const currentRules = JSON.parse(account.rules || "{}")
+  const currentOverrides = account.customOverrides ? JSON.parse(account.customOverrides) : {}
+
+  if (newDailyLossLimit !== undefined && !isNaN(newDailyLossLimit)) {
+    currentRules.dailyLossLimit = newDailyLossLimit
+    currentOverrides.dailyLossLimit = newDailyLossLimit
+  }
+
+  await prisma.ruleViolation.updateMany({
+    where: { accountId, isResolved: false },
+    data: { isResolved: true, resolvedAt: new Date() }
+  })
+
+  const updated = await prisma.challengeAccount.update({
+    where: { id: accountId },
+    data: {
+      status: "active",
+      failReason: null,
+      failureAt: null,
+      failureSnapshot: null,
+      rules: JSON.stringify(currentRules),
+      customOverrides: JSON.stringify(currentOverrides)
+    }
+  })
+
+  return updated
+}
