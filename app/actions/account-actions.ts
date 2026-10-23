@@ -194,8 +194,10 @@ export async function renameAccount(accountId: string, newName: string) {
 
 export interface UpdateAccountInput {
   name?: string
+  sizeLabel?: string
   status?: "active" | "passed" | "failed"
   brokerAccountName?: string
+  clearViolations?: boolean
   rules?: {
     startingBalance?: number
     profitTarget?: number
@@ -229,10 +231,25 @@ export async function updateAccount(accountId: string, input: UpdateAccountInput
     brokerAccountName: input.brokerAccountName !== undefined ? (input.brokerAccountName.trim() || null) : account.brokerAccountName,
   }
 
+  if (input.sizeLabel) {
+    updateData.sizeLabel = input.sizeLabel.trim()
+  }
+
   if (input.rules) {
     updateData.rules = JSON.stringify(updatedRules)
     updateData.customOverrides = JSON.stringify(updatedOverrides)
     updateData.challengeType = "CUSTOM"
+  }
+
+  if (input.clearViolations) {
+    updateData.failReason = null
+    updateData.failureAt = null
+    updateData.failureSnapshot = null
+
+    await prisma.ruleViolation.updateMany({
+      where: { accountId, isResolved: false },
+      data: { isResolved: true, resolvedAt: new Date() }
+    })
   }
 
   if (input.status !== undefined) {

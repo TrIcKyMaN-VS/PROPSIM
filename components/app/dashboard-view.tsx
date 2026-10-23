@@ -11,7 +11,7 @@ import dynamic from 'next/dynamic'
 const EquityChart = dynamic(() => import("./equity-chart").then(m => m.EquityChart), { ssr: false })
 import { QuickTrade } from "./quick-trade"
 import { Button } from "@/components/ui/button"
-import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield, Flame, TrendingDown, Zap } from "lucide-react"
+import { Wallet, TrendingUp, Calendar, Layers, AlertTriangle, CheckCircle2, XCircle, Trophy, Plus, Activity, Brain, HeartPulse, CalendarDays, Target, Shield, Flame, TrendingDown, Zap, Pencil } from "lucide-react"
 import { AnimatedCard, AnimatedButton } from "./animated-ui"
 import { cn } from "@/lib/utils"
 import { useMemo } from "react"
@@ -256,6 +256,19 @@ export function DashboardView() {
             Account ID: <span className="font-mono text-xs text-muted-foreground/80">{account.id}</span>
             {account.brokerAccountName && ` · Broker: ${account.brokerAccountName}`}
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-8 font-mono text-xs font-bold border-border/80 gap-1.5 hover:bg-muted"
+          >
+            <Link href="/app/history">
+              <Pencil className="w-3.5 h-3.5 text-primary" /> Edit in History
+            </Link>
+          </Button>
         </div>
       </div>
 

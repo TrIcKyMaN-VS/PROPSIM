@@ -312,6 +312,7 @@ export const usePropStore = create<PropState>()(
               return {
                 ...a,
                 name: updatedDb.name,
+                sizeLabel: updatedDb.sizeLabel || a.sizeLabel,
                 brokerAccountName: updatedDb.brokerAccountName,
                 status: updatedDb.status as any,
                 rules: parsedRules,
