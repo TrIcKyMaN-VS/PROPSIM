@@ -504,7 +504,7 @@ export function CoachView() {
       {/* ── Tab 0: AI Coach Chat (Live Interactive Assistant) ─────────────── */}
       {activeTab === "chat" && (
         <div className="space-y-4">
-          <AiCoachChat />
+          <AiCoachChat accountId={activeAccountId || undefined} />
         </div>
       )}
 

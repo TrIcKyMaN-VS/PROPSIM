@@ -38,7 +38,8 @@ interface Message {
   }
 }
 
-const STORAGE_KEY = "propsim-ai-coach-chat-history"
+const getStorageKey = (accId?: string | null) =>
+  `propsim-ai-coach-chat-v2-${accId || "default"}`
 
 const SUGGESTION_PROMPTS = [
   {
@@ -241,11 +242,12 @@ function FormattedMessage({ text }: { text: string }) {
 }
 
 // ── Main AI Coach Chat Component ─────────────────────────────────────────────
-export function AiCoachChat() {
-  const activeAccountId = usePropStore((s) => s.activeAccountId)
+export function AiCoachChat({ accountId: propAccountId }: { accountId?: string } = {}) {
+  const storeActiveAccountId = usePropStore((s) => s.activeAccountId)
   const accounts = usePropStore((s) => s.accounts)
   const trades = usePropStore((s) => s.trades)
-  
+
+  const activeAccountId = propAccountId || storeActiveAccountId
   const currentAccount = accounts.find((a) => a.id === activeAccountId) || accounts[0]
   const accountTrades = trades.filter((t) => !activeAccountId || t.accountId === activeAccountId)
 
@@ -265,6 +267,8 @@ export function AiCoachChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const suggestionsRef = useRef<HTMLDivElement>(null)
 
+  const currentStorageKey = getStorageKey(currentAccount?.id || activeAccountId)
+
   const scrollSuggestions = (direction: "left" | "right") => {
     if (suggestionsRef.current) {
       const scrollAmount = 260
@@ -275,10 +279,10 @@ export function AiCoachChat() {
     }
   }
 
-  // Load chat history from localStorage
+  // Load chat history from localStorage scoped to active account
   useEffect(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY)
+      const saved = localStorage.getItem(currentStorageKey)
       if (saved) {
         const parsed = JSON.parse(saved)
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -288,19 +292,19 @@ export function AiCoachChat() {
       }
     } catch {}
 
-    // Default welcoming message
+    // Default welcoming message strictly anchored to active account metrics
     setMessages([
       {
         id: "welcome-1",
         role: "assistant",
         content: `### 👋 Welcome! I am your PROPSIM AI Performance Coach.
 
-I have synchronized **all ${totalTradesCount} logged trades** from your active account (*${currentAccount?.name || currentAccount?.sizeLabel || "Active Challenge"}*).
+I have synchronized **all ${totalTradesCount} logged trades** from your active account (**${currentAccount?.name || currentAccount?.sizeLabel || "Active Challenge"}**).
 
-**What I can do for you:**
+* **Account Status:** **${totalTradesCount} Trades** | **${winRate.toFixed(1)}% WR** | **${totalNetR >= 0 ? "+" : ""}${totalNetR.toFixed(2)} R (${fmtCurrency(netPnl)})**
 * **Lifetime Health Check:** Ask *"How am I trading overall from scratch to today?"*
 * **Leak Diagnosis:** Ask *"What is my #1 leak costing me money?"* to find premature entries or stop choking.
-* **Edge Analysis:** Inquire about your **Delta Reload** or custom setups to check their specific win rate and R expectancy.
+* **Edge Analysis:** Inquire about your setups to check their specific win rate and R expectancy.
 * **Bilingual Support:** Feel free to ask in **English or Tamil / Tanglish** (*"naa epdii trade pannren?"*).
 
 Click any quick suggestion chip below or type your question!`,
@@ -308,16 +312,16 @@ Click any quick suggestion chip below or type your question!`,
         metadata: { provider: "PROPSIM", model: "Trade Intelligence Engine" }
       }
     ])
-  }, [totalTradesCount, currentAccount?.id])
+  }, [currentStorageKey, totalTradesCount, currentAccount?.id, currentAccount?.name])
 
-  // Save chat history
+  // Save chat history scoped to active account
   useEffect(() => {
     if (messages.length > 0) {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+        localStorage.setItem(currentStorageKey, JSON.stringify(messages))
       } catch {}
     }
-  }, [messages])
+  }, [messages, currentStorageKey])
 
   // Auto scroll
   useEffect(() => {
@@ -342,13 +346,15 @@ Click any quick suggestion chip below or type your question!`,
     setInput("")
     setLoading(true)
 
+    const targetAccId = activeAccountId || currentAccount?.id
+
     try {
       const res = await fetch("/api/ai/coach-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
-          accountId: activeAccountId
+          accountId: targetAccId
         })
       })
 
@@ -392,13 +398,17 @@ Click any quick suggestion chip below or type your question!`,
   }
 
   const handleClearHistory = () => {
-    if (window.confirm("Clear this AI Coach conversation history?")) {
-      localStorage.removeItem(STORAGE_KEY)
+    if (window.confirm("Clear this AI Coach conversation history for the current account?")) {
+      try {
+        localStorage.removeItem(currentStorageKey)
+        localStorage.removeItem("propsim-ai-coach-chat-history")
+      } catch {}
+
       setMessages([
         {
           id: "welcome-reset",
           role: "assistant",
-          content: `### 🔄 Session Reset\n\nChat history cleared. I am ready to analyze your latest trading records. How can I help you today?`,
+          content: `### 🔄 Session Reset\n\nChat history cleared for **${currentAccount?.name || "Active Account"}**. Ready to analyze your **${totalTradesCount} logged trades** (${fmtCurrency(netPnl)} net P&L). How can I help you today?`,
           timestamp: Date.now()
         }
       ])

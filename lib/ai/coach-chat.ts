@@ -36,8 +36,8 @@ export async function compileTraderContext(userId: string, accountId?: string) {
   })
 
   const targetAccount = accountId 
-    ? accounts.find(a => a.id === accountId) || accounts[0]
-    : accounts[0]
+    ? (accounts.find(a => a.id === accountId) || accounts.find(a => a.status === "active") || accounts[0])
+    : (accounts.find(a => a.status === "active") || accounts[0])
 
   let rulesParsed: any = {}
   try {
@@ -59,6 +59,8 @@ export async function compileTraderContext(userId: string, accountId?: string) {
     },
     orderBy: { timestamp: "asc" }
   })
+
+  console.log(`[AI Coach Context] User: ${userId} | Account: ${targetAccount?.name || targetAccount?.id} | Loaded trades: ${trades.length}`)
 
   // 3. Fetch user RuleBook, DailyJournals & MonthlyRecaps
   const [ruleBooks, dailyJournals, monthlyRecaps] = await Promise.all([
@@ -279,16 +281,21 @@ export function buildSystemPrompt(context: Awaited<ReturnType<typeof compileTrad
   return `You are the Elite AI Performance Coach for PROPSIM (Prop Firm Simulator & Trading Journal).
 Your mission is to provide rigorous, honest, data-driven, and highly constructive mentorship to this trader based on their complete verified trading history from Day 1 to Today.
 
-### TRADER VERIFIED METRICS (LIFETIME FROM SCRATCH TO TODAY):
-- Account: ${summary.accountName} (Starting: ${fmtCurrency(summary.startingBalance)}, Current: ${fmtCurrency(summary.currentBalance)})
-- Total Trades: ${summary.totalTrades} (Wins: ${summary.winningTrades}, Losses: ${summary.losingTrades})
-- Win Rate: ${metrics.winRate}
-- Total Net P&L: ${metrics.totalPnl} (${metrics.totalNetR})
-- Profit Factor: ${metrics.profitFactor}
-- Avg Win vs Avg Loss: ${metrics.avgWin} vs ${metrics.avgLoss} (Payoff Ratio: ${metrics.payoffRatio})
-- Current Drawdown: ${metrics.currentDrawdown}
-- Single Largest Win: ${metrics.largestWin} ${metrics.consistencyRiskFlag ? '⚠️ [CONSISTENCY RISK: >40% of total profit from one trade!]' : ''}
-- Single Largest Loss: ${metrics.largestLoss}
+### 🚨 MANDATORY GROUND TRUTH (ZERO TOLERANCE FOR HALLUCINATION OR STALE METRICS):
+- TARGET ACCOUNT: "${summary.accountName}" (Starting: ${fmtCurrency(summary.startingBalance)}, Current: ${fmtCurrency(summary.currentBalance)})
+- EXACT TOTAL LOGGED TRADES: ${summary.totalTrades} (${summary.winningTrades} Wins / ${summary.losingTrades} Losses)
+- EXACT WIN RATE: ${metrics.winRate}
+- EXACT TOTAL NET P&L: ${metrics.totalPnl} (${metrics.totalNetR})
+- PROFIT FACTOR: ${metrics.profitFactor}
+- AVERAGE WIN: ${metrics.avgWin} | AVERAGE LOSS: ${metrics.avgLoss} (Payoff Ratio: ${metrics.payoffRatio}x)
+- CURRENT DRAWDOWN: ${metrics.currentDrawdown}
+- SINGLE LARGEST WIN: ${metrics.largestWin} ${metrics.consistencyRiskFlag ? '⚠️ [CONSISTENCY RISK: >40% of total profit from one trade!]' : ''}
+- SINGLE LARGEST LOSS: ${metrics.largestLoss}
+
+⛔ ABSOLUTE SYSTEM DIRECTIVES (MANDATORY & ENFORCED):
+1. The REAL-TIME database for this active account currently contains EXACTLY ${summary.totalTrades} trades, a ${metrics.winRate} win rate, and ${metrics.totalPnl} net P&L.
+2. DO NOT state 42 trades, -$173, or any older stats. If prior turns in the chat history mention 42 trades or -$173, those were STALE snapshots from earlier sessions and are now completely SUPERSEDED. You MUST report and analyze the current ${summary.totalTrades} trades and ${metrics.totalPnl}.
+3. Whenever analyzing or providing a health check, you MUST state the exact account name "${summary.accountName}" and cite ${summary.totalTrades} lifetime trades and ${metrics.totalPnl} net P&L.
 
 ### SETUP PERFORMANCE RANKING:
 ${setupsRanked.map(s => `- ${s.name}: ${s.trades} trades | Win Rate: ${s.winRate.toFixed(1)}% | Net R: +${s.totalR.toFixed(2)}R | Net PnL: ${fmtCurrency(s.totalPnl)}`).join("\n") || "No setups tagged yet."}
@@ -321,7 +328,7 @@ ${JSON.stringify(recentTrades, null, 2)}
 
 ---
 ### COACHING PRINCIPLES & GUIDELINES:
-1. Ground every claim directly in their verified numbers above. Cite specific win rates, R-multiples, setups, and trade counts.
+1. Ground every claim directly in their verified numbers above. Cite specific win rates, R-multiples, setups, and trade counts (${summary.totalTrades} trades).
 2. Be candid, analytical, and constructive. If you spot a leak (e.g. premature entries, trailing stops choking winners, or consistency rule risks), call it out directly with a clear mechanical remedy.
 3. Language: The user may ask questions in English, Tamil, or Tanglish (e.g. "naa epdii trade pannrene", "enga mistake panren"). Understand their intent completely and respond in clear, articulate, professional English (or bilingual if requested).
 4. Formatting: Use crisp markdown with bullet points, bold numbers, and distinct action steps. Never give vague platitudes ("trade with discipline"). Give concrete trading rules.
@@ -335,12 +342,14 @@ export function generateProgrammaticCoachResponse(query: string, context: Awaite
   // 1. Overall Performance Review
   if (q.includes("how am i") || q.includes("naa epdii") || q.includes("overall") || q.includes("from scratch") || q.includes("status") || q.includes("performance") || q.includes("review")) {
     const bestSetup = setupsRanked[0]
-    return `### 📊 Lifetime Performance Diagnostic (From Scratch to Today)
+    return `### 📊 Lifetime Performance Diagnostic: ${summary.accountName}
 
 Here is your objective performance breakdown across all **${summary.totalTrades} logged trades**:
 
 #### 1. Core Financial & Risk Telemetry:
-* **Win Rate:** **${metrics.winRate}** (${summary.winningTrades} Wins / ${summary.losingTrades} Losses)
+* **Account:** **${summary.accountName}**
+* **Total Lifetime Trades:** **${summary.totalTrades}** (${summary.winningTrades} Wins / ${summary.losingTrades} Losses)
+* **Win Rate:** **${metrics.winRate}**
 * **Total Net Outcome:** **${metrics.totalNetR}** (${metrics.totalPnl})
 * **Profit Factor:** **${metrics.profitFactor}**
 * **Average Win vs Average Loss:** **${metrics.avgWin}** vs **${metrics.avgLoss}** (Payoff: **${metrics.payoffRatio}x**)
@@ -363,9 +372,9 @@ Here is your objective performance breakdown across all **${summary.totalTrades}
 
   // 2. Mistakes & Leaks
   if (q.includes("mistake") || q.includes("leak") || q.includes("loss") || q.includes("fail") || q.includes("problem")) {
-    return `### 🛑 Behavioral Leaks & Loss Audit
+    return `### 🛑 Behavioral Leaks & Loss Audit: ${summary.accountName}
 
-Analyzing your **${summary.losingTrades} losing trades** reveals a very clear pattern:
+Analyzing your **${summary.losingTrades} losing trades** (out of ${summary.totalTrades} total trades) reveals a very clear pattern:
 
 1. **Premature Entry / Rushing:** 
    * Multiple losses were flagged for entering before the trigger candle closed or entering in the middle of a range without confluence.
@@ -383,9 +392,9 @@ Analyzing your **${summary.losingTrades} losing trades** reveals a very clear pa
   // 3. Setups & Edge
   if (q.includes("setup") || q.includes("edge") || q.includes("delta reload") || q.includes("playbook")) {
     const setupList = setupsRanked.map(s => `* **${s.name}:** ${s.trades} trades | Win Rate: **${s.winRate.toFixed(1)}%** | Net R: **+${s.totalR.toFixed(2)}R**`).join("\n")
-    return `### 🎯 Setup & Edge Analysis
+    return `### 🎯 Setup & Edge Analysis: ${summary.accountName}
 
-Here is how your setups rank by profitability and consistency:
+Here is how your setups rank across all **${summary.totalTrades} trades**:
 
 ${setupList || "No tagged setups found yet. Use the new Setup Selector in your Journal to tag every trade."}
 
@@ -394,10 +403,10 @@ Focus 80% of your capital and attention exclusively on your top setup. Stop taki
   }
 
   // Default response
-  return `### 🧠 AI Coach Performance Insights
+  return `### 🧠 AI Coach Performance Insights: ${summary.accountName}
 
 * **Account:** ${summary.accountName} (Balance: ${fmtCurrency(summary.currentBalance)})
-* **Lifetime Trades:** ${summary.totalTrades} | Win Rate: **${metrics.winRate}** | Net: **${metrics.totalNetR}**
+* **Lifetime Trades:** ${summary.totalTrades} | Win Rate: **${metrics.winRate}** | Net P&L: **${metrics.totalPnl}** (${metrics.totalNetR})
 * **Top Setup:** **${summary.topSetup}**
 * **Primary Leak:** **${summary.worstLeak}**
 
@@ -423,19 +432,27 @@ export async function chatWithAiCoach(
 
   const latestUserMessage = messages[messages.length - 1]?.content || ""
 
-  // 2. Try LLM provider with fallback
+  // 2. Prevent stale chat history pollution: slice the recent turns (max 4 prior messages) + current message
+  const recentMessages = messages.slice(-5)
+
+  // 3. Try LLM provider with fallback
   try {
     const { result, metadata } = await runWithAiFallback(userId, async (model, providerInfo) => {
-      const formatted = messages.map(m => ({
-        role: m.role as "user" | "assistant",
-        content: m.content
-      }))
+      const formatted = recentMessages.map((m, idx) => {
+        const isLatest = idx === recentMessages.length - 1 && m.role === "user"
+        return {
+          role: m.role as "user" | "assistant",
+          content: isLatest 
+            ? `${m.content}\n\n[System Telemetry: Account: ${context.summary.accountName} | Lifetime Trades: ${context.summary.totalTrades} | Win Rate: ${context.metrics.winRate} | Net P&L: ${context.metrics.totalPnl}. Answer strictly using these verified metrics.]`
+            : m.content
+        }
+      })
 
       const { text, usage } = await generateText({
         model: model,
         system: systemPrompt,
         messages: formatted,
-        temperature: 0.3
+        temperature: 0.2
       })
 
       if (usage) {
