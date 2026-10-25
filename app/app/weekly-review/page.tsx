@@ -10,6 +10,7 @@ import {
   saveDailyJournal,
 } from "@/app/actions/journal-actions";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { ImageLightbox } from "@/components/app/image-lightbox";
 import { generateWeeklyPatterns } from "@/app/actions/weekly-review-ai-actions";
 import {
   Card,
@@ -52,6 +53,50 @@ import {
 import { getISOWeekKey, getWeekDates } from "@/lib/date-utils";
 
 const getCurrentWeekKey = () => getISOWeekKey();
+
+function getExitTypeBadge(exitType?: string | null) {
+  if (!exitType) return null;
+  const lower = exitType.toLowerCase();
+  if (lower.includes("take profit") || lower.includes("tp")) {
+    return { color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10", label: exitType };
+  }
+  if (lower.includes("stop loss") || lower.includes("sl")) {
+    return { color: "border-rose-500/40 text-rose-400 bg-rose-500/10", label: exitType };
+  }
+  if (lower.includes("breakeven") || lower.includes("be")) {
+    return { color: "border-amber-500/40 text-amber-400 bg-amber-500/10", label: exitType };
+  }
+  if (lower.includes("trailing")) {
+    return { color: "border-cyan-500/40 text-cyan-400 bg-cyan-500/10", label: exitType };
+  }
+  if (lower.includes("early profit") || lower.includes("partial")) {
+    return { color: "border-blue-500/40 text-blue-400 bg-blue-500/10", label: exitType };
+  }
+  if (lower.includes("early loss")) {
+    return { color: "border-purple-500/40 text-purple-400 bg-purple-500/10", label: exitType };
+  }
+  return { color: "border-muted-foreground/40 text-muted-foreground bg-muted/20", label: exitType };
+}
+
+function formatTradeDuration(entryTs?: number | bigint, exitTs?: number | bigint | null) {
+  if (!entryTs || !exitTs) return null;
+  const diffMs = Number(exitTs) - Number(entryTs);
+  if (diffMs <= 0) return null;
+  const totalSecs = Math.round(diffMs / 1000);
+  if (totalSecs < 60) return `${totalSecs}s`;
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+}
+
+function formatTimeEST(ts?: number | bigint) {
+  if (!ts) return null;
+  return new Date(Number(ts)).toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 
 
@@ -114,6 +159,8 @@ export default function WeeklyReviewPage() {
   const [openTrades, setOpenTrades] = useState<Record<string, boolean>>({});
   const toggleTradeDetail = (id: string) => setOpenTrades(s => ({ ...s, [id]: !s[id] }));
   const [tradeViewImage, setTradeViewImage] = useState<string | null>(null);
+  const [tradeLightboxImages, setTradeLightboxImages] = useState<string[]>([]);
+  const [tradeLightboxIndex, setTradeLightboxIndex] = useState(0);
   const [tradeImageZoomed, setTradeImageZoomed] = useState(false);
 
   // Derive Mon–Sun date strings for the selected weekOf key
@@ -1476,19 +1523,15 @@ const cleanUnicodeEscapes = (str: string) => {
         </CardContent>
       </Card>
 
-      {/* Image Zoom Lightbox for Trades */}
-      <Dialog open={!!tradeViewImage} onOpenChange={(o) => { if (!o) { setTradeImageZoomed(false); setTradeViewImage(null); } }}>
-        <DialogContent className="max-w-[95vw] w-fit p-1 bg-black/90 border-0 flex items-center justify-center z-[100]">
-          {tradeViewImage && (
-            <img
-              src={tradeViewImage}
-              alt="Chart screenshot"
-              className={tradeImageZoomed ? "max-w-none max-h-none cursor-zoom-out" : "max-w-full max-h-[82vh] object-contain rounded-lg cursor-zoom-in"}
-              onClick={e => { e.stopPropagation(); setTradeImageZoomed(!tradeImageZoomed); }}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Full-featured Image Lightbox for Trades */}
+      <ImageLightbox
+        open={!!tradeViewImage}
+        src={tradeViewImage}
+        images={tradeLightboxImages}
+        initialIndex={tradeLightboxIndex}
+        alt="Trade Chart Screenshot"
+        onClose={() => setTradeViewImage(null)}
+      />
 
       {/* WEEK'S DAILY JOURNALS DIGEST */}
       <details className="group">
@@ -1725,28 +1768,37 @@ const cleanUnicodeEscapes = (str: string) => {
                     
                     <div className="space-y-2.5">
                       {dayTrades.slice().sort((a,b) => b.timestamp - a.timestamp).map((t, idx) => {
-                        const setupName = t.playbookName ?? t.instrument;
-                        const grade = tradePsychology.find(p => p.tradeId === t.id)?.executionGrade;
+                        const setupName = t.playbookName || (t as any).setupName || t.instrument;
+                        const grade = tradePsychology.find(p => p.tradeId === t.id)?.executionGrade || t.psychology?.executionGrade;
                         const isOpen = !!openTrades[t.id];
+                        const exitBadge = getExitTypeBadge((t as any).exitType);
+                        const durationStr = formatTradeDuration(t.timestamp, t.exitTime);
+                        const timeEst = formatTimeEST(t.timestamp);
+                        const screenshotUrls = (t.screenshots || []).map((s: any) => typeof s === "string" ? s : s?.url).filter(Boolean);
                         
                         return (
                           <div key={t.id} className="border border-border/50 rounded-xl overflow-hidden bg-card/30 hover:bg-card/80 transition-colors shadow-sm">
                             <button
                               type="button"
                               onClick={() => toggleTradeDetail(t.id)}
-                              className="w-full select-none flex items-center justify-between px-4 py-3 text-sm outline-none"
+                              className="w-full select-none flex items-center justify-between px-4 py-3 text-sm outline-none hover:bg-muted/30 transition-colors"
                             >
-                            <span className="font-bold tracking-wide text-foreground flex items-center gap-3">
+                            <span className="font-bold tracking-wide text-foreground flex items-center gap-2.5">
                               <span className="text-muted-foreground/60 uppercase text-[11px]">TRADE {dayTrades.length - idx}</span>
-                              <span className="text-[14px]">{t.instrument?.toUpperCase()}</span>
+                              <span className="text-[13px] font-bold text-primary">{setupName?.toUpperCase()}</span>
                               <span className={cn(
-                                "text-[10px] px-2 py-0.5 rounded-full",
-                                t.direction === "long" ? "bg-blue-500/20 text-blue-400" : "bg-red-500/20 text-red-400"
+                                "text-[10px] px-1.5 py-0.5 rounded border uppercase font-bold",
+                                t.direction === "long" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-rose-500/40 text-rose-400 bg-rose-500/10"
                               )}>
                                 {t.direction}
                               </span>
                             </span>
-                            <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-3">
+                              {exitBadge && (
+                                <span className={cn("hidden sm:inline-block text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", exitBadge.color)}>
+                                  {exitBadge.label}
+                                </span>
+                              )}
                               {grade && (
                                 <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", gradeColor(grade))}>
                                   {grade} GRADE
@@ -1761,16 +1813,84 @@ const cleanUnicodeEscapes = (str: string) => {
 
                           {isOpen && (
                             <div className="border-t border-border/60 p-4 space-y-4 bg-muted/5 font-mono text-sm">
-                              {t.screenshots && t.screenshots.length > 0 && (
-                                <div 
-                                  className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/20 cursor-pointer"
-                                  onClick={() => { setTradeViewImage(t.screenshots![0].url); setTradeImageZoomed(false); }}
-                                >
-                                  <img
-                                    src={t.screenshots[0].url}
-                                    alt="Trade screenshot"
-                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                                  />
+                              {/* Multi-Screenshot Gallery */}
+                              {screenshotUrls.length > 0 && (
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 font-sans">
+                                      Chart Screenshots ({screenshotUrls.length})
+                                    </span>
+                                    <span className="text-[10px] text-muted-foreground font-sans">Click to inspect in high resolution</span>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {screenshotUrls.map((url: string, imgIdx: number) => (
+                                      <div 
+                                        key={imgIdx}
+                                        className="group relative aspect-video rounded-xl overflow-hidden border border-border/70 bg-black/40 cursor-pointer shadow-sm hover:border-primary/50 transition-all"
+                                        onClick={() => {
+                                          setTradeLightboxImages(screenshotUrls);
+                                          setTradeLightboxIndex(imgIdx);
+                                          setTradeViewImage(url);
+                                        }}
+                                      >
+                                        <img
+                                          src={url}
+                                          alt={`Trade ${dayTrades.length - idx} screenshot ${imgIdx + 1}`}
+                                          className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-sans font-semibold">
+                                          Expand Chart
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Setup, Exit Type, and Execution Details Ribbon */}
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-card/70 border border-border/60 text-xs font-mono shadow-sm">
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Setup / Model</span>
+                                  <span className="text-primary font-bold truncate block text-[13px]">
+                                    {setupName || "Untagged Setup"}
+                                  </span>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Exit Type</span>
+                                  {exitBadge ? (
+                                    <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded border inline-block", exitBadge.color)}>
+                                      {exitBadge.label}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground/50 italic text-[11px]">Unspecified</span>
+                                  )}
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Execution Prices</span>
+                                  <span className="text-foreground font-semibold block text-[12px]">
+                                    {t.entry ? Number(t.entry).toFixed(2) : "--"} &rarr; {t.exit ? Number(t.exit).toFixed(2) : "--"}
+                                    {t.contracts ? <span className="text-[10px] text-muted-foreground font-normal ml-1">({t.contracts} ct)</span> : null}
+                                  </span>
+                                </div>
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Time & Duration</span>
+                                  <span className="text-foreground font-semibold block text-[12px]">
+                                    {timeEst || "--"} {durationStr ? <span className="text-muted-foreground font-normal">({durationStr})</span> : null}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Post-Exit Outcome Quality if exists */}
+                              {(t as any).postExitResult && (
+                                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/40 text-xs font-sans">
+                                  <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Post-Exit Review:</span>
+                                  <span className={cn(
+                                    "font-semibold text-xs",
+                                    (t as any).postExitResult === "Saved Me (Hit SL)" ? "text-emerald-400" :
+                                    (t as any).postExitResult === "Cost Me (Hit TP)" ? "text-rose-400" : "text-amber-400"
+                                  )}>
+                                    {(t as any).postExitResult}
+                                  </span>
                                 </div>
                               )}
 

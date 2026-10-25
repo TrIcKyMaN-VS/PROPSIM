@@ -133,6 +133,7 @@ export default function TradeDetailsPage() {
   const account = accounts.find((a) => a.id === activeAccountId)
 
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
+  const [expandedImageIndex, setExpandedImageIndex] = useState(0)
   const [isZoomed, setIsZoomed] = useState(false)
   const [setupName, setSetupName] = useState("")
 
@@ -1080,11 +1081,14 @@ export default function TradeDetailsPage() {
 
               {trade.screenshots && trade.screenshots.length > 0 ? (
                 <div className="grid grid-cols-2 gap-3">
-                  {trade.screenshots.map((sc) => (
+                  {trade.screenshots.map((sc, scIdx) => (
                     <div
                       key={sc.id}
                       className="group relative rounded-lg overflow-hidden border border-border/50 bg-black/40 aspect-video cursor-pointer"
-                      onClick={() => setExpandedImage(sc.url)}
+                      onClick={() => {
+                        setExpandedImageIndex(scIdx)
+                        setExpandedImage(sc.url)
+                      }}
                     >
                       <img
                         src={sc.url}
@@ -1098,6 +1102,7 @@ export default function TradeDetailsPage() {
                           className="h-8 w-8 text-white hover:bg-white/20"
                           onClick={(e) => {
                             e.stopPropagation()
+                            setExpandedImageIndex(scIdx)
                             setExpandedImage(sc.url)
                           }}
                         >
@@ -1259,6 +1264,8 @@ export default function TradeDetailsPage() {
       <ImageLightbox
         open={!!expandedImage}
         src={expandedImage}
+        images={trade?.screenshots?.map((s) => s.url) || []}
+        initialIndex={expandedImageIndex}
         alt={`${trade.instrument} Chart Screenshot`}
         onClose={() => setExpandedImage(null)}
       />

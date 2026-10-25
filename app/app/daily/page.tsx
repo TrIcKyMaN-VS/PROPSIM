@@ -173,6 +173,50 @@ function SectionHeader({ title }: { title: string }) {
 
 const today = () => new Date().toISOString().split("T")[0]
 
+function getExitTypeBadge(exitType?: string | null) {
+  if (!exitType) return null
+  const lower = exitType.toLowerCase()
+  if (lower.includes("take profit") || lower.includes("tp")) {
+    return { color: "border-emerald-500/40 text-emerald-400 bg-emerald-500/10", label: exitType }
+  }
+  if (lower.includes("stop loss") || lower.includes("sl")) {
+    return { color: "border-rose-500/40 text-rose-400 bg-rose-500/10", label: exitType }
+  }
+  if (lower.includes("breakeven") || lower.includes("be")) {
+    return { color: "border-amber-500/40 text-amber-400 bg-amber-500/10", label: exitType }
+  }
+  if (lower.includes("trailing")) {
+    return { color: "border-cyan-500/40 text-cyan-400 bg-cyan-500/10", label: exitType }
+  }
+  if (lower.includes("early profit") || lower.includes("partial")) {
+    return { color: "border-blue-500/40 text-blue-400 bg-blue-500/10", label: exitType }
+  }
+  if (lower.includes("early loss")) {
+    return { color: "border-purple-500/40 text-purple-400 bg-purple-500/10", label: exitType }
+  }
+  return { color: "border-muted-foreground/40 text-muted-foreground bg-muted/20", label: exitType }
+}
+
+function formatTradeDuration(entryTs?: number | bigint, exitTs?: number | bigint | null) {
+  if (!entryTs || !exitTs) return null
+  const diffMs = Number(exitTs) - Number(entryTs)
+  if (diffMs <= 0) return null
+  const totalSecs = Math.round(diffMs / 1000)
+  if (totalSecs < 60) return `${totalSecs}s`
+  const mins = Math.floor(totalSecs / 60)
+  const secs = totalSecs % 60
+  return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`
+}
+
+function formatTimeEST(ts?: number | bigint) {
+  if (!ts) return null
+  return new Date(Number(ts)).toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    minute: "2-digit"
+  })
+}
+
 function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }) {
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const toggle = (id: string) => setOpen(s => ({ ...s, [id]: !s[id] }))
@@ -193,9 +237,19 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
   }
 
   const [viewImage, setViewImage] = useState<string | null>(null)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
   return (
       <>
+        <ImageLightbox
+          open={!!viewImage}
+          src={viewImage}
+          images={lightboxImages}
+          initialIndex={lightboxIndex}
+          alt={`Trade Screenshot (${date})`}
+          onClose={() => setViewImage(null)}
+        />
 
         <SectionHeader title="Trade List" />
         <div>
@@ -215,6 +269,11 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                 const mistakesVal = t.mistakes
                 const improvementVal = (t as any).executionImprovement
 
+                const exitBadge = getExitTypeBadge((t as any).exitType)
+                const durationStr = formatTradeDuration(t.timestamp, t.exitTime)
+                const timeEst = formatTimeEST(t.timestamp)
+                const screenshotUrls = (t.screenshots || []).map((s: any) => typeof s === "string" ? s : s?.url).filter(Boolean)
+
                 return (
                   <div key={t.id} className="border border-border/60 rounded-xl overflow-hidden bg-card/50">
                     <button
@@ -225,8 +284,16 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                       <span className="font-bold tracking-wide text-foreground flex items-center gap-2">
                         <span className="text-muted-foreground/50">TRADE {idx + 1}</span> 
                         <span>{setupName?.toUpperCase()}</span>
+                        <Badge variant={t.direction === "long" ? "default" : "destructive"} className="text-[10px] px-1.5 py-0 uppercase">
+                          {t.direction}
+                        </Badge>
                       </span>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        {exitBadge && (
+                          <span className={cn("hidden sm:inline-block text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", exitBadge.color)}>
+                            {exitBadge.label}
+                          </span>
+                        )}
                         {grade && (
                           <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", gradeColor(grade))}>
                             {grade} Grade
@@ -241,16 +308,84 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
 
                     {isOpen && (
                       <div className="border-t border-border/60 p-4 space-y-4 bg-muted/5 font-mono text-sm">
-                        {t.screenshots && t.screenshots.length > 0 && (
-                          <div 
-                            className="group relative aspect-video rounded-lg overflow-hidden border border-border bg-muted/20 cursor-pointer"
-                            onClick={() => setViewImage(t.screenshots![0].url)}
-                          >
-                            <img
-                              src={t.screenshots[0].url}
-                              alt="Trade screenshot"
-                              className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
-                            />
+                        {/* Screenshots Gallery */}
+                        {screenshotUrls.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                                <Maximize2 className="w-3 h-3 text-primary" /> Chart Screenshots ({screenshotUrls.length})
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">Click to inspect in high resolution</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {screenshotUrls.map((url: string, imgIdx: number) => (
+                                <div 
+                                  key={imgIdx}
+                                  className="group relative aspect-video rounded-xl overflow-hidden border border-border/70 bg-black/40 cursor-pointer shadow-sm hover:border-primary/50 transition-all"
+                                  onClick={() => {
+                                    setLightboxImages(screenshotUrls)
+                                    setLightboxIndex(imgIdx)
+                                    setViewImage(url)
+                                  }}
+                                >
+                                  <img
+                                    src={url}
+                                    alt={`Trade ${idx + 1} chart ${imgIdx + 1}`}
+                                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-sans font-semibold">
+                                    <Maximize2 className="w-4 h-4" /> Expand Chart
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Setup, Exit Type, and Execution Details Ribbon */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-card/70 border border-border/60 text-xs font-mono shadow-sm">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Setup / Model</span>
+                            <span className="text-primary font-bold truncate block text-[13px]">
+                              {t.playbookName || (t as any).setupName || "Untagged Setup"}
+                            </span>
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Exit Type</span>
+                            {exitBadge ? (
+                              <span className={cn("text-[11px] font-bold px-2 py-0.5 rounded border inline-block", exitBadge.color)}>
+                                {exitBadge.label}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50 italic text-[11px]">Unspecified</span>
+                            )}
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Execution Prices</span>
+                            <span className="text-foreground font-semibold block text-[12px]">
+                              {t.entry ? Number(t.entry).toFixed(2) : "--"} &rarr; {t.exit ? Number(t.exit).toFixed(2) : "--"}
+                              {t.contracts ? <span className="text-[10px] text-muted-foreground font-normal ml-1">({t.contracts} ct)</span> : null}
+                            </span>
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">Time & Duration</span>
+                            <span className="text-foreground font-semibold block text-[12px]">
+                              {timeEst || "--"} {durationStr ? <span className="text-muted-foreground font-normal">({durationStr})</span> : null}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Post-Exit Outcome Quality if exists */}
+                        {(t as any).postExitResult && (
+                          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/20 border border-border/40 text-xs">
+                            <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">Post-Exit Review:</span>
+                            <span className={cn(
+                              "font-semibold text-xs",
+                              (t as any).postExitResult === "Saved Me (Hit SL)" ? "text-emerald-400" :
+                              (t as any).postExitResult === "Cost Me (Hit TP)" ? "text-rose-400" : "text-amber-400"
+                            )}>
+                              {(t as any).postExitResult}
+                            </span>
                           </div>
                         )}
 
@@ -299,16 +434,26 @@ function TradeListCard({ dayTrades, date }: { dayTrades: Trade[]; date: string }
                               {displayR}
                             </span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">Process:</span>
-                            <div className="flex gap-1">
-                              {["A", "B", "C", "D"].map(g => (
-                                <span key={g} className={cn(
-                                  "w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold border",
-                                  grade === g ? gradeColor(g) : "border-border/40 text-muted-foreground/30 bg-muted/10"
-                                )}>{g}</span>
-                              ))}
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">Process:</span>
+                              <div className="flex gap-1">
+                                {["A", "B", "C", "D"].map(g => (
+                                  <span key={g} className={cn(
+                                    "w-6 h-6 flex items-center justify-center rounded text-[11px] font-bold border",
+                                    grade === g ? gradeColor(g) : "border-border/40 text-muted-foreground/30 bg-muted/10"
+                                  )}>{g}</span>
+                                ))}
+                              </div>
                             </div>
+                            <a
+                              href={`/app/journal/${t.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              Edit Full Trade &rarr;
+                            </a>
                           </div>
                         </div>
                       </div>

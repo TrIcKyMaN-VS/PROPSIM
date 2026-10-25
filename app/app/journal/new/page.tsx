@@ -86,6 +86,7 @@ export default function NewManualTradePage() {
   const [uploadingImg, setUploadingImg] = useState(false)
   const [screenshots, setScreenshots] = useState<string[]>([])
   const [expandedImage, setExpandedImage] = useState<string | null>(null)
+  const [expandedImageIndex, setExpandedImageIndex] = useState(0)
 
   const [form, setForm] = useState({
     instrument: "MNQ",
@@ -816,7 +817,10 @@ export default function NewManualTradePage() {
                 <div
                   key={idx}
                   className="group relative rounded-lg overflow-hidden border aspect-video cursor-pointer"
-                  onClick={() => setExpandedImage(sc)}
+                  onClick={() => {
+                    setExpandedImageIndex(idx)
+                    setExpandedImage(sc)
+                  }}
                 >
                   <img
                     src={sc}
@@ -830,6 +834,7 @@ export default function NewManualTradePage() {
                       className="h-8 w-8 text-white hover:bg-white/20"
                       onClick={(e) => {
                         e.stopPropagation()
+                        setExpandedImageIndex(idx)
                         setExpandedImage(sc)
                       }}
                       title="Expand Screenshot"
@@ -881,6 +886,8 @@ export default function NewManualTradePage() {
       <ImageLightbox
         open={!!expandedImage}
         src={expandedImage}
+        images={screenshots}
+        initialIndex={expandedImageIndex}
         alt="Trade Screenshot Preview"
         onClose={() => setExpandedImage(null)}
       />

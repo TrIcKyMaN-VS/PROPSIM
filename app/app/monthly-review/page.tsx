@@ -16,6 +16,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog"
+import { ImageLightbox } from "@/components/app/image-lightbox"
 import { 
   Save, 
   Loader2, 
@@ -86,6 +87,10 @@ export default function MonthlyRecapPage() {
   const [showWinningTrades, setShowWinningTrades] = useState(true)
   const [showLosingTrades, setShowLosingTrades] = useState(true)
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null)
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
+  const [lightboxImages, setLightboxImages] = useState<string[]>([])
+  const [lightboxIndex, setLightboxIndex] = useState(0)
   const [activeSetupFilter, setActiveSetupFilter] = useState<string | null>(null)
   const [activeMistakeFilter, setActiveMistakeFilter] = useState<string | null>(null)
 
@@ -1023,6 +1028,20 @@ export default function MonthlyRecapPage() {
                   <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
                     Grade: <strong className="ml-1 text-foreground">{selectedPsych?.executionGrade || "A"}</strong>
                   </Badge>
+                  {(selectedTrade.exitType || (selectedTrade as any).exitType) && (
+                    <Badge variant="outline" className="border-cyan-500/40 text-cyan-400 bg-cyan-500/10 font-semibold px-2.5 py-1">
+                      Exit Type: <strong className="ml-1 text-foreground">{selectedTrade.exitType || (selectedTrade as any).exitType}</strong>
+                    </Badge>
+                  )}
+                  {(selectedTrade as any).postExitResult && (
+                    <Badge variant="outline" className={cn(
+                      "font-semibold px-2.5 py-1",
+                      (selectedTrade as any).postExitResult === "Saved Me (Hit SL)" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" :
+                      (selectedTrade as any).postExitResult === "Cost Me (Hit TP)" ? "border-rose-500/40 text-rose-400 bg-rose-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"
+                    )}>
+                      Post-Exit: <strong className="ml-1 text-foreground">{(selectedTrade as any).postExitResult}</strong>
+                    </Badge>
+                  )}
                   {selectedPsych?.exitReason && (
                     <Badge variant="outline" className="border-border bg-card font-semibold px-2.5 py-1">
                       Exit: <strong className="ml-1 text-foreground">{selectedPsych.exitReason}</strong>
@@ -1166,24 +1185,38 @@ export default function MonthlyRecapPage() {
               </div>
 
               {/* Screenshots */}
-              {selectedTrade.screenshots && selectedTrade.screenshots.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Trade Screenshots ({selectedTrade.screenshots.length})
+              {selectedTrade.screenshots && selectedTrade.screenshots.length > 0 && (() => {
+                const screenshotUrls = selectedTrade.screenshots.map((s: any) => typeof s === "string" ? s : s?.url).filter(Boolean)
+                return (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <Maximize2 className="w-3.5 h-3.5 text-primary" /> Trade Screenshots ({screenshotUrls.length})
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">Click to inspect in high resolution</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {screenshotUrls.map((url: string, idx: number) => (
+                        <div 
+                          key={idx} 
+                          onClick={() => {
+                            setLightboxImages(screenshotUrls)
+                            setLightboxIndex(idx)
+                            setLightboxSrc(url)
+                            setLightboxOpen(true)
+                          }}
+                          className="group relative block rounded-xl overflow-hidden border border-border/60 hover:border-primary/50 transition-all bg-black/40 cursor-pointer aspect-video"
+                        >
+                          <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-1.5 text-xs font-semibold">
+                            <Maximize2 className="w-4 h-4" /> Expand Screenshot
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {selectedTrade.screenshots.map((s: any, idx: number) => {
-                      const url = typeof s === "string" ? s : s?.url
-                      if (!url) return null
-                      return (
-                        <a key={idx} href={url} target="_blank" rel="noopener noreferrer" className="group block rounded-xl overflow-hidden border border-border/60 hover:border-primary/50 transition-all bg-black/40">
-                          <img src={url} alt={`Screenshot ${idx + 1}`} className="w-full h-44 object-contain group-hover:scale-[1.02] transition-transform" />
-                        </a>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
+                )
+              })()}
 
               {/* Modal Footer Actions */}
               <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-3">
@@ -1208,6 +1241,16 @@ export default function MonthlyRecapPage() {
           )
         })()}
       </Dialog>
+
+      {/* Full-featured Image Lightbox for Trades */}
+      <ImageLightbox
+        open={lightboxOpen}
+        src={lightboxSrc}
+        images={lightboxImages}
+        initialIndex={lightboxIndex}
+        alt="Monthly Review Trade Screenshot"
+        onClose={() => setLightboxOpen(false)}
+      />
     </div>
   )
 }
