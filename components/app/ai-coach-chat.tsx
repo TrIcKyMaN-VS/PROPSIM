@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Zap,
   Activity,
+  Clock,
   CornerDownLeft,
   ChevronLeft,
   ChevronRight
@@ -71,6 +72,12 @@ const SUGGESTION_PROMPTS = [
     title: "Hesitation & Emotions",
     prompt: "How do hesitation and emotions affect my results?",
     color: "hover:border-purple-500/50 hover:bg-purple-500/5 text-purple-400 border-border/70"
+  },
+  {
+    icon: Clock,
+    title: "Opening 30 Mins",
+    prompt: "Analyze my first 30 minutes (9:30-10:00 AM) and time of day leaks",
+    color: "hover:border-cyan-500/50 hover:bg-cyan-500/5 text-cyan-400 border-border/70"
   },
   {
     icon: Sparkles,
