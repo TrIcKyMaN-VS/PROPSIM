@@ -124,6 +124,16 @@ export interface CotReportSummary {
   regimeLabel: string
   regimeDescription: string
   smartMoneyBias: "BULLISH" | "BEARISH" | "NEUTRAL"
+  biasScore: number // e.g. +30 or -45
+  biasLabel: "LONG" | "SHORT" | "NEUTRAL"
+  longDelta: number
+  shortDelta: number
+  netDelta: number
+  threeReportSequence: {
+    values: number[]
+    label: string
+    isBullish: boolean
+  }
 }
 
 export interface EconomicEvent {
@@ -140,6 +150,22 @@ export interface EconomicEvent {
   isRedFolder: boolean
   isUpcoming: boolean
   minutesUntil: number
+}
+
+export interface ScenarioMatrixItem {
+  eventName: string
+  timeEST: string
+  impact: string
+  hotScenario: string // If higher than forecast
+  coolScenario: string // If lower than forecast
+  inlineScenario: string // If in-line
+}
+
+export interface WeeklySessionDayPlan {
+  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday"
+  phase: string
+  tacticalAction: string
+  riskLevel: "LOW" | "MEDIUM" | "HIGH"
 }
 
 export interface AiMacroBriefing {
@@ -162,4 +188,18 @@ export interface AiMacroBriefing {
     counterPnL: number
   }
   actionablePlaybookAdvice: string
+  // ── Real Edge Additions (Beyond trade review) ──
+  squeezeProbability: number // 0-100%
+  squeezeWarning: string
+  liquidityPoolTargets: {
+    buySide: string
+    sellSide: string
+  }
+  economicScenarioMatrix: ScenarioMatrixItem[]
+  weeklySessionPlan: WeeklySessionDayPlan[]
+  macroDivergence: {
+    detected: boolean
+    title: string
+    analysis: string
+  }
 }

@@ -7,7 +7,8 @@ import {
   SUPPORTED_MACRO_SYMBOLS, 
   CotReportSummary, 
   EconomicEvent,
-  AiMacroBriefing 
+  AiMacroBriefing,
+  CotDataPoint 
 } from "@/lib/types-macro"
 import { 
   getCotReportAction, 
@@ -45,17 +46,42 @@ import {
   Copy, 
   ChevronRight,
   Info,
-  Compass
+  Compass,
+  Maximize2,
+  Minimize2,
+  Crosshair,
+  Target,
+  Zap,
+  Split,
+  CalendarDays
 } from "lucide-react"
+import { 
+  ResponsiveContainer, 
+  LineChart, 
+  Line, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip,
+  ReferenceLine
+} from "recharts"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { fmtCurrency, fmtPnl } from "@/lib/format"
 
 export default function MarketPulsePage() {
-  // Default instrument is NQ, but fully changeable
+  // Default symbol is NQ (changeable)
   const [selectedSymbol, setSelectedSymbol] = useState<MacroSymbol>("NQ")
-  const [activeTab, setActiveTab] = useState<string>("cot")
+  const [activeTab, setActiveTab] = useState<string>("graph")
   
+  // Graph Mode: "long_short" or "net" (matching screenshot)
+  const [chartViewMode, setChartViewMode] = useState<"long_short" | "net">("long_short")
+  
+  // Timeframe: 3M, 6M, 1Y, All
+  const [timeframe, setTimeframe] = useState<"3M" | "6M" | "1Y" | "ALL">("1Y")
+
   // Data States
   const [cotData, setCotData] = useState<CotReportSummary | null>(null)
   const [calendarEvents, setCalendarEvents] = useState<EconomicEvent[]>([])
@@ -83,7 +109,7 @@ export default function MarketPulsePage() {
 
   const symbolConfig = SUPPORTED_MACRO_SYMBOLS[selectedSymbol] || SUPPORTED_MACRO_SYMBOLS.NQ
 
-  // 1. Fetch COT Data whenever selectedSymbol changes
+  // 1. Fetch COT Data
   const loadCotData = async (symbol: MacroSymbol) => {
     setLoadingCot(true)
     try {
@@ -125,6 +151,13 @@ export default function MarketPulsePage() {
     loadCalendarData()
   }, [])
 
+  // Auto-generate initial AI briefing on load once cotData is ready
+  useEffect(() => {
+    if (cotData && !aiBriefing && !generatingAi) {
+      handleGenerateAiBriefing()
+    }
+  }, [cotData])
+
   // 3. Trigger AI Macro Gameplan Synthesis
   const handleGenerateAiBriefing = async () => {
     setGeneratingAi(true)
@@ -132,8 +165,7 @@ export default function MarketPulsePage() {
       const res = await generateAiMacroBriefingAction(selectedSymbol, accountTrades)
       if (res.success && res.data) {
         setAiBriefing(res.data)
-        toast.success(`AI Macro Gameplan generated for ${selectedSymbol}!`)
-        setActiveTab("ai")
+        toast.success(`AI Macro Edge Engine updated for ${selectedSymbol}!`)
       } else {
         toast.error(res.error || "Failed to generate AI briefing")
       }
@@ -143,6 +175,42 @@ export default function MarketPulsePage() {
       setGeneratingAi(false)
     }
   }
+
+  // Filtered History for the selected timeframe
+  const chartData = useMemo(() => {
+    if (!cotData || !cotData.history) return []
+    const total = cotData.history.length
+    let count = total
+    if (timeframe === "3M") count = Math.min(13, total)
+    if (timeframe === "6M") count = Math.min(26, total)
+    if (timeframe === "1Y") count = Math.min(52, total)
+
+    const slice = cotData.history.slice(total - count)
+
+    return slice.map((item, idx) => {
+      // Calculate deltas relative to previous item in array
+      const prev = idx > 0 ? slice[idx - 1] : item
+      const netDelta = item.nonCommercialNet - prev.nonCommercialNet
+      const longDelta = item.nonCommercialLong - prev.nonCommercialLong
+      const shortDelta = item.nonCommercialShort - prev.nonCommercialShort
+
+      // Formatted short date for X-axis (e.g. 26-09)
+      const parts = item.date.split("-")
+      const axisDate = parts.length === 3 ? `${parts[0].slice(2)}-${parts[1]}` : item.date
+
+      return {
+        date: item.date,
+        axisDate,
+        net: item.nonCommercialNet,
+        long: item.nonCommercialLong,
+        short: item.nonCommercialShort,
+        openInterest: item.openInterest,
+        netDelta,
+        longDelta,
+        shortDelta,
+      }
+    })
+  }, [cotData, timeframe])
 
   // Next Upcoming Red Folder Event
   const nextRedFolderEvent = useMemo(() => {
@@ -156,17 +224,11 @@ export default function MarketPulsePage() {
   const filteredEvents = useMemo(() => {
     const todayStr = new Date().toISOString().split("T")[0]
     return calendarEvents.filter(e => {
-      // Impact
       if (impactFilter === "high" && !e.isRedFolder) return false
       if (impactFilter === "med_high" && e.impact !== "High" && e.impact !== "Medium") return false
-
-      // Currency
       if (currencyFilter !== "ALL" && e.country !== currencyFilter) return false
-
-      // Date
       if (dateFilter === "today" && e.dateStr !== todayStr) return false
       if (dateFilter === "upcoming" && !e.isUpcoming) return false
-
       return true
     })
   }, [calendarEvents, impactFilter, currencyFilter, dateFilter])
@@ -175,742 +237,782 @@ export default function MarketPulsePage() {
   const handleCopyEvent = (e: EconomicEvent) => {
     const text = `${e.title} (${e.country}) at ${e.timeEST} EST [Impact: ${e.impact}, Forecast: ${e.forecast}]`
     navigator.clipboard.writeText(text)
-    toast.success("Event details copied to clipboard! Paste in Daily Journal.")
+    toast.success("Event copied to clipboard! Paste in Daily Journal.")
+  }
+
+  // Symbol Badge Icon
+  const getSymbolBadgeIcon = (sym: MacroSymbol) => {
+    if (sym === "NQ") return "100"
+    if (sym === "ES") return "500"
+    if (sym === "YM") return "30"
+    if (sym === "RTY") return "2K"
+    if (sym === "GC") return "GC"
+    if (sym === "CL") return "CL"
+    if (sym === "6E") return "€"
+    if (sym === "6B") return "£"
+    return "₿"
+  }
+
+  // Custom Chart Tooltip (matches exact dark design in screenshot)
+  const CustomChartTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload
+      const dateFormatted = new Date(data.date).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      })
+
+      return (
+        <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs font-mono min-w-[190px] space-y-1.5 pointer-events-none">
+          <div className="text-[11px] font-bold text-neutral-300 border-b border-neutral-800 pb-1">
+            {dateFormatted}
+          </div>
+          
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-400">Net:</span>
+            <div className="flex items-center gap-1 font-bold">
+              <span className={data.net >= 0 ? "text-emerald-400" : "text-rose-400"}>
+                {data.net >= 0 ? "+" : ""}{data.net.toLocaleString()}
+              </span>
+              <span className={cn(
+                "text-[10px] ml-1",
+                data.netDelta >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {data.netDelta >= 0 ? "↑ +" : "↓ "}{data.netDelta.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-400">Long:</span>
+            <div className="flex items-center gap-1 font-bold text-emerald-400">
+              <span>{data.long.toLocaleString()}</span>
+              <span className={cn(
+                "text-[10px] ml-1",
+                data.longDelta >= 0 ? "text-emerald-400" : "text-rose-400"
+              )}>
+                {data.longDelta >= 0 ? "↑ +" : "↓ "}{data.longDelta.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-neutral-400">Short:</span>
+            <div className="flex items-center gap-1 font-bold text-rose-400">
+              <span>{data.short.toLocaleString()}</span>
+              <span className={cn(
+                "text-[10px] ml-1",
+                data.shortDelta >= 0 ? "text-rose-400" : "text-emerald-400"
+              )}>
+                {data.shortDelta >= 0 ? "↑ +" : "↓ "}{data.shortDelta.toLocaleString()}
+              </span>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return null
   }
 
   return (
-    <div className="space-y-6 pb-12 font-sans">
-      {/* ── Header Ribbon: Asset Selector & Executive Status ── */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-2xl bg-card border border-border/70 shadow-sm">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-2">
-              <Compass className="w-6 h-6 text-primary" />
-              Market Pulse &amp; Institutional Macro
-            </h1>
-            <Badge variant="outline" className="border-primary/40 text-primary bg-primary/10 font-bold uppercase text-[10px] px-2 py-0.5">
-              CFTC Verified + Live News Feed
-            </Badge>
+    <div className="space-y-6 pb-16 font-sans">
+      {/* ════════════════════════════════════════════════════════════════════════════
+          1. TOP IDENTITY & ASSET SWITCHER (EXACT MATCH TO SCREENSHOT TOP BAR)
+      ════════════════════════════════════════════════════════════════════════════ */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-neutral-950 border border-neutral-800 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          {/* Circular Badge Icon (100 for NQ, 500 for ES, etc.) */}
+          <div className="w-11 h-11 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-400 flex items-center justify-center font-black text-sm shrink-0 shadow-inner">
+            {getSymbolBadgeIcon(selectedSymbol)}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Correlate institutional smart money positioning (COT), high-impact economic news, and prop firm compliance.
-          </p>
+
+          {/* Asset Title & Date */}
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                {selectedSymbol === "NQ" ? "NAS100" : symbolConfig.symbol}
+              </span>
+              <span className="text-xs text-neutral-400 font-medium">
+                ({symbolConfig.name})
+              </span>
+            </div>
+            <div className="text-xs text-neutral-400 font-mono">
+              As of {cotData ? cotData.latestDate : "2026-09-29"} • CFTC Official Socrata Feed
+            </div>
+          </div>
         </div>
 
-        {/* Symbol Selector Dropdown (Default NQ) */}
-        <div className="flex items-center gap-3">
-          <div className="space-y-0.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
-              Active Macro Asset
-            </span>
-            <Select 
-              value={selectedSymbol} 
-              onValueChange={(val) => { if (val) setSelectedSymbol(val as MacroSymbol) }}
-            >
-              <SelectTrigger className="w-[200px] h-9 bg-background font-bold text-xs">
-                <SelectValue placeholder="Select Asset" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.values(SUPPORTED_MACRO_SYMBOLS).map((cfg) => (
-                  <SelectItem key={cfg.symbol} value={cfg.symbol} className="text-xs font-medium">
-                    <span className="font-bold text-primary mr-1.5">{cfg.symbol}</span>
-                    <span>{cfg.name}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {/* Right Section: Asset Dropdown + Giant Score Badge */}
+        <div className="flex items-center gap-3 self-end sm:self-center">
+          {/* Asset Switcher (Default NQ) */}
+          <Select 
+            value={selectedSymbol} 
+            onValueChange={(val) => { if (val) setSelectedSymbol(val as MacroSymbol) }}
+          >
+            <SelectTrigger className="w-[170px] h-9 bg-neutral-900 border-neutral-800 text-white font-bold text-xs">
+              <SelectValue placeholder="Select Asset" />
+            </SelectTrigger>
+            <SelectContent className="bg-neutral-900 border-neutral-800 text-white">
+              {Object.values(SUPPORTED_MACRO_SYMBOLS).map((cfg) => (
+                <SelectItem key={cfg.symbol} value={cfg.symbol} className="text-xs font-medium focus:bg-neutral-800">
+                  <span className="font-bold text-primary mr-1.5">{cfg.symbol}</span>
+                  <span>{cfg.name}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {/* Giant Score Badge (e.g. +30 LONG matching screenshot) */}
+          {cotData && (
+            <div className={cn(
+              "px-3.5 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[75px] shadow-lg",
+              cotData.biasScore >= 0 
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
+                : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+            )}>
+              <span className="text-lg font-black font-mono leading-none">
+                {cotData.biasScore >= 0 ? "+" : ""}{cotData.biasScore}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-wider mt-0.5">
+                {cotData.biasLabel}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════════════════════
+          2. "WHAT SMART MONEY IS DOING" CARD (EXACT MATCH TO SCREENSHOT)
+      ════════════════════════════════════════════════════════════════════════════ */}
+      <Card className="border-neutral-800 bg-neutral-950 text-white shadow-xl">
+        <CardContent className="p-5 space-y-3">
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-white tracking-wide">
+              What smart money is doing
+            </h3>
+            <p className="text-xs text-neutral-400 leading-relaxed max-w-4xl">
+              Comparing the latest COT report with the previous two. When large speculators keep adding shorts the bias is bearish; when they keep adding longs it is bullish.
+            </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              loadCotData(selectedSymbol)
-              loadCalendarData()
-            }}
-            disabled={loadingCot || loadingCalendar}
-            className="h-9 gap-1.5 text-xs font-semibold mt-4 sm:mt-0"
-            title="Refresh CFTC & Calendar data"
-          >
-            <RotateCw className={cn("w-3.5 h-3.5", (loadingCot || loadingCalendar) && "animate-spin")} />
-            Refresh
-          </Button>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-neutral-900">
+            <span className="text-sm font-bold text-neutral-200">
+              {symbolConfig.name}
+            </span>
 
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* 3-Report Sequence: +33,718 ➔ +56,150 ➔ +51,247 */}
+              {cotData?.threeReportSequence && (
+                <div className="flex items-center gap-1.5 text-xs font-mono text-neutral-300">
+                  {cotData.threeReportSequence.values.map((v, idx) => (
+                    <span key={idx} className="flex items-center gap-1.5">
+                      <span className={idx === 2 ? "font-black text-white" : "text-neutral-400"}>
+                        {v >= 0 ? "+" : ""}{v.toLocaleString()}
+                      </span>
+                      {idx < 2 && <span className="text-neutral-600">➔</span>}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Status Badge: ↑ Adding longs · bullish */}
+              {cotData?.threeReportSequence && (
+                <div className={cn(
+                  "px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 border",
+                  cotData.threeReportSequence.isBullish
+                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    : "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                )}>
+                  <span>{cotData.threeReportSequence.isBullish ? "↑" : "↓"}</span>
+                  <span>{cotData.threeReportSequence.label}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ════════════════════════════════════════════════════════════════════════════
+          3. MAIN INSTITUTIONAL COT GRAPH CARD (EXACT GRAPH FORMAT FROM SCREENSHOT)
+      ════════════════════════════════════════════════════════════════════════════ */}
+      <Card className="border-neutral-800 bg-neutral-950 text-white shadow-2xl overflow-hidden">
+        <CardHeader className="p-5 pb-3 border-b border-neutral-900">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-bold text-white tracking-tight">
+                {symbolConfig.name}
+              </CardTitle>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    loadCotData(selectedSymbol)
+                    loadCalendarData()
+                  }}
+                  disabled={loadingCot}
+                  className="h-8 text-xs font-semibold gap-1.5 bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white"
+                >
+                  <RotateCw className={cn("w-3.5 h-3.5", loadingCot && "animate-spin")} />
+                  Sync CFTC
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleGenerateAiBriefing}
+                  disabled={generatingAi}
+                  className="h-8 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+                >
+                  <Sparkles className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
+                  {generatingAi ? "Calculating Edge..." : "AI Edge Analysis"}
+                </Button>
+              </div>
+            </div>
+
+            {/* 3 Top Metric Columns: NET, LONG, SHORT (matching screenshot) */}
+            {cotData && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                {/* NET */}
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    NET
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(
+                      "text-2xl font-black font-mono",
+                      cotData.current.nonCommercialNet >= 0 ? "text-emerald-400" : "text-rose-400"
+                    )}>
+                      {cotData.current.nonCommercialNet >= 0 ? "+" : ""}
+                      {cotData.current.nonCommercialNet.toLocaleString()}
+                    </span>
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] font-mono font-bold px-1.5 py-0 border",
+                      cotData.netDelta >= 0 
+                        ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" 
+                        : "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                    )}>
+                      {cotData.netDelta >= 0 ? "↑ +" : "↓ "}{cotData.netDelta.toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* LONG */}
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    LONG
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-black font-mono text-emerald-400">
+                      {cotData.current.nonCommercialLong.toLocaleString()}
+                    </span>
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] font-mono font-bold px-1.5 py-0 border",
+                      cotData.longDelta >= 0 
+                        ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" 
+                        : "border-rose-500/40 text-rose-400 bg-rose-500/10"
+                    )}>
+                      {cotData.longDelta >= 0 ? "↑ +" : "↓ "}{cotData.longDelta.toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* SHORT */}
+                <div className="space-y-0.5">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                    SHORT
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-black font-mono text-rose-400">
+                      {cotData.current.nonCommercialShort.toLocaleString()}
+                    </span>
+                    <Badge variant="outline" className={cn(
+                      "text-[10px] font-mono font-bold px-1.5 py-0 border",
+                      cotData.shortDelta >= 0 
+                        ? "border-rose-500/40 text-rose-400 bg-rose-500/10" 
+                        : "border-emerald-500/40 text-emerald-400 bg-emerald-500/10"
+                    )}>
+                      {cotData.shortDelta >= 0 ? "↑ +" : "↓ "}{cotData.shortDelta.toLocaleString()}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-5 space-y-4">
+          {/* Subheader Toolbar: Mode Toggle (Net vs Long/Short) & Timeframes (3M, 6M, 1Y, All) */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            {/* View Mode Pills (Net vs Long/Short) */}
+            <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800">
+              <button
+                type="button"
+                onClick={() => setChartViewMode("net")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-bold transition-all",
+                  chartViewMode === "net"
+                    ? "bg-neutral-800 text-white shadow-sm"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                Net
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewMode("long_short")}
+                className={cn(
+                  "px-3 py-1 rounded-md text-xs font-bold transition-all",
+                  chartViewMode === "long_short"
+                    ? "bg-neutral-800 text-white shadow-sm"
+                    : "text-neutral-400 hover:text-white"
+                )}
+              >
+                Long / Short
+              </button>
+            </div>
+
+            {/* Timeframe Pills (3M, 6M, 1Y, All) */}
+            <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800 self-end sm:self-auto">
+              {(["3M", "6M", "1Y", "ALL"] as const).map((tf) => (
+                <button
+                  key={tf}
+                  type="button"
+                  onClick={() => setTimeframe(tf)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all",
+                    timeframe === tf
+                      ? "bg-neutral-800 text-white shadow-sm"
+                      : "text-neutral-400 hover:text-white"
+                  )}
+                >
+                  {tf}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Interactive Recharts Canvas */}
+          <div className="w-full h-[320px] sm:h-[380px] pt-4">
+            {loadingCot ? (
+              <div className="w-full h-full flex items-center justify-center text-neutral-500 text-xs font-mono animate-pulse">
+                Loading CFTC positioning history...
+              </div>
+            ) : chartData.length === 0 ? (
+              <div className="w-full h-full flex items-center justify-center text-neutral-500 text-xs">
+                No positioning data found.
+              </div>
+            ) : chartViewMode === "long_short" ? (
+              /* Long / Short Line Chart (Green Line vs Red Line) */
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="axisDate" 
+                    stroke="#737373" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: "#262626" }}
+                  />
+                  <YAxis 
+                    stroke="#737373" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: "#262626" }}
+                    tickFormatter={(val) => `${Math.round(val / 1000)}k`}
+                  />
+                  <RechartsTooltip content={<CustomChartTooltip />} />
+                  <Line 
+                    type="monotone" 
+                    dataKey="long" 
+                    name="Long" 
+                    stroke="#10b981" 
+                    strokeWidth={2.5} 
+                    dot={false}
+                    activeDot={{ r: 5, fill: "#10b981", stroke: "#047857", strokeWidth: 2 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="short" 
+                    name="Short" 
+                    stroke="#ef4444" 
+                    strokeWidth={2.5} 
+                    dot={false}
+                    activeDot={{ r: 5, fill: "#ef4444", stroke: "#b91c1c", strokeWidth: 2 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              /* Net Positioning Area Chart (Green/Red Baseline) */
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="netGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.35}/>
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0.0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
+                  <XAxis 
+                    dataKey="axisDate" 
+                    stroke="#737373" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: "#262626" }}
+                  />
+                  <YAxis 
+                    stroke="#737373" 
+                    fontSize={11} 
+                    tickLine={false} 
+                    axisLine={{ stroke: "#262626" }}
+                    tickFormatter={(val) => `${Math.round(val / 1000)}k`}
+                  />
+                  <RechartsTooltip content={<CustomChartTooltip />} />
+                  <ReferenceLine y={0} stroke="#525252" strokeDasharray="3 3" />
+                  <Area 
+                    type="monotone" 
+                    dataKey="net" 
+                    stroke="#10b981" 
+                    strokeWidth={2.5} 
+                    fill="url(#netGradient)" 
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          {/* Bottom Chart Legend */}
+          <div className="flex items-center justify-center gap-6 pt-2 text-xs font-mono text-neutral-400">
+            {chartViewMode === "long_short" ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                  <span>Long</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                  <span>Short</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span>Net Position (Non-Commercial Speculators)</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ════════════════════════════════════════════════════════════════════════════
+          4. THE REAL AI EDGE: BEYOND TRADE REVIEW (INSTITUTIONAL AI INFUSION)
+      ════════════════════════════════════════════════════════════════════════════ */}
+      <div className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40 pb-2">
+          <div>
+            <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-amber-400" />
+              The Real AI Edge Engine (Beyond Trade History)
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Predictive liquidity squeeze models, pre-news execution scenarios, and institutional session roadmaps.
+            </p>
+          </div>
           <Button
+            size="sm"
             onClick={handleGenerateAiBriefing}
             disabled={generatingAi}
-            size="sm"
-            className="h-9 gap-1.5 text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 mt-4 sm:mt-0 shadow-sm"
+            className="h-8 text-xs font-bold gap-1.5 self-start sm:self-auto"
           >
-            <Sparkles className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
-            {generatingAi ? "Analyzing..." : "Generate AI Gameplan"}
+            <RotateCw className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
+            {generatingAi ? "Synthesizing..." : "Refresh Edge Model"}
           </Button>
         </div>
-      </div>
 
-      {/* ── Key Telemetry Grid: 4 Metric Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Smart Money (Commercials) Net */}
-        <Card className="border-border/60 bg-card/60 shadow-sm relative overflow-hidden">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              <span>Commercials (Smart Money)</span>
-              <Layers className="w-3.5 h-3.5 text-primary/70" />
-            </CardDescription>
-            <CardTitle className="text-xl font-black font-mono">
-              {loadingCot || !cotData ? (
-                <span className="text-muted-foreground/60 text-base">Loading...</span>
-              ) : (
-                <span className={cotData.current.commercialNet >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                  {cotData.current.commercialNet >= 0 ? "+" : ""}
-                  {cotData.current.commercialNet.toLocaleString()} ct
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            {cotData && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={cn(
-                  "font-bold font-mono text-[11px]",
-                  cotData.current.wowCommercialChange >= 0 ? "text-emerald-400" : "text-rose-400"
-                )}>
-                  {cotData.current.wowCommercialChange >= 0 ? "▲ +" : "▼ "}
-                  {cotData.current.wowCommercialChange.toLocaleString()}
-                </span>
-                <span>WoW Net Shift</span>
-              </div>
-            )}
-            <div className="text-[10px] text-muted-foreground/60 mt-1">
-              Institutions &amp; Producers hedging order flow
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Large Speculators (Hedge Funds) */}
-        <Card className="border-border/60 bg-card/60 shadow-sm relative overflow-hidden">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              <span>Large Speculators (Hedge Funds)</span>
-              <Activity className="w-3.5 h-3.5 text-blue-400" />
-            </CardDescription>
-            <CardTitle className="text-xl font-black font-mono">
-              {loadingCot || !cotData ? (
-                <span className="text-muted-foreground/60 text-base">Loading...</span>
-              ) : (
-                <span className={cotData.current.nonCommercialNet >= 0 ? "text-emerald-400" : "text-rose-400"}>
-                  {cotData.current.nonCommercialNet >= 0 ? "+" : ""}
-                  {cotData.current.nonCommercialNet.toLocaleString()} ct
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            {cotData && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <span className={cn(
-                  "font-bold font-mono text-[11px]",
-                  cotData.current.wowNonCommercialChange >= 0 ? "text-emerald-400" : "text-rose-400"
-                )}>
-                  {cotData.current.wowNonCommercialChange >= 0 ? "▲ +" : "▼ "}
-                  {cotData.current.wowNonCommercialChange.toLocaleString()}
-                </span>
-                <span>WoW Net Shift</span>
-              </div>
-            )}
-            <div className="text-[10px] text-muted-foreground/60 mt-1">
-              Trend-following CTAs &amp; money managers
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: 26-Week COT Index Gauge */}
-        <Card className="border-border/60 bg-card/60 shadow-sm relative overflow-hidden">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
-              <span>26-Week COT Index</span>
-              <Scale className="w-3.5 h-3.5 text-amber-400" />
-            </CardDescription>
-            <CardTitle className="text-xl font-black font-mono flex items-center gap-2">
-              {loadingCot || !cotData ? (
-                <span className="text-muted-foreground/60 text-base">Loading...</span>
-              ) : (
-                <>
-                  <span>{cotData.cotIndex}%</span>
-                  <Badge variant="outline" className={cn(
-                    "text-[10px] font-bold uppercase px-1.5 py-0",
-                    cotData.cotIndex >= 80 ? "border-rose-500/40 text-rose-400 bg-rose-500/10" :
-                    cotData.cotIndex <= 20 ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" :
-                    "border-border text-muted-foreground bg-muted/20"
-                  )}>
-                    {cotData.cotIndex >= 80 ? "Overbought" : cotData.cotIndex <= 20 ? "Oversold" : "Neutral"}
+        {aiBriefing && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* ── EDGE CARD 1: Squeeze & Liquidity Trap Gauge ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md">
+              <CardHeader className="p-4 pb-2 border-b border-border/40">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                  <span>1. Liquidity Squeeze Model</span>
+                  <Crosshair className="w-4 h-4 text-rose-400" />
+                </CardDescription>
+                <CardTitle className="text-base font-bold flex items-center justify-between pt-1">
+                  <span>Squeeze Probability</span>
+                  <Badge variant="destructive" className="font-mono text-sm px-2 py-0.5">
+                    {aiBriefing.squeezeProbability}% Risk
                   </Badge>
-                </>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            {cotData && (
-              <div className="space-y-1.5 mt-1">
-                <div className="w-full bg-muted/40 h-2 rounded-full overflow-hidden border border-border/40">
-                  <div 
-                    className={cn(
-                      "h-full transition-all duration-500",
-                      cotData.cotIndex >= 80 ? "bg-rose-500" :
-                      cotData.cotIndex <= 20 ? "bg-emerald-500" : "bg-primary"
-                    )}
-                    style={{ width: `${Math.max(5, Math.min(100, cotData.cotIndex))}%` }}
-                  />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3.5 text-xs">
+                {/* Visual meter */}
+                <div className="space-y-1">
+                  <div className="w-full bg-muted/40 h-2.5 rounded-full overflow-hidden border border-border/40">
+                    <div 
+                      className={cn(
+                        "h-full transition-all duration-700",
+                        aiBriefing.squeezeProbability >= 70 ? "bg-rose-500" :
+                        aiBriefing.squeezeProbability <= 35 ? "bg-emerald-500" : "bg-amber-500"
+                      )}
+                      style={{ width: `${aiBriefing.squeezeProbability}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
+                    <span>Low Risk (0%)</span>
+                    <span>High Flush Risk (100%)</span>
+                  </div>
                 </div>
-                <div className="flex justify-between text-[9px] text-muted-foreground font-mono">
-                  <span>0% (Capitulation)</span>
-                  <span>50%</span>
-                  <span>100% (Extreme)</span>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Card 4: Next Red Folder Catalyst */}
-        <Card className="border-border/60 bg-card/60 shadow-sm relative overflow-hidden">
-          <CardHeader className="p-4 pb-2">
-            <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                Upcoming Red Folder
-              </span>
-              <Flame className="w-3.5 h-3.5 text-rose-400" />
-            </CardDescription>
-            <CardTitle className="text-base font-bold truncate">
-              {loadingCalendar ? (
-                <span className="text-muted-foreground/60 text-sm">Checking news...</span>
-              ) : nextRedFolderEvent ? (
-                <span className="text-foreground">{nextRedFolderEvent.title}</span>
-              ) : (
-                <span className="text-emerald-400 text-sm font-semibold">No Red Events Today</span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-0">
-            {nextRedFolderEvent ? (
-              <div className="space-y-0.5">
-                <div className="text-xs font-mono font-bold text-rose-400 flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {nextRedFolderEvent.timeEST} EST 
-                  {nextRedFolderEvent.minutesUntil > 0 && (
-                    <span className="text-muted-foreground font-normal ml-1">
-                      (in {Math.floor(nextRedFolderEvent.minutesUntil / 60)}h {nextRedFolderEvent.minutesUntil % 60}m)
-                    </span>
-                  )}
+                <p className="text-foreground/90 leading-relaxed font-sans text-xs bg-muted/20 p-2.5 rounded-lg border border-border/30">
+                  {aiBriefing.squeezeWarning}
+                </p>
+
+                {/* Key Stop Liquidity Targets */}
+                <div className="space-y-2 pt-1 border-t border-border/40 font-mono">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block font-sans">
+                    Institutional Stop-Loss Liquidity Pools:
+                  </span>
+                  
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
+                    <span className="text-emerald-400 font-bold">Buy-Side Pool:</span>
+                    <span className="font-bold text-foreground">{aiBriefing.liquidityPoolTargets.buySide}</span>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-between text-xs">
+                    <span className="text-rose-400 font-bold">Sell-Side Pool:</span>
+                    <span className="font-bold text-foreground">{aiBriefing.liquidityPoolTargets.sellSide}</span>
+                  </div>
                 </div>
-                <div className="text-[10px] text-muted-foreground">
-                  Apex/Topstep rule: Close open trades ±2m
+              </CardContent>
+            </Card>
+
+            {/* ── EDGE CARD 2: Pre-News "If-Then" Scenario Matrix ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md lg:col-span-2">
+              <CardHeader className="p-4 pb-2 border-b border-border/40">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center justify-between">
+                  <span>2. Pre-News Catalyst Execution Matrix</span>
+                  <Zap className="w-4 h-4 text-primary" />
+                </CardDescription>
+                <CardTitle className="text-base font-bold flex items-center gap-2 pt-1">
+                  <span>If-Then Scenario Simulator (Don&apos;t Gamble on News)</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-xs">
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Before high-impact events drop, institutions pre-position for 3 outcomes. Follow this probabilistic execution plan:
+                </p>
+
+                <div className="space-y-2.5">
+                  {aiBriefing.economicScenarioMatrix.map((item, idx) => (
+                    <div key={idx} className="p-3 rounded-xl border border-border/50 bg-muted/10 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground text-xs flex items-center gap-2">
+                          <Flame className="w-3.5 h-3.5 text-rose-400" />
+                          {item.eventName} ({item.timeEST} EST)
+                        </span>
+                        <Badge variant="outline" className="text-[10px] font-bold uppercase border-rose-500/30 text-rose-400">
+                          {item.impact} Impact
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono text-[11px]">
+                        {/* Hot Scenario */}
+                        <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25 space-y-1">
+                          <span className="font-bold text-rose-400 block font-sans">IF HOT / HAWKISH</span>
+                          <p className="text-foreground/90 leading-tight">{item.hotScenario}</p>
+                        </div>
+
+                        {/* Cool Scenario */}
+                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 space-y-1">
+                          <span className="font-bold text-emerald-400 block font-sans">IF COOL / DOVISH</span>
+                          <p className="text-foreground/90 leading-tight">{item.coolScenario}</p>
+                        </div>
+
+                        {/* In-Line Scenario */}
+                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 space-y-1">
+                          <span className="font-bold text-amber-400 block font-sans">IF IN-LINE / CHOP</span>
+                          <p className="text-foreground/90 leading-tight">{item.inlineScenario}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ) : (
-              <div className="text-[10px] text-muted-foreground">
-                Normal volatility expected; trade setups as planned.
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+
+            {/* ── EDGE CARD 3: Weekly Session-by-Session Master Plan ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md lg:col-span-2">
+              <CardHeader className="p-4 pb-2 border-b border-border/40">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                  <span>3. Weekly Session Roadmap (Mon &rarr; Fri)</span>
+                  <CalendarDays className="w-4 h-4 text-emerald-400" />
+                </CardDescription>
+                <CardTitle className="text-base font-bold pt-1">
+                  Institutional Weekly Cycle Playbook
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
+                  {aiBriefing.weeklySessionPlan.map((dayPlan, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl border border-border/40 bg-muted/10 space-y-1.5 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-foreground text-xs uppercase">{dayPlan.day}</span>
+                          <Badge variant="outline" className={cn(
+                            "text-[9px] font-bold px-1 py-0 uppercase",
+                            dayPlan.riskLevel === "HIGH" ? "border-rose-500/40 text-rose-400" :
+                            dayPlan.riskLevel === "MEDIUM" ? "border-amber-500/40 text-amber-400" :
+                            "border-emerald-500/40 text-emerald-400"
+                          )}>
+                            {dayPlan.riskLevel}
+                          </Badge>
+                        </div>
+                        <span className="text-[10px] text-primary font-mono font-bold block">{dayPlan.phase}</span>
+                        <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">
+                          {dayPlan.tacticalAction}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* ── EDGE CARD 4: Intermarket Macro Divergence ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md">
+              <CardHeader className="p-4 pb-2 border-b border-border/40">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-blue-400 flex items-center justify-between">
+                  <span>4. Intermarket Divergence Scanner</span>
+                  <Split className="w-4 h-4 text-blue-400" />
+                </CardDescription>
+                <CardTitle className="text-base font-bold pt-1">
+                  {aiBriefing.macroDivergence.title}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-xs">
+                <p className="text-foreground/90 leading-relaxed bg-muted/20 p-3 rounded-xl border border-border/40">
+                  {aiBriefing.macroDivergence.analysis}
+                </p>
+                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>Apex/Topstep Rule: {aiBriefing.propFirmRuleSafeguard}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
 
-      {/* ── Regime Banner ── */}
-      {cotData && (
-        <div className={cn(
-          "p-4 rounded-xl border flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs",
-          cotData.smartMoneyBias === "BULLISH" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" :
-          cotData.smartMoneyBias === "BEARISH" ? "bg-rose-500/10 border-rose-500/30 text-rose-300" :
-          "bg-blue-500/10 border-blue-500/30 text-blue-300"
-        )}>
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-bold",
-              cotData.smartMoneyBias === "BULLISH" ? "bg-emerald-500/20 text-emerald-400" :
-              cotData.smartMoneyBias === "BEARISH" ? "bg-rose-500/20 text-rose-400" :
-              "bg-blue-500/20 text-blue-400"
-            )}>
-              {cotData.smartMoneyBias === "BULLISH" ? "▲" : cotData.smartMoneyBias === "BEARISH" ? "▼" : "◆"}
-            </div>
+      {/* ════════════════════════════════════════════════════════════════════════════
+          5. LIVE ECONOMIC NEWS CALENDAR (RED FOLDER GUARDIAN)
+      ════════════════════════════════════════════════════════════════════════════ */}
+      <Card className="border-neutral-800 bg-neutral-950 text-white shadow-xl">
+        <CardHeader className="p-5 pb-3 border-b border-neutral-900">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <div className="font-bold text-sm tracking-wide uppercase flex items-center gap-2">
-                <span>{cotData.regimeLabel}</span>
-                <Badge variant="outline" className="border-current text-current font-bold text-[10px] px-1.5 py-0 uppercase">
-                  {cotData.smartMoneyBias} BIAS
-                </Badge>
-              </div>
-              <p className="text-muted-foreground text-xs mt-0.5 max-w-3xl leading-relaxed">
-                {cotData.regimeDescription}
-              </p>
+              <CardTitle className="text-lg font-bold flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-rose-400" />
+                Live Economic News Calendar (Red Folder Guardian)
+              </CardTitle>
+              <CardDescription className="text-xs text-neutral-400 mt-0.5">
+                Real-time releases with countdown timers &bull; Strict news holding violation safeguard
+              </CardDescription>
             </div>
-          </div>
-          <div className="text-[11px] text-muted-foreground shrink-0 font-mono">
-            CFTC Report Date: <strong className="text-foreground">{cotData.latestDate}</strong>
-          </div>
-        </div>
-      )}
 
-      {/* ── Main Tabbed Section ── */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-card border border-border/60 p-1 rounded-xl">
-          <TabsTrigger value="cot" className="gap-2 text-xs font-bold data-[state=active]:bg-primary/20">
-            <Layers className="w-4 h-4 text-primary" />
-            Institutional COT Terminal
-          </TabsTrigger>
-          <TabsTrigger value="calendar" className="gap-2 text-xs font-bold data-[state=active]:bg-primary/20 relative">
-            <Calendar className="w-4 h-4 text-rose-400" />
-            Economic Calendar (Red Folder)
-            {nextRedFolderEvent && (
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping absolute top-1 right-1" />
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="ai" className="gap-2 text-xs font-bold data-[state=active]:bg-primary/20">
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            AI Smart Money Alignment &amp; Leak Audit
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ════════════════════════════════════════════════════════════════════════════
-            TAB 1: INSTITUTIONAL COT TERMINAL
-        ════════════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="cot" className="space-y-5">
-          <Card className="border-border/60 bg-card/60">
-            <CardHeader className="p-5 pb-3 border-b border-border/40">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <CardTitle className="text-lg font-bold flex items-center gap-2">
-                    <Activity className="w-5 h-5 text-primary" />
-                    {symbolConfig.name} ({symbolConfig.symbol}) — Positioning History
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                    {symbolConfig.description} • Tick: {symbolConfig.tickValue}
-                  </CardDescription>
-                </div>
-                <div className="text-xs font-mono text-muted-foreground">
-                  Showing last {cotData?.history.length || 0} weekly CFTC releases
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 space-y-6">
-              {/* Visual Net Progression Bars */}
-              {cotData && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    <span>Weekly Commercial vs Speculator Net Progression</span>
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5 text-rose-400 font-mono">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> Commercials (Hedgers)
-                      </span>
-                      <span className="flex items-center gap-1.5 text-blue-400 font-mono">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" /> Speculators (Hedge Funds)
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2 max-h-[360px] overflow-y-auto pr-1">
-                    {cotData.history.slice().reverse().map((point, idx) => {
-                      const maxNetAbs = Math.max(
-                        ...cotData.history.map(p => Math.max(Math.abs(p.commercialNet), Math.abs(p.nonCommercialNet)))
-                      ) || 1
-
-                      const commWidth = Math.min(100, Math.round((Math.abs(point.commercialNet) / maxNetAbs) * 100))
-                      const specWidth = Math.min(100, Math.round((Math.abs(point.nonCommercialNet) / maxNetAbs) * 100))
-
-                      return (
-                        <div key={idx} className="p-2.5 rounded-xl border border-border/40 bg-muted/10 hover:bg-muted/30 transition-colors text-xs font-mono">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="font-bold text-foreground">{point.date}</span>
-                            <div className="flex items-center gap-3 text-[11px]">
-                              <span>OI: <strong className="text-foreground">{point.openInterest.toLocaleString()}</strong></span>
-                              <span>COT Index: <strong className={point.cotIndex >= 80 ? "text-rose-400" : point.cotIndex <= 20 ? "text-emerald-400" : "text-primary"}>{point.cotIndex}%</strong></span>
-                            </div>
-                          </div>
-
-                          {/* Commercial Net Bar */}
-                          <div className="grid grid-cols-12 gap-2 items-center text-[11px]">
-                            <span className="col-span-3 text-muted-foreground truncate">Commercial:</span>
-                            <div className="col-span-7 bg-muted/40 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-rose-500/80 rounded-full" 
-                                style={{ width: `${commWidth}%` }} 
-                              />
-                            </div>
-                            <span className={cn("col-span-2 text-right font-bold", point.commercialNet >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                              {point.commercialNet.toLocaleString()}
-                            </span>
-                          </div>
-
-                          {/* Speculator Net Bar */}
-                          <div className="grid grid-cols-12 gap-2 items-center text-[11px] mt-1">
-                            <span className="col-span-3 text-muted-foreground truncate">Speculator:</span>
-                            <div className="col-span-7 bg-muted/40 h-2 rounded-full overflow-hidden">
-                              <div 
-                                className="h-full bg-blue-500/80 rounded-full" 
-                                style={{ width: `${specWidth}%` }} 
-                              />
-                            </div>
-                            <span className={cn("col-span-2 text-right font-bold", point.nonCommercialNet >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                              {point.nonCommercialNet.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Institutional Order Flow Breakdown Guide */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 rounded-xl bg-muted/20 border border-border/50 text-xs">
-                <div className="space-y-1">
-                  <div className="font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5" /> 1. Commercials (Smart Money)
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed text-[11px]">
-                    Banks, producers, and dealers who use futures to lock in operational risk. When they heavily buy (net positive), market bottoms usually form.
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
-                    <Activity className="w-3.5 h-3.5" /> 2. Non-Commercials (Hedge Funds)
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed text-[11px]">
-                    Large trend-following funds. When their net long positioning reaches 90%+ extremes, buying power is exhausted and liquidity flushes happen.
-                  </p>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
-                    <Scale className="w-3.5 h-3.5" /> 3. Non-Reportable (Retail)
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed text-[11px]">
-                    Small retail speculators. Often caught on the wrong side at major inflection points. Look for divergence against Commercials.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ════════════════════════════════════════════════════════════════════════════
-            TAB 2: ECONOMIC CALENDAR (RED FOLDER GUARDIAN)
-        ════════════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="calendar" className="space-y-5">
-          {/* Prop Firm Rule Banner */}
-          <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 font-bold">
-                <Flame className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-bold text-sm text-rose-300 uppercase tracking-wide">
-                  Prop Firm News Trading Rules (Apex, Topstep, FundedNext, FTMO)
-                </h4>
-                <p className="text-muted-foreground text-xs mt-0.5">
-                  Apex &amp; Topstep prohibit holding active trades ±2 minutes around High-Impact (Red Folder) releases. Violation may result in account breach!
-                </p>
-              </div>
-            </div>
-            <Badge variant="destructive" className="bg-rose-500 text-white font-mono shrink-0 uppercase text-[11px]">
-              Strict News Holding Warning
-            </Badge>
-          </div>
-
-          {/* Calendar Controls */}
-          <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-card border border-border/60 text-xs">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-muted-foreground font-semibold">Impact:</span>
               <Button
                 variant={impactFilter === "high" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setImpactFilter("high")}
-                className="h-7 text-xs font-bold gap-1"
+                className="h-7 text-xs font-bold gap-1 bg-neutral-900 border-neutral-800"
               >
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
-                Red Folder Only ({calendarEvents.filter(e => e.isRedFolder).length})
-              </Button>
-              <Button
-                variant={impactFilter === "med_high" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setImpactFilter("med_high")}
-                className="h-7 text-xs"
-              >
-                Medium &amp; High
+                Red Folder ({calendarEvents.filter(e => e.isRedFolder).length})
               </Button>
               <Button
                 variant={impactFilter === "all" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setImpactFilter("all")}
-                className="h-7 text-xs"
+                className="h-7 text-xs bg-neutral-900 border-neutral-800 text-neutral-300"
               >
-                All Events ({calendarEvents.length})
+                All ({calendarEvents.length})
               </Button>
-            </div>
-
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground font-semibold">Currency:</span>
-                <Select value={currencyFilter} onValueChange={(val) => setCurrencyFilter(val || "ALL")}>
-                  <SelectTrigger className="w-[90px] h-7 text-xs font-mono">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD" className="text-xs font-mono font-bold">USD</SelectItem>
-                    <SelectItem value="ALL" className="text-xs font-mono">All</SelectItem>
-                    <SelectItem value="EUR" className="text-xs font-mono">EUR</SelectItem>
-                    <SelectItem value="GBP" className="text-xs font-mono">GBP</SelectItem>
-                    <SelectItem value="JPY" className="text-xs font-mono">JPY</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground font-semibold">Timeline:</span>
-                <Select value={dateFilter} onValueChange={(v: any) => setDateFilter(v)}>
-                  <SelectTrigger className="w-[110px] h-7 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all" className="text-xs">All Week</SelectItem>
-                    <SelectItem value="today" className="text-xs">Today Only</SelectItem>
-                    <SelectItem value="upcoming" className="text-xs">Upcoming Only</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
-
-          {/* Events List */}
-          <Card className="border-border/60 bg-card/60">
-            <CardHeader className="p-4 pb-2 border-b border-border/40">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Calendar className="w-4 h-4 text-primary" />
-                  Scheduled Economic Catalysts ({filteredEvents.length} events)
-                </CardTitle>
-                <span className="text-xs font-mono text-muted-foreground">Times shown in EST (New York)</span>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {filteredEvents.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground text-xs">
-                  No economic events matched your filters.
-                </div>
-              ) : (
-                <div className="divide-y divide-border/40 font-mono text-xs">
-                  {filteredEvents.map((evt) => (
-                    <div 
-                      key={evt.id} 
-                      className={cn(
-                        "p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-muted/20 transition-colors",
-                        evt.isRedFolder && "bg-rose-500/5"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        {/* Impact Badge */}
-                        <div className={cn(
-                          "w-3 h-3 rounded-full shrink-0",
-                          evt.impact === "High" ? "bg-rose-500 ring-4 ring-rose-500/20" :
-                          evt.impact === "Medium" ? "bg-amber-500" : "bg-neutral-600"
-                        )} title={`${evt.impact} Impact`} />
-
-                        {/* Country */}
-                        <Badge variant="outline" className="font-bold text-[10px] px-1.5 py-0 border-border">
-                          {evt.country}
-                        </Badge>
-
-                        {/* Event Title */}
-                        <div>
-                          <span className="font-sans font-bold text-foreground text-[13px] block">
-                            {evt.title}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground font-sans">
-                            {evt.dateStr} • {evt.timeEST} EST
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Right Telemetry: Numbers & Countdown */}
-                      <div className="flex items-center gap-4 text-[11px] ml-6 sm:ml-0">
-                        <div className="space-y-0.5 text-right">
-                          <span className="text-[10px] text-muted-foreground uppercase block">Forecast / Prev</span>
-                          <span className="font-bold text-foreground">
-                            {evt.forecast} <span className="text-muted-foreground font-normal">/ {evt.previous}</span>
-                          </span>
-                        </div>
-
-                        {evt.isUpcoming ? (
-                          <Badge variant="outline" className={cn(
-                            "text-[10px] font-bold px-2 py-0.5 uppercase shrink-0",
-                            evt.isRedFolder ? "border-rose-500/40 text-rose-400 bg-rose-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"
-                          )}>
-                            In {Math.floor(evt.minutesUntil / 60)}h {evt.minutesUntil % 60}m
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] text-muted-foreground/60 border-border/40 shrink-0">
-                            Released
-                          </Badge>
-                        )}
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleCopyEvent(evt)}
-                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          title="Copy details for Daily Journal"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ════════════════════════════════════════════════════════════════════════════
-            TAB 3: AI SMART MONEY ALIGNMENT & LEAK AUDIT
-        ════════════════════════════════════════════════════════════════════════════ */}
-        <TabsContent value="ai" className="space-y-5">
-          {!aiBriefing ? (
-            <Card className="border-border/60 bg-card/60 p-8 text-center space-y-4">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div className="space-y-1 max-w-md mx-auto">
-                <h3 className="text-lg font-bold">Synthesize AI Macro Gameplan</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Correlate your verified trades on {symbolConfig.name} with institutional order flow, detect whether you trade with or against smart money, and receive an actionable weekly playbook.
-                </p>
-              </div>
-              <Button
-                onClick={handleGenerateAiBriefing}
-                disabled={generatingAi}
-                className="font-bold text-xs gap-2"
-              >
-                <Sparkles className={cn("w-4 h-4", generatingAi && "animate-spin")} />
-                {generatingAi ? "Running AI Macro Audit..." : `Analyze ${selectedSymbol} Trades vs COT`}
-              </Button>
-            </Card>
+        </CardHeader>
+        <CardContent className="p-0">
+          {filteredEvents.length === 0 ? (
+            <div className="p-8 text-center text-neutral-500 text-xs">
+              No economic releases matching filters.
+            </div>
           ) : (
-            <div className="space-y-5">
-              {/* Executive Headline Card */}
-              <Card className="border-primary/40 bg-primary/5 p-5 space-y-3">
-                <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="default" className="text-[10px] font-bold uppercase tracking-wider">
-                      AI Macro Gameplan
+            <div className="divide-y divide-neutral-900 font-mono text-xs">
+              {filteredEvents.slice(0, 15).map((evt) => (
+                <div 
+                  key={evt.id} 
+                  className={cn(
+                    "p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-neutral-900/50 transition-colors",
+                    evt.isRedFolder && "bg-rose-500/5"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "w-2.5 h-2.5 rounded-full shrink-0",
+                      evt.impact === "High" ? "bg-rose-500 ring-4 ring-rose-500/20" :
+                      evt.impact === "Medium" ? "bg-amber-500" : "bg-neutral-600"
+                    )} />
+
+                    <Badge variant="outline" className="font-bold text-[10px] px-1.5 py-0 border-neutral-800 text-neutral-300">
+                      {evt.country}
                     </Badge>
-                    <span className="text-xs font-mono text-muted-foreground">
-                      Asset: <strong className="text-foreground">{aiBriefing.symbol}</strong> • Generated just now
-                    </span>
+
+                    <div>
+                      <span className="font-sans font-bold text-white text-[13px] block">
+                        {evt.title}
+                      </span>
+                      <span className="text-[11px] text-neutral-400 font-sans">
+                        {evt.dateStr} • {evt.timeEST} EST
+                      </span>
+                    </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateAiBriefing}
-                    disabled={generatingAi}
-                    className="h-7 text-xs font-semibold gap-1.5"
-                  >
-                    <RotateCw className={cn("w-3 h-3", generatingAi && "animate-spin")} /> Re-Analyze
-                  </Button>
+
+                  <div className="flex items-center gap-4 text-[11px] ml-6 sm:ml-0">
+                    <div className="space-y-0.5 text-right">
+                      <span className="text-[10px] text-neutral-400 uppercase block">Forecast / Prev</span>
+                      <span className="font-bold text-white">
+                        {evt.forecast} <span className="text-neutral-500 font-normal">/ {evt.previous}</span>
+                      </span>
+                    </div>
+
+                    {evt.isUpcoming ? (
+                      <Badge variant="outline" className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 uppercase shrink-0",
+                        evt.isRedFolder ? "border-rose-500/40 text-rose-400 bg-rose-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"
+                      )}>
+                        In {Math.floor(evt.minutesUntil / 60)}h {evt.minutesUntil % 60}m
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-[10px] text-neutral-500 border-neutral-800 shrink-0">
+                        Released
+                      </Badge>
+                    )}
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleCopyEvent(evt)}
+                      className="h-7 w-7 text-neutral-400 hover:text-white hover:bg-neutral-800"
+                      title="Copy details for Daily Journal"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
                 </div>
-
-                <h3 className="text-base sm:text-lg font-black text-foreground tracking-tight leading-snug">
-                  &ldquo;{aiBriefing.headline}&rdquo;
-                </h3>
-              </Card>
-
-              {/* Trader Correlation Telemetry (Aligned vs Counter) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-border/60 bg-card/60 p-4 space-y-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
-                    Institutional Alignment Score
-                  </span>
-                  <div className="text-2xl font-black font-mono flex items-center gap-2">
-                    <span className={aiBriefing.tradeAlignmentScore >= 60 ? "text-emerald-400" : "text-amber-400"}>
-                      {aiBriefing.tradeAlignmentScore}%
-                    </span>
-                    <Badge variant="outline" className="text-[10px] font-bold">
-                      {aiBriefing.traderStats.totalTradesAnalyzed} Trades Analyzed
-                    </Badge>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    Percentage of your {symbolConfig.symbol} executions taken in alignment with Smart Money bias.
-                  </p>
-                </Card>
-
-                <Card className="border-emerald-500/30 bg-emerald-500/5 p-4 space-y-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 block">
-                    Trades Aligned with Smart Money
-                  </span>
-                  <div className="text-2xl font-black font-mono text-emerald-400">
-                    {aiBriefing.traderStats.alignedWinRate}% WR
-                    <span className="text-xs text-muted-foreground font-normal ml-2">
-                      ({aiBriefing.traderStats.alignedTradesCount} trades)
-                    </span>
-                  </div>
-                  <div className="text-xs font-mono font-bold text-emerald-400">
-                    Net: {fmtCurrency(aiBriefing.traderStats.alignedPnL)}
-                  </div>
-                </Card>
-
-                <Card className="border-rose-500/30 bg-rose-500/5 p-4 space-y-1.5">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 block">
-                    Trades Counter to Smart Money
-                  </span>
-                  <div className="text-2xl font-black font-mono text-rose-400">
-                    {aiBriefing.traderStats.counterWinRate}% WR
-                    <span className="text-xs text-muted-foreground font-normal ml-2">
-                      ({aiBriefing.traderStats.counterTradesCount} trades)
-                    </span>
-                  </div>
-                  <div className="text-xs font-mono font-bold text-rose-400">
-                    Net: {fmtCurrency(aiBriefing.traderStats.counterPnL)}
-                  </div>
-                </Card>
-              </div>
-
-              {/* Detailed Findings & Actionable Playbook */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Findings */}
-                <Card className="border-border/60 bg-card/60 p-5 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-                    <Activity className="w-4 h-4" /> Key Institutional Findings
-                  </h4>
-                  <ul className="space-y-2 text-xs text-foreground/90 leading-relaxed">
-                    {aiBriefing.keyFindings.map((finding, idx) => (
-                      <li key={idx} className="flex items-start gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
-                        <span>{finding}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </Card>
-
-                {/* Actionable Playbook Advice */}
-                <Card className="border-border/60 bg-card/60 p-5 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4" /> Actionable Execution Rules
-                  </h4>
-                  <p className="text-xs text-foreground/90 leading-relaxed p-3 rounded-xl bg-muted/20 border border-border/40 font-mono">
-                    {aiBriefing.actionablePlaybookAdvice}
-                  </p>
-                  <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                    <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{aiBriefing.propFirmRuleSafeguard}</span>
-                  </div>
-                </Card>
-              </div>
+              ))}
             </div>
           )}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }
