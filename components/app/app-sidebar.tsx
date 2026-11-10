@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Building2, GitCompareArrows, BarChart3, NotebookPen,
   Brain, Plus, Home, BookOpen, CheckSquare, CalendarDays, CalendarClock,
   PieChart, Download, ShieldCheck, Plug, Archive, Dices, Calculator,
-  ChevronLeft, ChevronRight, Microscope, Target, Activity
+  ChevronLeft, ChevronRight, Microscope, Target, Activity, Compass
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
@@ -16,6 +16,7 @@ const nav = [
   { href: "/app",                       label: "Dashboard",      icon: LayoutDashboard },
   { href: "/app/history",               label: "History",        icon: Archive },
   { href: "/app/calendar",              label: "Calendar",       icon: CalendarDays },
+  { href: "/app/market-pulse",          label: "Market Pulse",   icon: Compass },
   { href: "/app/daily",                 label: "Daily Journal",  icon: CheckSquare },
   { href: "/app/playbooks",             label: "Playbooks",      icon: BookOpen },
   { href: "/app/rule-book",             label: "Rule Book",      icon: Target },

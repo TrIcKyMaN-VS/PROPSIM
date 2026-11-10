@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation"
 import { usePropStore } from "@/lib/store"
 import { getDailyJournal, getLatestDailyJournal, saveDailyJournal, uploadImageFormData } from "@/app/actions/journal-actions"
 import { getRuleBookEntries } from "@/app/actions/rulebook-actions"
+import { getEconomicCalendarAction } from "@/app/actions/macro-actions"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,12 +60,15 @@ function AutoTextarea(props: React.ComponentProps<typeof Textarea>) {
   )
 }
 
-function JournalField({ title, colorClass, children, className }: { title: string, colorClass?: string, children: React.ReactNode, className?: string }) {
+function JournalField({ title, colorClass, children, className, action }: { title: string, colorClass?: string, children: React.ReactNode, className?: string, action?: React.ReactNode }) {
   return (
     <div className={cn("rounded-xl border border-border/60 bg-card overflow-hidden flex flex-col", className)}>
-      <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 flex items-center gap-2">
-        {colorClass && <span className={cn("w-2 h-2 rounded-full shrink-0", colorClass)} />}
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{title}</span>
+      <div className="px-4 py-2.5 bg-muted/30 border-b border-border/40 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          {colorClass && <span className={cn("w-2 h-2 rounded-full shrink-0", colorClass)} />}
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{title}</span>
+        </div>
+        {action}
       </div>
       <div className="p-3 flex-1 flex flex-col justify-start">
         {children}
@@ -636,6 +640,28 @@ function DailyJournalContent() {
   const [scenarioBIf, setScenarioBIf] = useState("")
   const [scenarioBThen, setScenarioBThen] = useState("")
   const [newsEventRisk, setNewsEventRisk] = useState("")
+  const [fetchingNews, setFetchingNews] = useState(false)
+
+  const handleAutoFillNews = async () => {
+    setFetchingNews(true)
+    try {
+      const res = await getEconomicCalendarAction()
+      if (res.success && res.data) {
+        const matching = res.data.filter(e => e.dateStr === date && (e.impact === "High" || e.impact === "Medium"))
+        if (matching.length > 0) {
+          const formatted = matching.map(e => `${e.title} (${e.country}) at ${e.timeEST} EST [${e.impact} Impact]`).join("\n")
+          setNewsEventRisk(formatted)
+          toast.success(`Imported ${matching.length} high/medium impact events for ${date}`)
+        } else {
+          toast.info(`No high or medium impact economic news logged for ${date}`)
+        }
+      }
+    } catch {
+      toast.error("Failed to load economic events")
+    } finally {
+      setFetchingNews(false)
+    }
+  }
   const [riskPerTrade, setRiskPerTrade] = useState("")
   const [maxTrades, setMaxTrades] = useState("")
   const [maxDailyLoss, setMaxDailyLoss] = useState("")
@@ -987,7 +1013,22 @@ function DailyJournalContent() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <JournalField title="News / Event Risk + Time" colorClass="bg-destructive">
+          <JournalField 
+            title="News / Event Risk + Time" 
+            colorClass="bg-destructive"
+            action={
+              <button
+                type="button"
+                onClick={handleAutoFillNews}
+                disabled={fetchingNews}
+                className="text-[10px] text-primary hover:underline font-bold flex items-center gap-1 transition-colors"
+                title="Auto-fetch high impact news for this date from Economic Calendar"
+              >
+                <Sparkles className={cn("w-3 h-3", fetchingNews && "animate-spin")} />
+                Auto-fill Live News
+              </button>
+            }
+          >
             <AutoTextarea className="border-0 focus-visible:ring-1 focus-visible:ring-primary/30 bg-muted/20 dark:bg-input/40 text-sm" value={newsEventRisk} onChange={e => setNewsEventRisk(e.target.value)} placeholder="e.g. NFP at 8:30 AM, FOMC at 2:00 PM" />
           </JournalField>
           

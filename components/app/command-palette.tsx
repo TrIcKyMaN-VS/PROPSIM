@@ -4,7 +4,7 @@ import * as React from "react"
 import { useRouter } from "next/navigation"
 import { Command } from "cmdk"
 import { usePropStore } from "@/lib/store"
-import { Search, MonitorPlay, BarChart3, BookOpen, Download, LayoutDashboard, Calculator, CalendarDays } from "lucide-react"
+import { Search, MonitorPlay, BarChart3, BookOpen, Download, LayoutDashboard, Calculator, CalendarDays, Compass } from "lucide-react"
 
 export function CommandPalette() {
   const router = useRouter()
@@ -65,6 +65,10 @@ export function CommandPalette() {
               <Command.Item className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50" onSelect={() => runCommand(() => router.push("/app/calendar"))}>
                 <CalendarDays className="mr-2 h-4 w-4" />
                 <span>Calendar</span>
+              </Command.Item>
+              <Command.Item className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50" onSelect={() => runCommand(() => router.push("/app/market-pulse"))}>
+                <Compass className="mr-2 h-4 w-4" />
+                <span>Market Pulse &amp; COT Macro</span>
               </Command.Item>
               <Command.Item className="relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none aria-selected:bg-accent aria-selected:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50" onSelect={() => runCommand(() => router.push("/app/analytics"))}>
                 <BarChart3 className="mr-2 h-4 w-4" />
