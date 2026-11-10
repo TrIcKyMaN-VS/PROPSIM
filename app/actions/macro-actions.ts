@@ -40,7 +40,7 @@ export async function getCotReportAction(symbol: MacroSymbol = "NQ"): Promise<{ 
     }
 
     const searchTerm = config.cftcSearchTerm
-    const url = `https://publicreporting.cftc.gov/resource/6dca-aqww.json?$where=upper(market_and_exchange_names)%20like%20'%25${encodeURIComponent(searchTerm)}%25'&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=26`
+    const url = `https://publicreporting.cftc.gov/resource/6dca-aqww.json?$where=upper(market_and_exchange_names)%20like%20'%25${encodeURIComponent(searchTerm)}%25'&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=60`
 
     let records: any[] = []
     try {
@@ -59,8 +59,21 @@ export async function getCotReportAction(symbol: MacroSymbol = "NQ"): Promise<{ 
       return { success: true, data: fallback }
     }
 
+    // Deduplicate by date (CFTC may have multiple contract reporting rows for the same date)
+    const dateMap = new Map<string, any>()
+    for (const r of records) {
+      const rawDate = r.report_date_as_yyyy_mm_dd ? r.report_date_as_yyyy_mm_dd.split("T")[0] : null
+      if (rawDate && !dateMap.has(rawDate)) {
+        dateMap.set(rawDate, r)
+      }
+    }
+
+    const uniqueRecords = Array.from(dateMap.values())
+    // Strictly sort chronologically (oldest -> newest) so dates are consecutive without jumping
+    uniqueRecords.sort((a, b) => new Date(a.report_date_as_yyyy_mm_dd).getTime() - new Date(b.report_date_as_yyyy_mm_dd).getTime())
+
     // Parse records into CotDataPoint list (oldest to newest for charts)
-    const rawPoints = records.map((r: any) => {
+    const sorted = uniqueRecords.map((r: any) => {
       const nonCommLong = Number(r.noncomm_positions_long_all || 0)
       const nonCommShort = Number(r.noncomm_positions_short_all || 0)
       const commLong = Number(r.comm_positions_long_all || 0)
@@ -89,9 +102,6 @@ export async function getCotReportAction(symbol: MacroSymbol = "NQ"): Promise<{ 
         cotIndex: 50,
       }
     })
-
-    // Sort chronologically (oldest -> newest) to calculate WoW diffs and COT index
-    const sorted = rawPoints.reverse()
 
     // Calculate Min & Max for COT Index (26-week lookback)
     const nonCommNets = sorted.map(p => p.nonCommercialNet)

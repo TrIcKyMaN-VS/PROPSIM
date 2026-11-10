@@ -65,11 +65,31 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip as RechartsTooltip,
-  ReferenceLine
+  ReferenceLine,
+  ReferenceDot
 } from "recharts"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { fmtCurrency, fmtPnl } from "@/lib/format"
+
+// Timezone-safe date formatters for CFTC reports (avoids UTC offset day-shift bugs)
+function formatCotDate(dateStr?: string) {
+  if (!dateStr) return ""
+  const [y, m, d] = dateStr.split("-")
+  if (!y || !m || !d) return dateStr
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const mName = months[parseInt(m, 10) - 1] || m
+  return `${mName} ${parseInt(d, 10)}, ${y}`
+}
+
+function formatAxisDate(dateStr?: string) {
+  if (!dateStr) return ""
+  const [y, m, d] = dateStr.split("-")
+  if (!y || !m || !d) return dateStr
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const mName = months[parseInt(m, 10) - 1] || m
+  return `${mName} ${parseInt(d, 10)}`
+}
 
 export default function MarketPulsePage() {
   // Default symbol is NQ (changeable)
@@ -81,6 +101,25 @@ export default function MarketPulsePage() {
   
   // Timeframe: 3M, 6M, 1Y, All
   const [timeframe, setTimeframe] = useState<"3M" | "6M" | "1Y" | "ALL">("1Y")
+
+  // Fullscreen expand mode
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Clean asset title (e.g. "Nasdaq 100" matching screenshot)
+  const cleanAssetTitle = useMemo(() => {
+    switch (selectedSymbol) {
+      case "NQ": return "Nasdaq 100"
+      case "ES": return "S&P 500"
+      case "YM": return "Dow Jones 30"
+      case "RTY": return "Russell 2000"
+      case "GC": return "Gold"
+      case "CL": return "Crude Oil"
+      case "6E": return "Euro FX"
+      case "6B": return "British Pound"
+      case "BTC": return "Bitcoin Futures"
+      default: return selectedSymbol
+    }
+  }, [selectedSymbol])
 
   // Data States
   const [cotData, setCotData] = useState<CotReportSummary | null>(null)
@@ -194,13 +233,8 @@ export default function MarketPulsePage() {
       const longDelta = item.nonCommercialLong - prev.nonCommercialLong
       const shortDelta = item.nonCommercialShort - prev.nonCommercialShort
 
-      // Formatted short date for X-axis (e.g. 26-09)
-      const parts = item.date.split("-")
-      const axisDate = parts.length === 3 ? `${parts[0].slice(2)}-${parts[1]}` : item.date
-
       return {
-        date: item.date,
-        axisDate,
+        date: item.date, // Unique ISO date string e.g. "2026-11-03"
         net: item.nonCommercialNet,
         long: item.nonCommercialLong,
         short: item.nonCommercialShort,
@@ -211,6 +245,76 @@ export default function MarketPulsePage() {
       }
     })
   }, [cotData, timeframe])
+
+  // Latest Data Point for active glowing dots
+  const lastDataPoint = useMemo(() => {
+    return chartData[chartData.length - 1] || null
+  }, [chartData])
+
+  // Computed unique tick dates so ticks never repeat or collide
+  const chartTicks = useMemo(() => {
+    if (!chartData || chartData.length === 0) return []
+    
+    if (timeframe === "1Y" || timeframe === "ALL") {
+      // Pick first report of each month, plus the latest report
+      const seenMonths = new Set<string>()
+      const ticks: string[] = []
+      for (const pt of chartData) {
+        const ym = pt.date.slice(0, 7) // "YYYY-MM"
+        if (!seenMonths.has(ym)) {
+          seenMonths.add(ym)
+          ticks.push(pt.date)
+        }
+      }
+      const lastDate = chartData[chartData.length - 1]?.date
+      if (lastDate && !ticks.includes(lastDate)) {
+        ticks.push(lastDate)
+      }
+      return ticks
+    }
+
+    if (timeframe === "6M") {
+      // Pick every 3rd point, plus latest
+      const ticks: string[] = []
+      for (let i = 0; i < chartData.length; i += 3) {
+        ticks.push(chartData[i].date)
+      }
+      const lastDate = chartData[chartData.length - 1]?.date
+      if (lastDate && !ticks.includes(lastDate)) {
+        ticks.push(lastDate)
+      }
+      return ticks
+    }
+
+    // 3M timeframe: pick every 2nd point, plus latest (7 distinct ticks)
+    const ticks: string[] = []
+    for (let i = 0; i < chartData.length; i += 2) {
+      ticks.push(chartData[i].date)
+    }
+    const lastDate = chartData[chartData.length - 1]?.date
+    if (lastDate && !ticks.includes(lastDate)) {
+      ticks.push(lastDate)
+    }
+    return ticks
+  }, [chartData, timeframe])
+
+  // Format tick labels based on timeframe (YY-MM for 1Y/ALL; Month Day for 3M/6M)
+  const formatAxisDate = (dateStr?: string) => {
+    if (!dateStr) return ""
+    const [y, m, d] = dateStr.split("-")
+    if (!y || !m || !d) return dateStr
+
+    if (timeframe === "1Y" || timeframe === "ALL") {
+      // Exact match to reference screenshot: "25-10", "25-11", "26-01", "26-09"
+      return `${y.slice(2)}-${m}`
+    }
+
+    // For 3M and 6M: show Month and Day e.g. "Aug 11", "Sep 8", "Oct 6", "Nov 3"
+    // so every date is clear and unambiguous without repeating months!
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const mName = months[parseInt(m, 10) - 1] || m
+    return `${mName} ${parseInt(d, 10)}`
+  }
 
   // Next Upcoming Red Folder Event
   const nextRedFolderEvent = useMemo(() => {
@@ -257,11 +361,7 @@ export default function MarketPulsePage() {
   const CustomChartTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
-      const dateFormatted = new Date(data.date).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric"
-      })
+      const dateFormatted = formatCotDate(data.date)
 
       return (
         <div className="bg-neutral-900/95 border border-neutral-700/80 rounded-xl p-3 shadow-2xl backdrop-blur-md text-xs font-mono min-w-[190px] space-y-1.5 pointer-events-none">
@@ -270,7 +370,7 @@ export default function MarketPulsePage() {
           </div>
           
           <div className="flex items-center justify-between gap-3">
-            <span className="text-neutral-400">Net:</span>
+            <span className="text-neutral-400">Net</span>
             <div className="flex items-center gap-1 font-bold">
               <span className={data.net >= 0 ? "text-emerald-400" : "text-rose-400"}>
                 {data.net >= 0 ? "+" : ""}{data.net.toLocaleString()}
@@ -285,8 +385,8 @@ export default function MarketPulsePage() {
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <span className="text-neutral-400">Long:</span>
-            <div className="flex items-center gap-1 font-bold text-emerald-400">
+            <span className="text-neutral-400">Long</span>
+            <div className="flex items-center gap-1 font-bold text-neutral-200">
               <span>{data.long.toLocaleString()}</span>
               <span className={cn(
                 "text-[10px] ml-1",
@@ -298,8 +398,8 @@ export default function MarketPulsePage() {
           </div>
 
           <div className="flex items-center justify-between gap-3">
-            <span className="text-neutral-400">Short:</span>
-            <div className="flex items-center gap-1 font-bold text-rose-400">
+            <span className="text-neutral-400">Short</span>
+            <div className="flex items-center gap-1 font-bold text-neutral-200">
               <span>{data.short.toLocaleString()}</span>
               <span className={cn(
                 "text-[10px] ml-1",
@@ -334,7 +434,7 @@ export default function MarketPulsePage() {
                 {selectedSymbol === "NQ" ? "NAS100" : symbolConfig.symbol}
               </span>
               <span className="text-xs text-neutral-400 font-medium">
-                ({symbolConfig.name})
+                ({cleanAssetTitle})
               </span>
             </div>
             <div className="text-xs text-neutral-400 font-mono">
@@ -343,21 +443,45 @@ export default function MarketPulsePage() {
           </div>
         </div>
 
-        {/* Right Section: Asset Dropdown + Giant Score Badge */}
-        <div className="flex items-center gap-3 self-end sm:self-center">
+        {/* Right Section: Action Buttons + Asset Dropdown + Giant Score Badge */}
+        <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap self-end sm:self-center">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              loadCotData(selectedSymbol)
+              loadCalendarData()
+            }}
+            disabled={loadingCot}
+            className="h-9 text-xs font-semibold gap-1.5 bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white"
+          >
+            <RotateCw className={cn("w-3.5 h-3.5", loadingCot && "animate-spin")} />
+            Sync CFTC
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={handleGenerateAiBriefing}
+            disabled={generatingAi}
+            className="h-9 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
+          >
+            <Sparkles className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
+            {generatingAi ? "Calculating Edge..." : "AI Edge Analysis"}
+          </Button>
+
           {/* Asset Switcher (Default NQ) */}
           <Select 
             value={selectedSymbol} 
             onValueChange={(val) => { if (val) setSelectedSymbol(val as MacroSymbol) }}
           >
-            <SelectTrigger className="w-[170px] h-9 bg-neutral-900 border-neutral-800 text-white font-bold text-xs">
+            <SelectTrigger className="w-[145px] h-9 bg-neutral-900 border-neutral-800 text-white font-bold text-xs">
               <SelectValue placeholder="Select Asset" />
             </SelectTrigger>
             <SelectContent className="bg-neutral-900 border-neutral-800 text-white">
               {Object.values(SUPPORTED_MACRO_SYMBOLS).map((cfg) => (
                 <SelectItem key={cfg.symbol} value={cfg.symbol} className="text-xs font-medium focus:bg-neutral-800">
                   <span className="font-bold text-primary mr-1.5">{cfg.symbol}</span>
-                  <span>{cfg.name}</span>
+                  <span>{cfg.name.split(" ")[0]}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -366,15 +490,15 @@ export default function MarketPulsePage() {
           {/* Giant Score Badge (e.g. +30 LONG matching screenshot) */}
           {cotData && (
             <div className={cn(
-              "px-3.5 py-1.5 rounded-xl border flex flex-col items-center justify-center min-w-[75px] shadow-lg",
+              "px-3.5 py-1 rounded-xl border flex flex-col items-center justify-center min-w-[70px] shadow-lg",
               cotData.biasScore >= 0 
                 ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" 
                 : "bg-rose-500/10 border-rose-500/30 text-rose-400"
             )}>
-              <span className="text-lg font-black font-mono leading-none">
+              <span className="text-lg font-black font-mono leading-tight">
                 {cotData.biasScore >= 0 ? "+" : ""}{cotData.biasScore}
               </span>
-              <span className="text-[10px] font-black uppercase tracking-wider mt-0.5">
+              <span className="text-[10px] font-black uppercase tracking-wider">
                 {cotData.biasLabel}
               </span>
             </div>
@@ -398,7 +522,7 @@ export default function MarketPulsePage() {
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1 border-t border-neutral-900">
             <span className="text-sm font-bold text-neutral-200">
-              {symbolConfig.name}
+              {cleanAssetTitle}
             </span>
 
             <div className="flex items-center gap-3 flex-wrap">
@@ -439,35 +563,9 @@ export default function MarketPulsePage() {
       <Card className="border-neutral-800 bg-neutral-950 text-white shadow-2xl overflow-hidden">
         <CardHeader className="p-5 pb-3 border-b border-neutral-900">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-lg font-bold text-white tracking-tight">
-                {symbolConfig.name}
-              </CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    loadCotData(selectedSymbol)
-                    loadCalendarData()
-                  }}
-                  disabled={loadingCot}
-                  className="h-8 text-xs font-semibold gap-1.5 bg-neutral-900 border-neutral-800 text-neutral-300 hover:text-white"
-                >
-                  <RotateCw className={cn("w-3.5 h-3.5", loadingCot && "animate-spin")} />
-                  Sync CFTC
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleGenerateAiBriefing}
-                  disabled={generatingAi}
-                  className="h-8 text-xs font-bold gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                >
-                  <Sparkles className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
-                  {generatingAi ? "Calculating Edge..." : "AI Edge Analysis"}
-                </Button>
-              </div>
-            </div>
+            <CardTitle className="text-lg font-bold text-white tracking-tight">
+              {cleanAssetTitle}
+            </CardTitle>
 
             {/* 3 Top Metric Columns: NET, LONG, SHORT (matching screenshot) */}
             {cotData && (
@@ -502,7 +600,7 @@ export default function MarketPulsePage() {
                     LONG
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl font-black font-mono text-emerald-400">
+                    <span className="text-2xl font-black font-mono text-white">
                       {cotData.current.nonCommercialLong.toLocaleString()}
                     </span>
                     <Badge variant="outline" className={cn(
@@ -522,7 +620,7 @@ export default function MarketPulsePage() {
                     SHORT
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl font-black font-mono text-rose-400">
+                    <span className="text-2xl font-black font-mono text-white">
                       {cotData.current.nonCommercialShort.toLocaleString()}
                     </span>
                     <Badge variant="outline" className={cn(
@@ -541,7 +639,7 @@ export default function MarketPulsePage() {
         </CardHeader>
 
         <CardContent className="p-5 space-y-4">
-          {/* Subheader Toolbar: Mode Toggle (Net vs Long/Short) & Timeframes (3M, 6M, 1Y, All) */}
+          {/* Subheader Toolbar: Mode Toggle (Net vs Long/Short) & Timeframes (3M, 6M, 1Y, All) & Expand */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
             {/* View Mode Pills (Net vs Long/Short) */}
             <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800">
@@ -571,28 +669,40 @@ export default function MarketPulsePage() {
               </button>
             </div>
 
-            {/* Timeframe Pills (3M, 6M, 1Y, All) */}
-            <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800 self-end sm:self-auto">
-              {(["3M", "6M", "1Y", "ALL"] as const).map((tf) => (
-                <button
-                  key={tf}
-                  type="button"
-                  onClick={() => setTimeframe(tf)}
-                  className={cn(
-                    "px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all",
-                    timeframe === tf
-                      ? "bg-neutral-800 text-white shadow-sm"
-                      : "text-neutral-400 hover:text-white"
-                  )}
-                >
-                  {tf}
-                </button>
-              ))}
+            {/* Timeframe Pills (3M, 6M, 1Y, All) + Maximize Button */}
+            <div className="flex items-center gap-2 self-end sm:self-auto">
+              <div className="flex items-center gap-1 p-1 bg-neutral-900 rounded-lg border border-neutral-800">
+                {(["3M", "6M", "1Y", "ALL"] as const).map((tf) => (
+                  <button
+                    key={tf}
+                    type="button"
+                    onClick={() => setTimeframe(tf)}
+                    className={cn(
+                      "px-2.5 py-1 rounded-md text-xs font-mono font-bold transition-all",
+                      timeframe === tf
+                        ? "bg-neutral-800 text-white shadow-sm"
+                        : "text-neutral-400 hover:text-white"
+                    )}
+                  >
+                    {tf}
+                  </button>
+                ))}
+              </div>
+
+              {/* Expand / Maximize Button */}
+              <button
+                type="button"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-2 rounded-lg text-neutral-400 hover:text-white bg-neutral-900 border border-neutral-800 hover:bg-neutral-800 transition-colors"
+                title={isFullscreen ? "Exit Fullscreen" : "Expand Chart"}
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
             </div>
           </div>
 
           {/* Interactive Recharts Canvas */}
-          <div className="w-full h-[320px] sm:h-[380px] pt-4">
+          <div className={cn("w-full pt-4 transition-all duration-300", isFullscreen ? "h-[540px]" : "h-[320px] sm:h-[380px]")}>
             {loadingCot ? (
               <div className="w-full h-full flex items-center justify-center text-neutral-500 text-xs font-mono animate-pulse">
                 Loading CFTC positioning history...
@@ -607,11 +717,14 @@ export default function MarketPulsePage() {
                 <LineChart data={chartData} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
                   <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
                   <XAxis 
-                    dataKey="axisDate" 
+                    dataKey="date" 
+                    ticks={chartTicks}
                     stroke="#737373" 
                     fontSize={11} 
                     tickLine={false} 
                     axisLine={{ stroke: "#262626" }}
+                    tickFormatter={formatAxisDate}
+                    interval={0}
                   />
                   <YAxis 
                     stroke="#737373" 
@@ -620,7 +733,10 @@ export default function MarketPulsePage() {
                     axisLine={{ stroke: "#262626" }}
                     tickFormatter={(val) => `${Math.round(val / 1000)}k`}
                   />
-                  <RechartsTooltip content={<CustomChartTooltip />} />
+                  <RechartsTooltip 
+                    content={<CustomChartTooltip />} 
+                    cursor={{ stroke: "#525252", strokeWidth: 1, strokeDasharray: "3 3" }}
+                  />
                   <Line 
                     type="monotone" 
                     dataKey="long" 
@@ -639,6 +755,27 @@ export default function MarketPulsePage() {
                     dot={false}
                     activeDot={{ r: 5, fill: "#ef4444", stroke: "#b91c1c", strokeWidth: 2 }}
                   />
+                  {/* Glowing Dots on Latest Point (matching screenshot) */}
+                  {lastDataPoint && (
+                    <>
+                      <ReferenceDot 
+                        x={lastDataPoint.date} 
+                        y={lastDataPoint.long} 
+                        r={4.5} 
+                        fill="#10b981" 
+                        stroke="#047857" 
+                        strokeWidth={2} 
+                      />
+                      <ReferenceDot 
+                        x={lastDataPoint.date} 
+                        y={lastDataPoint.short} 
+                        r={4.5} 
+                        fill="#ef4444" 
+                        stroke="#b91c1c" 
+                        strokeWidth={2} 
+                      />
+                    </>
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (
@@ -653,11 +790,14 @@ export default function MarketPulsePage() {
                   </defs>
                   <CartesianGrid stroke="#262626" strokeDasharray="3 3" vertical={false} />
                   <XAxis 
-                    dataKey="axisDate" 
+                    dataKey="date" 
+                    ticks={chartTicks}
                     stroke="#737373" 
                     fontSize={11} 
                     tickLine={false} 
                     axisLine={{ stroke: "#262626" }}
+                    tickFormatter={formatAxisDate}
+                    interval={0}
                   />
                   <YAxis 
                     stroke="#737373" 
@@ -666,7 +806,10 @@ export default function MarketPulsePage() {
                     axisLine={{ stroke: "#262626" }}
                     tickFormatter={(val) => `${Math.round(val / 1000)}k`}
                   />
-                  <RechartsTooltip content={<CustomChartTooltip />} />
+                  <RechartsTooltip 
+                    content={<CustomChartTooltip />} 
+                    cursor={{ stroke: "#525252", strokeWidth: 1, strokeDasharray: "3 3" }}
+                  />
                   <ReferenceLine y={0} stroke="#525252" strokeDasharray="3 3" />
                   <Area 
                     type="monotone" 
@@ -675,6 +818,16 @@ export default function MarketPulsePage() {
                     strokeWidth={2.5} 
                     fill="url(#netGradient)" 
                   />
+                  {lastDataPoint && (
+                    <ReferenceDot 
+                      x={lastDataPoint.date} 
+                      y={lastDataPoint.net} 
+                      r={4.5} 
+                      fill={lastDataPoint.net >= 0 ? "#10b981" : "#ef4444"} 
+                      stroke="#262626" 
+                      strokeWidth={2} 
+                    />
+                  )}
                 </AreaChart>
               </ResponsiveContainer>
             )}
