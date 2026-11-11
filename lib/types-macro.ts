@@ -203,3 +203,128 @@ export interface AiMacroBriefing {
     analysis: string
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 5 NEW REAL EDGE ENGINE TYPES (Institutional Macro Infusion)
+// ══════════════════════════════════════════════════════════════════════════════
+
+export const DEFAULT_REFERENCE_PRICES: Record<MacroSymbol, number> = {
+  NQ: 27750,
+  ES: 6850,
+  YM: 47500,
+  RTY: 2450,
+  GC: 2950,
+  CL: 78.5,
+  "6E": 1.0850,
+  "6B": 1.3100,
+  BTC: 96000,
+}
+
+export const SYMBOL_VOLATILITY_BETAS: Record<MacroSymbol, number> = {
+  NQ: 1.65,
+  ES: 1.0,
+  YM: 0.85,
+  RTY: 1.45,
+  GC: 0.75,
+  CL: 1.25,
+  "6E": 0.40,
+  "6B": 0.50,
+  BTC: 2.50,
+}
+
+export interface FedRateExpectations {
+  currentRate: number
+  nextMeetingLabel: string
+  meetingDate: string
+  daysUntilMeeting: number
+  cutProbability: number
+  holdProbability: number
+  hikeProbability: number
+  marketBias: "DOVISH" | "NEUTRAL" | "HAWKISH"
+  edgeSignal: string
+  rateTrajectory: "CUTTING" | "HOLDING" | "HIKING"
+  source: "FRED" | "FALLBACK"
+}
+
+export interface EventExpectedMove {
+  eventName: string
+  eventDate: string
+  timeEST: string
+  daysUntil: number
+  referencePrice: number
+  vixLevel: number
+  expectedMovePts: number
+  halfSdPts: number
+  movePercent: number
+  absorptionThreshold: number
+  momentumThreshold: number
+  impact: "High" | "Medium"
+  edgeNote: string
+}
+
+export interface NewsReactionEvent {
+  eventName: string
+  date: string
+  actualPrint: string
+  expectedDirection: "UP" | "DOWN" | "NEUTRAL"
+  actualMoveLabel: string
+  actualMovePositive: boolean
+  reactionType: "CONFIRMED" | "DIVERGENCE_BULLISH" | "DIVERGENCE_BEARISH" | "ABSORPTION"
+  edgeNote: string
+}
+
+export interface DivergenceEngineResult {
+  events: NewsReactionEvent[]
+  score: number // -100 to +100
+  bullishDivergences: number
+  bearishDivergences: number
+  absorptions: number
+  bias: "BULLISH" | "BEARISH" | "NEUTRAL"
+  interpretation: string
+  actionableEdge: string
+}
+
+export interface PriceLevelMap {
+  referencePrice: number
+  symbol: MacroSymbol
+  buySidePool: { low: number; high: number; label: string }
+  prevWeekHigh: number
+  roundNumberAbove: number
+  halfLevelAbove: number
+  sellSidePool: { low: number; high: number; label: string }
+  prevWeekLow: number
+  roundNumberBelow: number
+  halfLevelBelow: number
+  dailyAdrEstimate: number
+  dailyHighTarget: number
+  dailyLowTarget: number
+  magnetZones: Array<{ level: number; label: string; type: "BUY" | "SELL" | "NEUTRAL" }>
+}
+
+export interface ConfluenceScore {
+  score: number // -100 to +100
+  label: string
+  tier: "STRONG_BULL" | "MILD_BULL" | "NEUTRAL" | "MILD_BEAR" | "STRONG_BEAR"
+  components: {
+    cotBias: { score: number; label: string; weight: number }
+    fedWatch: { score: number; label: string; weight: number }
+    expectedMove: { score: number; label: string; weight: number }
+    reactionDivergence: { score: number; label: string; weight: number }
+    priceLevel: { score: number; label: string; weight: number }
+  }
+  interpretation: string
+  propFirmEdge: string
+  riskWarning: string
+}
+
+export interface RealEdgeData {
+  fedRate: FedRateExpectations
+  expectedMoves: EventExpectedMove[]
+  divergenceEngine: DivergenceEngineResult
+  priceLevels: PriceLevelMap
+  confluence: ConfluenceScore
+  generatedAt: string
+  referencePrice: number
+  vixLevel: number
+}
+

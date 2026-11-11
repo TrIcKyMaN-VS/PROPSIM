@@ -8,12 +8,15 @@ import {
   CotReportSummary, 
   EconomicEvent,
   AiMacroBriefing,
-  CotDataPoint 
+  CotDataPoint,
+  RealEdgeData,
+  DEFAULT_REFERENCE_PRICES
 } from "@/lib/types-macro"
 import { 
   getCotReportAction, 
   getEconomicCalendarAction, 
-  generateAiMacroBriefingAction 
+  generateAiMacroBriefingAction,
+  getRealEdgeDataAction
 } from "@/app/actions/macro-actions"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -53,7 +56,11 @@ import {
   Target,
   Zap,
   Split,
-  CalendarDays
+  CalendarDays,
+  ArrowUpRight,
+  ArrowDownRight,
+  Percent,
+  Gauge
 } from "lucide-react"
 import { 
   ResponsiveContainer, 
@@ -125,11 +132,17 @@ export default function MarketPulsePage() {
   const [cotData, setCotData] = useState<CotReportSummary | null>(null)
   const [calendarEvents, setCalendarEvents] = useState<EconomicEvent[]>([])
   const [aiBriefing, setAiBriefing] = useState<AiMacroBriefing | null>(null)
+  const [realEdgeData, setRealEdgeData] = useState<RealEdgeData | null>(null)
   
   // Loading States
   const [loadingCot, setLoadingCot] = useState(true)
   const [loadingCalendar, setLoadingCalendar] = useState(true)
   const [generatingAi, setGeneratingAi] = useState(false)
+  const [loadingRealEdge, setLoadingRealEdge] = useState(false)
+
+  // Real Edge Dynamic Price & Toggle States
+  const [referencePriceInput, setReferencePriceInput] = useState<string>("27750")
+  const [showAiTradeReview, setShowAiTradeReview] = useState(false)
   
   // Calendar Filters
   const [impactFilter, setImpactFilter] = useState<"all" | "high" | "med_high">("high")
@@ -165,7 +178,27 @@ export default function MarketPulsePage() {
     }
   }
 
-  // 2. Fetch Economic Calendar
+  // 2. Fetch Real Edge Engine Data (5 modules)
+  const loadRealEdge = async (symbol: MacroSymbol, priceOverride?: number) => {
+    setLoadingRealEdge(true)
+    try {
+      const priceToUse = priceOverride !== undefined 
+        ? priceOverride 
+        : (parseFloat(referencePriceInput) || DEFAULT_REFERENCE_PRICES[symbol] || 27750)
+      const res = await getRealEdgeDataAction(symbol, priceToUse)
+      if (res.success && res.data) {
+        setRealEdgeData(res.data)
+      } else {
+        toast.error(res.error || "Failed to calculate real edge data")
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Error calculating real edge engine")
+    } finally {
+      setLoadingRealEdge(false)
+    }
+  }
+
+  // 3. Fetch Economic Calendar
   const loadCalendarData = async () => {
     setLoadingCalendar(true)
     try {
@@ -183,7 +216,10 @@ export default function MarketPulsePage() {
   }
 
   useEffect(() => {
+    const defaultPrice = DEFAULT_REFERENCE_PRICES[selectedSymbol] || 27750
+    setReferencePriceInput(String(defaultPrice))
     loadCotData(selectedSymbol)
+    loadRealEdge(selectedSymbol, defaultPrice)
   }, [selectedSymbol])
 
   useEffect(() => {
@@ -859,200 +895,498 @@ export default function MarketPulsePage() {
       {/* ════════════════════════════════════════════════════════════════════════════
           4. THE REAL AI EDGE: BEYOND TRADE REVIEW (INSTITUTIONAL AI INFUSION)
       ════════════════════════════════════════════════════════════════════════════ */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40 pb-2">
+      <div className="space-y-5">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-border/40 pb-3">
           <div>
-            <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-amber-400" />
-              The Real AI Edge Engine (Beyond Trade History)
-            </h2>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-black tracking-tight text-foreground flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+                The Real AI Edge Engine (Beyond Trade History)
+              </h2>
+              <Badge variant="outline" className="text-[10px] font-mono border-amber-500/30 text-amber-400 bg-amber-500/10">
+                Institutional Macro Infusion
+              </Badge>
+            </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Predictive liquidity squeeze models, pre-news execution scenarios, and institutional session roadmaps.
+              FedWatch rate probabilities, VIX straddle expected move, news reaction divergence tracking, and dynamic price liquidity pools.
             </p>
           </div>
-          <Button
-            size="sm"
-            onClick={handleGenerateAiBriefing}
-            disabled={generatingAi}
-            className="h-8 text-xs font-bold gap-1.5 self-start sm:self-auto"
-          >
-            <RotateCw className={cn("w-3.5 h-3.5", generatingAi && "animate-spin")} />
-            {generatingAi ? "Synthesizing..." : "Refresh Edge Model"}
-          </Button>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Dynamic Reference Price Input */}
+            <div className="flex items-center gap-1.5 bg-muted/40 px-2.5 py-1 rounded-lg border border-border/50 text-xs font-mono">
+              <span className="text-[11px] text-muted-foreground font-sans font-medium">Ref Price:</span>
+              <input
+                type="number"
+                value={referencePriceInput}
+                onChange={(e) => setReferencePriceInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    loadRealEdge(selectedSymbol, parseFloat(referencePriceInput) || undefined)
+                  }
+                }}
+                className="w-20 bg-background/90 border border-border/60 rounded px-1.5 py-0.5 text-xs font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                placeholder="27750"
+              />
+              <span className="text-[10px] text-muted-foreground font-bold">{selectedSymbol}</span>
+            </div>
+
+            {realEdgeData && (
+              <Badge variant="secondary" className="font-mono text-xs px-2.5 py-1 bg-muted/40 border border-border/40 text-muted-foreground">
+                VIX: <span className="font-bold text-amber-400 ml-1">{realEdgeData.vixLevel.toFixed(1)}</span>
+              </Badge>
+            )}
+
+            <Button
+              size="sm"
+              onClick={() => loadRealEdge(selectedSymbol, parseFloat(referencePriceInput) || undefined)}
+              disabled={loadingRealEdge}
+              className="h-8 text-xs font-bold gap-1.5"
+            >
+              <RotateCw className={cn("w-3.5 h-3.5", loadingRealEdge && "animate-spin")} />
+              {loadingRealEdge ? "Computing..." : "Update Edge"}
+            </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                if (!aiBriefing && !generatingAi) {
+                  handleGenerateAiBriefing()
+                }
+                setShowAiTradeReview(!showAiTradeReview)
+              }}
+              className="h-8 text-xs font-bold gap-1.5 border-border/60"
+            >
+              <FileText className="w-3.5 h-3.5 text-primary" />
+              {showAiTradeReview ? "Hide Trade Audit" : "AI Trade Audit"}
+            </Button>
+          </div>
         </div>
 
-        {aiBriefing && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* ── EDGE CARD 1: Squeeze & Liquidity Trap Gauge ── */}
+        {/* ── MODULE 5: MASTER CONFLUENCE SCORE BANNER ── */}
+        {realEdgeData && (
+          <Card className="border-border/60 bg-gradient-to-r from-card via-card/90 to-card/60 shadow-lg overflow-hidden">
+            <CardHeader className="p-4 pb-2 border-b border-border/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider border-amber-500/40 text-amber-400 bg-amber-500/10">
+                    Master Confluence Engine
+                  </Badge>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <span>Institutional Macro Confluence</span>
+                  </CardTitle>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className={cn(
+                    "font-mono text-sm px-2.5 py-0.5 font-black",
+                    realEdgeData.confluence.score >= 50 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" :
+                    realEdgeData.confluence.score >= 20 ? "bg-blue-500/20 text-blue-400 border border-blue-500/40" :
+                    realEdgeData.confluence.score <= -20 ? "bg-rose-500/20 text-rose-400 border border-rose-500/40" :
+                    "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                  )}>
+                    {realEdgeData.confluence.score > 0 ? `+${realEdgeData.confluence.score}` : realEdgeData.confluence.score} / 100 &bull; {realEdgeData.confluence.label}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              {/* Confluence 5-Component Breakdown */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">1. COT Bias (35%)</span>
+                  <span className="text-xs font-bold text-emerald-400 block font-mono">+{realEdgeData.confluence.components.cotBias.score} pts</span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{realEdgeData.confluence.components.cotBias.label}</p>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">2. FedWatch (20%)</span>
+                  <span className="text-xs font-bold text-blue-400 block font-mono">+{realEdgeData.confluence.components.fedWatch.score} pts</span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{realEdgeData.confluence.components.fedWatch.label}</p>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">3. Expected Move (15%)</span>
+                  <span className="text-xs font-bold text-primary block font-mono">+{realEdgeData.confluence.components.expectedMove.score} pts</span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{realEdgeData.confluence.components.expectedMove.label}</p>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">4. Reaction Div (20%)</span>
+                  <span className="text-xs font-bold text-emerald-400 block font-mono">+{realEdgeData.confluence.components.reactionDivergence.score} pts</span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{realEdgeData.confluence.components.reactionDivergence.label}</p>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-muted/20 border border-border/40 space-y-1 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">5. Price Level (10%)</span>
+                  <span className="text-xs font-bold text-amber-400 block font-mono">+{realEdgeData.confluence.components.priceLevel.score} pts</span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">{realEdgeData.confluence.components.priceLevel.label}</p>
+                </div>
+              </div>
+
+              {/* Prop Firm Safeguard & Risk Warning */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-start gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
+                  <div>
+                    <span className="font-bold block font-sans">Prop Firm Execution Rule (Apex / Topstep):</span>
+                    <p className="text-foreground/90 leading-relaxed text-[11px] mt-0.5">{realEdgeData.confluence.propFirmEdge}</p>
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+                  <div>
+                    <span className="font-bold block font-sans">Trailing Drawdown Protection:</span>
+                    <p className="text-foreground/90 leading-relaxed text-[11px] mt-0.5">{realEdgeData.confluence.riskWarning}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── 4 DETAIL EDGE MODULES (2x2 GRID) ── */}
+        {realEdgeData && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* ── MODULE 1: FEDWATCH RATE PROBABILITY DASHBOARD ── */}
             <Card className="border-border/60 bg-card/60 shadow-md">
               <CardHeader className="p-4 pb-2 border-b border-border/40">
-                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
-                  <span>1. Liquidity Squeeze Model</span>
-                  <Crosshair className="w-4 h-4 text-rose-400" />
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-blue-400 flex items-center justify-between">
+                  <span>Module 1: FedWatch Rate Probabilities</span>
+                  <Gauge className="w-4 h-4 text-blue-400" />
                 </CardDescription>
                 <CardTitle className="text-base font-bold flex items-center justify-between pt-1">
-                  <span>Squeeze Probability</span>
-                  <Badge variant="destructive" className="font-mono text-sm px-2 py-0.5">
-                    {aiBriefing.squeezeProbability}% Risk
+                  <span>FOMC Decision Probabilities</span>
+                  <Badge variant="outline" className="font-mono text-xs border-blue-500/30 text-blue-400">
+                    Next: {realEdgeData.fedRate.nextMeetingLabel} ({realEdgeData.fedRate.daysUntilMeeting}d)
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3.5 text-xs">
-                {/* Visual meter */}
-                <div className="space-y-1">
-                  <div className="w-full bg-muted/40 h-2.5 rounded-full overflow-hidden border border-border/40">
-                    <div 
-                      className={cn(
-                        "h-full transition-all duration-700",
-                        aiBriefing.squeezeProbability >= 70 ? "bg-rose-500" :
-                        aiBriefing.squeezeProbability <= 35 ? "bg-emerald-500" : "bg-amber-500"
-                      )}
-                      style={{ width: `${aiBriefing.squeezeProbability}%` }}
-                    />
+                <div className="flex items-center justify-between bg-muted/20 p-2.5 rounded-lg border border-border/30">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block">Current Fed Funds Rate</span>
+                    <span className="text-lg font-black font-mono text-foreground">{realEdgeData.fedRate.currentRate.toFixed(2)}%</span>
                   </div>
-                  <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-                    <span>Low Risk (0%)</span>
-                    <span>High Flush Risk (100%)</span>
+                  <div className="text-right">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold block">Macro Regime Bias</span>
+                    <Badge className={cn(
+                      "font-mono font-bold text-xs mt-0.5",
+                      realEdgeData.fedRate.marketBias === "DOVISH" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                      realEdgeData.fedRate.marketBias === "HAWKISH" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                      "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                    )}>
+                      {realEdgeData.fedRate.marketBias} ({realEdgeData.fedRate.rateTrajectory})
+                    </Badge>
                   </div>
                 </div>
 
-                <p className="text-foreground/90 leading-relaxed font-sans text-xs bg-muted/20 p-2.5 rounded-lg border border-border/30">
-                  {aiBriefing.squeezeWarning}
-                </p>
-
-                {/* Key Stop Liquidity Targets */}
-                <div className="space-y-2 pt-1 border-t border-border/40 font-mono">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block font-sans">
-                    Institutional Stop-Loss Liquidity Pools:
+                {/* Probability Distribution Bars */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block">
+                    Priced-In Distribution (FRED FedFunds Series):
                   </span>
                   
-                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between text-xs">
-                    <span className="text-emerald-400 font-bold">Buy-Side Pool:</span>
-                    <span className="font-bold text-foreground">{aiBriefing.liquidityPoolTargets.buySide}</span>
+                  {/* Cut probability */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-emerald-400 font-bold">25bps Rate Cut</span>
+                      <span className="font-bold text-foreground">{realEdgeData.fedRate.cutProbability}%</span>
+                    </div>
+                    <div className="w-full bg-muted/40 h-2 rounded-full overflow-hidden">
+                      <div className="bg-emerald-500 h-full rounded-full transition-all duration-700" style={{ width: `${realEdgeData.fedRate.cutProbability}%` }} />
+                    </div>
                   </div>
 
-                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-between text-xs">
-                    <span className="text-rose-400 font-bold">Sell-Side Pool:</span>
-                    <span className="font-bold text-foreground">{aiBriefing.liquidityPoolTargets.sellSide}</span>
+                  {/* Hold probability */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-amber-400 font-bold">Rate Hold (Unchanged)</span>
+                      <span className="font-bold text-foreground">{realEdgeData.fedRate.holdProbability}%</span>
+                    </div>
+                    <div className="w-full bg-muted/40 h-2 rounded-full overflow-hidden">
+                      <div className="bg-amber-500 h-full rounded-full transition-all duration-700" style={{ width: `${realEdgeData.fedRate.holdProbability}%` }} />
+                    </div>
                   </div>
+
+                  {/* Hike probability */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-rose-400 font-bold">Rate Hike</span>
+                      <span className="font-bold text-foreground">{realEdgeData.fedRate.hikeProbability}%</span>
+                    </div>
+                    <div className="w-full bg-muted/40 h-2 rounded-full overflow-hidden">
+                      <div className="bg-rose-500 h-full rounded-full transition-all duration-700" style={{ width: `${realEdgeData.fedRate.hikeProbability}%` }} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actionable Fed Edge */}
+                <p className="text-foreground/90 leading-relaxed font-sans text-xs bg-muted/20 p-2.5 rounded-lg border border-border/30">
+                  <span className="font-bold text-blue-400 mr-1">Institutional Edge:</span>
+                  {realEdgeData.fedRate.edgeSignal}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* ── MODULE 2: EXPECTED MOVE CALCULATOR (NEWS STRADDLE PRICING) ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md">
+              <CardHeader className="p-4 pb-2 border-b border-border/40">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center justify-between">
+                  <span>Module 2: Expected Move Calculator</span>
+                  <Zap className="w-4 h-4 text-primary" />
+                </CardDescription>
+                <CardTitle className="text-base font-bold flex items-center justify-between pt-1">
+                  <span>Catalyst Straddle Move Limits</span>
+                  <Badge variant="outline" className="font-mono text-xs border-primary/30 text-primary">
+                    VIX {realEdgeData.vixLevel.toFixed(1)} &bull; {selectedSymbol} Ref {realEdgeData.referencePrice}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4 space-y-3 text-xs">
+                <div className="p-2 rounded bg-muted/20 border border-border/30 text-[11px] text-muted-foreground flex items-center justify-between">
+                  <span>Formula: <code className="text-primary font-mono font-bold">Price &times; (IV / 100) &times; &radic;(DTE / 252)</code></span>
+                  <span className="text-[10px] text-muted-foreground">ATM Straddle Implied Move</span>
+                </div>
+
+                <div className="space-y-2.5 max-h-[310px] overflow-y-auto pr-1">
+                  {realEdgeData.expectedMoves.map((evt, idx) => (
+                    <div key={idx} className="p-2.5 rounded-xl border border-border/40 bg-muted/10 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                          <Flame className="w-3.5 h-3.5 text-rose-400" />
+                          {evt.eventName}
+                        </span>
+                        <Badge variant="outline" className="font-mono text-[10px] border-border/50 text-foreground">
+                          {evt.timeEST} EST &bull; in {evt.daysUntil}d
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5 text-center font-mono text-[11px]">
+                        <div className="p-1.5 rounded bg-primary/10 border border-primary/20">
+                          <span className="text-[9px] text-primary block uppercase font-bold font-sans">Expected Move</span>
+                          <span className="font-bold text-primary">&plusmn;{evt.expectedMovePts} pts ({evt.movePercent}%)</span>
+                        </div>
+
+                        <div className="p-1.5 rounded bg-amber-500/10 border border-amber-500/20">
+                          <span className="text-[9px] text-amber-400 block uppercase font-bold font-sans">Absorption Zone</span>
+                          <span className="font-bold text-amber-300">&lt; {evt.absorptionThreshold} pts</span>
+                        </div>
+
+                        <div className="p-1.5 rounded bg-emerald-500/10 border border-emerald-500/20">
+                          <span className="text-[9px] text-emerald-400 block uppercase font-bold font-sans">Momentum Break</span>
+                          <span className="font-bold text-emerald-300">&gt; {evt.momentumThreshold} pts</span>
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        {evt.edgeNote}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>
 
-            {/* ── EDGE CARD 2: Pre-News "If-Then" Scenario Matrix ── */}
-            <Card className="border-border/60 bg-card/60 shadow-md lg:col-span-2">
+            {/* ── MODULE 3: NEWS REACTION DIVERGENCE SCORE ── */}
+            <Card className="border-border/60 bg-card/60 shadow-md">
               <CardHeader className="p-4 pb-2 border-b border-border/40">
-                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center justify-between">
-                  <span>2. Pre-News Catalyst Execution Matrix</span>
-                  <Zap className="w-4 h-4 text-primary" />
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center justify-between">
+                  <span>Module 3: News Reaction Divergence</span>
+                  <Crosshair className="w-4 h-4 text-rose-400" />
                 </CardDescription>
-                <CardTitle className="text-base font-bold flex items-center gap-2 pt-1">
-                  <span>If-Then Scenario Simulator (Don&apos;t Gamble on News)</span>
+                <CardTitle className="text-base font-bold flex items-center justify-between pt-1">
+                  <span>Priced-In vs. Actual Move Score</span>
+                  <Badge className={cn(
+                    "font-mono text-xs px-2 py-0.5",
+                    realEdgeData.divergenceEngine.score >= 25 ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                    realEdgeData.divergenceEngine.score <= -25 ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                    "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  )}>
+                    Divergence Score: {realEdgeData.divergenceEngine.score > 0 ? `+${realEdgeData.divergenceEngine.score}` : realEdgeData.divergenceEngine.score}
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3 text-xs">
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                  Before high-impact events drop, institutions pre-position for 3 outcomes. Follow this probabilistic execution plan:
+                  {realEdgeData.divergenceEngine.interpretation}
                 </p>
 
-                <div className="space-y-2.5">
-                  {aiBriefing.economicScenarioMatrix.map((item, idx) => (
-                    <div key={idx} className="p-3 rounded-xl border border-border/50 bg-muted/10 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-foreground text-xs flex items-center gap-2">
-                          <Flame className="w-3.5 h-3.5 text-rose-400" />
-                          {item.eventName} ({item.timeEST} EST)
-                        </span>
-                        <Badge variant="outline" className="text-[10px] font-bold uppercase border-rose-500/30 text-rose-400">
-                          {item.impact} Impact
+                {/* Last 5 Events Table */}
+                <div className="space-y-2 border border-border/40 rounded-xl p-2 bg-muted/10 font-mono text-[11px]">
+                  <div className="grid grid-cols-4 pb-1 border-b border-border/30 text-[10px] uppercase font-bold text-muted-foreground font-sans">
+                    <span>Event &amp; Print</span>
+                    <span className="text-center">Expected</span>
+                    <span className="text-center">Actual Reaction</span>
+                    <span className="text-right">Divergence Type</span>
+                  </div>
+
+                  {realEdgeData.divergenceEngine.events.map((evt, idx) => (
+                    <div key={idx} className="grid grid-cols-4 py-1.5 border-b border-border/20 last:border-b-0 items-center">
+                      <div>
+                        <span className="font-bold text-foreground block font-sans text-xs">{evt.eventName}</span>
+                        <span className="text-[10px] text-muted-foreground">{evt.actualPrint}</span>
+                      </div>
+
+                      <div className="text-center">
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 font-bold">
+                          {evt.expectedDirection}
                         </Badge>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono text-[11px]">
-                        {/* Hot Scenario */}
-                        <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25 space-y-1">
-                          <span className="font-bold text-rose-400 block font-sans">IF HOT / HAWKISH</span>
-                          <p className="text-foreground/90 leading-tight">{item.hotScenario}</p>
-                        </div>
+                      <div className="text-center font-bold text-foreground">
+                        {evt.actualMoveLabel}
+                      </div>
 
-                        {/* Cool Scenario */}
-                        <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 space-y-1">
-                          <span className="font-bold text-emerald-400 block font-sans">IF COOL / DOVISH</span>
-                          <p className="text-foreground/90 leading-tight">{item.coolScenario}</p>
-                        </div>
-
-                        {/* In-Line Scenario */}
-                        <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 space-y-1">
-                          <span className="font-bold text-amber-400 block font-sans">IF IN-LINE / CHOP</span>
-                          <p className="text-foreground/90 leading-tight">{item.inlineScenario}</p>
-                        </div>
+                      <div className="text-right">
+                        <Badge className={cn(
+                          "text-[9px] px-1.5 py-0 font-bold",
+                          evt.reactionType === "DIVERGENCE_BULLISH" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" :
+                          evt.reactionType === "ABSORPTION" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                          evt.reactionType === "DIVERGENCE_BEARISH" ? "bg-rose-500/20 text-rose-400 border border-rose-500/30" :
+                          "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                        )}>
+                          {evt.reactionType.replace("_", " ")}
+                        </Badge>
                       </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
 
-            {/* ── EDGE CARD 3: Weekly Session-by-Session Master Plan ── */}
-            <Card className="border-border/60 bg-card/60 shadow-md lg:col-span-2">
-              <CardHeader className="p-4 pb-2 border-b border-border/40">
-                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
-                  <span>3. Weekly Session Roadmap (Mon &rarr; Fri)</span>
-                  <CalendarDays className="w-4 h-4 text-emerald-400" />
-                </CardDescription>
-                <CardTitle className="text-base font-bold pt-1">
-                  Institutional Weekly Cycle Playbook
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3 text-xs">
-                <div className="grid grid-cols-1 sm:grid-cols-5 gap-2.5">
-                  {aiBriefing.weeklySessionPlan.map((dayPlan, idx) => (
-                    <div key={idx} className="p-2.5 rounded-xl border border-border/40 bg-muted/10 space-y-1.5 flex flex-col justify-between">
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-foreground text-xs uppercase">{dayPlan.day}</span>
-                          <Badge variant="outline" className={cn(
-                            "text-[9px] font-bold px-1 py-0 uppercase",
-                            dayPlan.riskLevel === "HIGH" ? "border-rose-500/40 text-rose-400" :
-                            dayPlan.riskLevel === "MEDIUM" ? "border-amber-500/40 text-amber-400" :
-                            "border-emerald-500/40 text-emerald-400"
-                          )}>
-                            {dayPlan.riskLevel}
-                          </Badge>
-                        </div>
-                        <span className="text-[10px] text-primary font-mono font-bold block">{dayPlan.phase}</span>
-                        <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">
-                          {dayPlan.tacticalAction}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs">
+                  <span className="font-bold font-sans block">Actionable News Edge:</span>
+                  <p className="text-foreground/90 leading-tight mt-0.5">{realEdgeData.divergenceEngine.actionableEdge}</p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* ── EDGE CARD 4: Intermarket Macro Divergence ── */}
+            {/* ── MODULE 4: DYNAMIC PRICE LEVEL & LIQUIDITY LADDER ── */}
             <Card className="border-border/60 bg-card/60 shadow-md">
               <CardHeader className="p-4 pb-2 border-b border-border/40">
-                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-blue-400 flex items-center justify-between">
-                  <span>4. Intermarket Divergence Scanner</span>
-                  <Split className="w-4 h-4 text-blue-400" />
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center justify-between">
+                  <span>Module 4: Dynamic Price Level Ladder</span>
+                  <Target className="w-4 h-4 text-emerald-400" />
                 </CardDescription>
-                <CardTitle className="text-base font-bold pt-1">
-                  {aiBriefing.macroDivergence.title}
+                <CardTitle className="text-base font-bold flex items-center justify-between pt-1">
+                  <span>Institutional Liquidity Pools</span>
+                  <Badge variant="outline" className="font-mono text-xs border-emerald-500/30 text-emerald-400">
+                    ADR: &plusmn;{realEdgeData.priceLevels.dailyAdrEstimate} pts
+                  </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-3 text-xs">
-                <p className="text-foreground/90 leading-relaxed bg-muted/20 p-3 rounded-xl border border-border/40">
-                  {aiBriefing.macroDivergence.analysis}
+                <p className="text-muted-foreground text-xs leading-relaxed">
+                  Levels computed dynamically around current <strong className="text-foreground">{selectedSymbol} reference price ({realEdgeData.referencePrice})</strong>. Algorithms target resting liquidity pools above swing highs and below swing lows:
                 </p>
-                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4 shrink-0" />
-                  <span>Apex/Topstep Rule: {aiBriefing.propFirmRuleSafeguard}</span>
+
+                {/* Visual Ladder */}
+                <div className="space-y-1.5 font-mono text-[11px]">
+                  {/* PWH / Target */}
+                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-between">
+                    <span className="text-rose-400 font-bold font-sans">Previous Week High Target</span>
+                    <span className="font-bold text-foreground">{realEdgeData.priceLevels.prevWeekHigh.toLocaleString()} (+{realEdgeData.priceLevels.prevWeekHigh - realEdgeData.referencePrice} pts)</span>
+                  </div>
+
+                  {/* Round number above */}
+                  <div className="p-2 rounded-lg bg-rose-500/5 border border-rose-500/15 flex items-center justify-between">
+                    <span className="text-rose-300 font-sans">Major Round Number (Institutional Magnet)</span>
+                    <span className="font-bold text-foreground">{realEdgeData.priceLevels.roundNumberAbove.toLocaleString()}</span>
+                  </div>
+
+                  {/* Buy-Side Liquidity Pool */}
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
+                    <div>
+                      <span className="text-emerald-400 font-bold font-sans block">Buy-Side Stop Pool (Resting Orders)</span>
+                      <span className="text-[10px] text-muted-foreground font-sans">Stop-runs into this pool trigger short squeezes</span>
+                    </div>
+                    <span className="font-bold text-emerald-400 text-xs">
+                      {realEdgeData.priceLevels.buySidePool.low.toLocaleString()} &ndash; {realEdgeData.priceLevels.buySidePool.high.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Anchor Price */}
+                  <div className="p-2.5 rounded-lg bg-primary/20 border-2 border-primary/40 flex items-center justify-between shadow-inner">
+                    <span className="text-primary font-bold font-sans uppercase flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-primary animate-ping" />
+                      Current Reference Anchor
+                    </span>
+                    <span className="font-black text-foreground text-sm">{realEdgeData.referencePrice.toLocaleString()}</span>
+                  </div>
+
+                  {/* Sell-Side Liquidity Pool */}
+                  <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-between">
+                    <div>
+                      <span className="text-rose-400 font-bold font-sans block">Sell-Side Stop Pool (Resting Orders)</span>
+                      <span className="text-[10px] text-muted-foreground font-sans">Break below this pool triggers flush runs</span>
+                    </div>
+                    <span className="font-bold text-rose-400 text-xs">
+                      {realEdgeData.priceLevels.sellSidePool.low.toLocaleString()} &ndash; {realEdgeData.priceLevels.sellSidePool.high.toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Round number below */}
+                  <div className="p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/15 flex items-center justify-between">
+                    <span className="text-emerald-300 font-sans">Major Round Number (Support Defense)</span>
+                    <span className="font-bold text-foreground">{realEdgeData.priceLevels.roundNumberBelow.toLocaleString()}</span>
+                  </div>
+
+                  {/* PWL / Target */}
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+                    <span className="text-emerald-400 font-bold font-sans">Previous Week Low Target</span>
+                    <span className="font-bold text-foreground">{realEdgeData.priceLevels.prevWeekLow.toLocaleString()} ({realEdgeData.priceLevels.prevWeekLow - realEdgeData.referencePrice} pts)</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* ── OPTIONAL: COLLAPSIBLE AI TRADER AUDIT (REVIEWS USER'S 60 TRADES) ── */}
+        {showAiTradeReview && aiBriefing && (
+          <Card className="border-border/60 bg-muted/10 shadow-md">
+            <CardHeader className="p-4 pb-2 border-b border-border/40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-primary" />
+                    Personal Account Alignment Audit ({accountTrades.length} Trades Analyzed)
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    Historical cross-reference between your trade entries and smart money COT regimes
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="font-mono text-xs">
+                  Alignment: {aiBriefing.tradeAlignmentScore}%
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 space-y-1">
+                  <span className="text-emerald-400 font-bold block">Smart Money Aligned Trades</span>
+                  <div className="flex justify-between font-mono text-xs">
+                    <span>Trades: {aiBriefing.traderStats.alignedTradesCount}</span>
+                    <span>Win Rate: {aiBriefing.traderStats.alignedWinRate}%</span>
+                    <span>PnL: {fmtCurrency(aiBriefing.traderStats.alignedPnL, { sign: true })}</span>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 space-y-1">
+                  <span className="text-rose-400 font-bold block">Counter-Trend Fades</span>
+                  <div className="flex justify-between font-mono text-xs">
+                    <span>Trades: {aiBriefing.traderStats.counterTradesCount}</span>
+                    <span>Win Rate: {aiBriefing.traderStats.counterWinRate}%</span>
+                    <span>PnL: {fmtCurrency(aiBriefing.traderStats.counterPnL, { sign: true })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-foreground/90 leading-relaxed bg-muted/20 p-3 rounded-lg border border-border/30">
+                {aiBriefing.actionablePlaybookAdvice}
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
 
