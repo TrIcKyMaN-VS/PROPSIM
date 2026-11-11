@@ -143,6 +143,7 @@ export default function MarketPulsePage() {
   // Real Edge Dynamic Price & Toggle States
   const [referencePriceInput, setReferencePriceInput] = useState<string>("27750")
   const [showAiTradeReview, setShowAiTradeReview] = useState(false)
+  const [showTechnicalDetails, setShowTechnicalDetails] = useState(true)
   
   // Calendar Filters
   const [impactFilter, setImpactFilter] = useState<"all" | "high" | "med_high">("high")
@@ -964,8 +965,152 @@ export default function MarketPulsePage() {
           </div>
         </div>
 
+        {/* ── HERO: TODAY'S SIMPLE ACTION PLAN (WHAT TO DO IN SIMPLE ENGLISH) ── */}
+        {realEdgeData && realEdgeData.simplePlaybook && (
+          <Card className="border-2 border-primary/30 bg-gradient-to-br from-card via-card/95 to-primary/5 shadow-xl overflow-hidden">
+            <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/40 bg-muted/20">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <CardTitle className="text-lg font-black tracking-tight flex items-center gap-2">
+                      <span>Today&apos;s Action Plan: What Should I Do Right Now?</span>
+                    </CardTitle>
+                  </div>
+                  <CardDescription className="text-xs text-muted-foreground">
+                    Simple, direct instructions for today &amp; this week &bull; No complex jargon
+                  </CardDescription>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Badge className={cn(
+                    "font-sans text-xs sm:text-sm px-3.5 py-1 font-black uppercase tracking-wide",
+                    realEdgeData.simplePlaybook.biasTone === "BULLISH" ? "bg-emerald-500 text-white shadow-emerald-500/20 shadow-md" :
+                    realEdgeData.simplePlaybook.biasTone === "BEARISH" ? "bg-rose-500 text-white shadow-rose-500/20 shadow-md" :
+                    "bg-amber-500 text-white"
+                  )}>
+                    {realEdgeData.simplePlaybook.todayBias}
+                  </Badge>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              {/* Bottom Line Callout */}
+              <div className="p-3.5 rounded-xl bg-background/80 border border-border/50 text-foreground font-medium text-sm leading-relaxed flex items-start gap-3 shadow-sm">
+                <Compass className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-xs uppercase tracking-wider text-primary block mb-0.5">Bottom Line for Today:</span>
+                  <p className="text-foreground text-sm font-semibold">{realEdgeData.simplePlaybook.bottomLineSummary}</p>
+                </div>
+              </div>
+
+              {/* 3 Step Action Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Step 1: Where to Enter */}
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-emerald-400" />
+                      1. Where to Enter (Buy Zone)
+                    </span>
+                  </div>
+                  <span className="text-base font-black font-mono text-emerald-300 block">
+                    {realEdgeData.simplePlaybook.entryZone}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Wait for price to drop into this zone. Don&apos;t chase high prices. Enter when you see a 5m green rejection candle.
+                  </p>
+                </div>
+
+                {/* Step 2: Target */}
+                <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/25 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                      <ArrowUpRight className="w-3.5 h-3.5 text-primary" />
+                      2. Where to Take Profit
+                    </span>
+                  </div>
+                  <span className="text-base font-black font-mono text-primary block">
+                    {realEdgeData.simplePlaybook.takeProfitTarget}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Lock in profits when price hits this level. Take off 50% of your position and move stop loss to breakeven.
+                  </p>
+                </div>
+
+                {/* Step 3: Invalidation / Stop */}
+                <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                      <ShieldAlert className="w-3.5 h-3.5 text-rose-400" />
+                      3. Stop Loss (When You Are Wrong)
+                    </span>
+                  </div>
+                  <span className="text-base font-black font-mono text-rose-300 block">
+                    {realEdgeData.simplePlaybook.stopLossArea}
+                  </span>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    If price closes below here, today&apos;s trade idea is invalid. Exit immediately. Do not hold and hope.
+                  </p>
+                </div>
+              </div>
+
+              {/* 3 Guidance Callouts */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                {/* This week */}
+                <div className="p-3 rounded-xl bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-blue-400" />
+                    This Week&apos;s Expectation
+                  </span>
+                  <p className="text-xs text-foreground/90 leading-relaxed">
+                    {realEdgeData.simplePlaybook.thisWeekOutlook}
+                  </p>
+                </div>
+
+                {/* News rule */}
+                <div className="p-3 rounded-xl bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
+                    News Execution Rule
+                  </span>
+                  <p className="text-xs text-foreground/90 leading-relaxed">
+                    {realEdgeData.simplePlaybook.newsActionRule}
+                  </p>
+                </div>
+
+                {/* Prop firm rule */}
+                <div className="p-3 rounded-xl bg-muted/20 border border-border/40 space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+                    Prop Firm Safety Rule
+                  </span>
+                  <p className="text-xs text-foreground/90 leading-relaxed font-semibold text-emerald-400/90">
+                    {realEdgeData.simplePlaybook.propFirmRuleToday}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── TECHNICAL DETAILS COLLAPSIBLE TOGGLE ── */}
+        <div className="flex items-center justify-between border-t border-border/40 pt-2">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Detailed Institutional Analysis (FedWatch &bull; Straddle Move &bull; Reaction Divergence)
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowTechnicalDetails(!showTechnicalDetails)}
+            className="h-7 text-xs text-muted-foreground hover:text-foreground font-mono"
+          >
+            {showTechnicalDetails ? "▼ Hide Technical Breakdown" : "▶ Expand Technical Breakdown"}
+          </Button>
+        </div>
+
         {/* ── MODULE 5: MASTER CONFLUENCE SCORE BANNER ── */}
-        {realEdgeData && (
+        {showTechnicalDetails && realEdgeData && (
           <Card className="border-border/60 bg-gradient-to-r from-card via-card/90 to-card/60 shadow-lg overflow-hidden">
             <CardHeader className="p-4 pb-2 border-b border-border/40">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -1047,7 +1192,7 @@ export default function MarketPulsePage() {
         )}
 
         {/* ── 4 DETAIL EDGE MODULES (2x2 GRID) ── */}
-        {realEdgeData && (
+        {showTechnicalDetails && realEdgeData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {/* ── MODULE 1: FEDWATCH RATE PROBABILITY DASHBOARD ── */}
             <Card className="border-border/60 bg-card/60 shadow-md">

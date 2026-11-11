@@ -317,12 +317,25 @@ export interface ConfluenceScore {
   riskWarning: string
 }
 
+export interface SimplePlaybook {
+  todayBias: "BUY DIPS ONLY" | "SELL RALLIES ONLY" | "WAIT / SIT ON HANDS"
+  biasTone: "BULLISH" | "BEARISH" | "NEUTRAL"
+  bottomLineSummary: string
+  entryZone: string
+  takeProfitTarget: string
+  stopLossArea: string
+  thisWeekOutlook: string
+  newsActionRule: string
+  propFirmRuleToday: string
+}
+
 export interface RealEdgeData {
   fedRate: FedRateExpectations
   expectedMoves: EventExpectedMove[]
   divergenceEngine: DivergenceEngineResult
   priceLevels: PriceLevelMap
   confluence: ConfluenceScore
+  simplePlaybook: SimplePlaybook
   generatedAt: string
   referencePrice: number
   vixLevel: number

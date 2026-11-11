@@ -15,6 +15,7 @@ import {
   DivergenceEngineResult,
   PriceLevelMap,
   ConfluenceScore,
+  SimplePlaybook,
   DEFAULT_REFERENCE_PRICES,
   SYMBOL_VOLATILITY_BETAS
 } from "@/lib/types-macro"
@@ -1060,6 +1061,31 @@ export async function getRealEdgeDataAction(
       riskWarning: "Strictly close or hedge positions before high-impact releases if your prop account is within 30% of maximum trailing drawdown."
     }
 
+    // ── Module 6: Simple Playbook (Plain English Action Plan) ──
+    const buyLow = sellSidePool.low
+    const buyHigh = sellSidePool.high + Math.round(adr * 0.15)
+    const tpTarget = roundNumberAbove
+    const slLevel = sellSidePool.low - Math.round(adr * 0.25)
+    const nextEvent = expectedMoves[0]
+
+    const simplePlaybook: SimplePlaybook = {
+      todayBias: totalConfluence >= 20 ? "BUY DIPS ONLY" : (totalConfluence <= -20 ? "SELL RALLIES ONLY" : "WAIT / SIT ON HANDS"),
+      biasTone: totalConfluence >= 20 ? "BULLISH" : (totalConfluence <= -20 ? "BEARISH" : "NEUTRAL"),
+      bottomLineSummary: totalConfluence >= 20
+        ? `Smart money is buying ${symbol}. Do NOT short. Look for buying opportunities when price dips into key support.`
+        : (totalConfluence <= -20
+          ? `Sellers are in control. Do NOT buy dips. Look for short entries when price bounces into resistance.`
+          : `Market is in chop mode. No clear trend. Sit on your hands or trade half size.`),
+      entryZone: `${buyLow.toLocaleString()} – ${buyHigh.toLocaleString()}`,
+      takeProfitTarget: `${tpTarget.toLocaleString()} (+${tpTarget - refPrice} pts)`,
+      stopLossArea: `Below ${slLevel.toLocaleString()}`,
+      thisWeekOutlook: `Institutions are holding large net long positions on the weekly COT report. Their main weekly target is to test ${priceLevels.prevWeekHigh.toLocaleString()} (+${priceLevels.prevWeekHigh - refPrice} pts). Expect early-week pullbacks to be bought aggressively.`,
+      newsActionRule: nextEvent
+        ? `Upcoming ${nextEvent.eventName} (${nextEvent.timeEST} EST): Close all open trades 5 minutes before. Do NOT gamble on the release. Wait 15 minutes after news to enter on a confirmed reversal.`
+        : `No immediate red folder news today. Normal technical levels apply.`,
+      propFirmRuleToday: `Trade max 1–2 Micro contracts (MNQ). Max 2 trades per day. If you lose $250 today, shut down your platform to protect your funded account.`
+    }
+
     return {
       success: true,
       data: {
@@ -1068,6 +1094,7 @@ export async function getRealEdgeDataAction(
         divergenceEngine,
         priceLevels,
         confluence,
+        simplePlaybook,
         generatedAt: new Date().toISOString(),
         referencePrice: refPrice,
         vixLevel
